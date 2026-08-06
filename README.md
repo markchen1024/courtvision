@@ -38,6 +38,14 @@ detection required.
 
 ## Run it
 
+The models need a GPU-sized environment, kept outside the repo:
+
+```bash
+C:/Users/Mark/.venvs/courtvision/Scripts/python.exe pipeline/try_models.py --every 30
+```
+
+The viewer itself needs nothing but Python:
+
 ```bash
 python pipeline/make_sample_data.py --seconds 180   # writes web/data/sample.json
 python pipeline/serve.py                            # open http://localhost:8765
