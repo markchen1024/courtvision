@@ -1,0 +1,32 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.python-version
+
+# Node
+node_modules/
+dist/
+.next/
+
+# Env
+.env
+.env.*
+
+# Model weights & footage — never commit these
+*.pt
+*.onnx
+*.mp4
+*.mov
+*.mkv
+data/
+footage/
+output/
+runs/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
