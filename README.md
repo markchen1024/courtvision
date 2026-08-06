@@ -22,6 +22,16 @@ of having real court coordinates.
 - Homography via `cv2.findHomography` / `getPerspectiveTransform`
 - Simple web front end to play the video alongside the top-down view
 
+## Run it
+
+```bash
+python pipeline/make_sample_data.py --seconds 180   # writes web/data/sample.json
+cd web && python -m http.server 8765                # open http://localhost:8765
+```
+
+Drop a clip at `web/media/game.mp4` and it plays automatically. With no clip the
+page falls back to an internal clock so there is always something moving.
+
 ## Status
 
 Experimental. Deliberately scoped: no ball tracking (small, fast, heavily occluded — a

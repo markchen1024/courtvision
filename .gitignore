@@ -30,3 +30,6 @@ runs/
 Thumbs.db
 .idea/
 .vscode/
+
+# demo footage lives here, never committed
+web/media/

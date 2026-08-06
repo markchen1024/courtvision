@@ -4,136 +4,272 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>courtvision</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600&family=Inter:wght@400;500&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
-  :root {
-    --bg: #0d1014;
-    --panel: #161b22;
-    --line: #262d36;
-    --text: #e6edf3;
-    --dim: #7d8894;
-    --home: #f0883e;
-    --away: #4c9be8;
-    --good: #3fb950;
-  }
-  * { box-sizing: border-box; }
-  body {
-    margin: 0; background: var(--bg); color: var(--text);
-    font: 14px/1.5 ui-sans-serif, -apple-system, "Segoe UI", system-ui, sans-serif;
-  }
-  header {
-    display: flex; align-items: baseline; gap: 14px;
-    padding: 18px 24px; border-bottom: 1px solid var(--line);
-  }
-  header h1 { margin: 0; font-size: 17px; letter-spacing: -0.01em; }
-  header .tag { color: var(--dim); font-size: 12px; }
-  header .clock { margin-left: auto; font-variant-numeric: tabular-nums; color: var(--dim); }
+/* ═══════════════════════════════════════════════════════════════════════════
+   Tokens — "Blueprint". Near-black with a cool cast, hairlines instead of
+   shadows, one acid-lime signal colour, mono for anything the machine produced.
+   ═══════════════════════════════════════════════════════════════════════════ */
+:root {
+  --void: #08090c;
+  --surface: #0e1015;
+  --surface-raised: #151920;
+  --surface-inset: #050608;
 
-  main { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; padding: 20px 24px; }
-  @media (max-width: 980px) { main { grid-template-columns: 1fr; } }
+  --line: #23272f;
+  --line-soft: #161a20;
+  --line-strong: #333a45;
 
-  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
-  .card h2 {
-    margin: 0; padding: 10px 14px; font-size: 11px; font-weight: 600;
-    letter-spacing: 0.08em; text-transform: uppercase; color: var(--dim);
-    border-bottom: 1px solid var(--line);
-  }
-  .card .body { padding: 12px 14px; }
+  --foreground: #eef1f5;
+  --muted: #99a2af;
+  --subtle: #6a7383;
+  --inverse: #08090c;
 
-  video { width: 100%; display: block; background: #000; aspect-ratio: 16/9; }
-  .drop {
-    display: flex; flex-direction: column; align-items: center; justify-content: center;
-    gap: 10px; aspect-ratio: 16/9; color: var(--dim); text-align: center; padding: 20px;
-  }
-  .drop input { color: var(--dim); }
-  button {
-    background: #21262d; color: var(--text); border: 1px solid var(--line);
-    border-radius: 6px; padding: 6px 12px; font: inherit; cursor: pointer;
-  }
-  button:hover { border-color: #3d444d; }
+  --signal: #c8f031;          /* home — the only chromatic accent */
+  --signal-line: #3e4d12;
+  --teal: #3bc9a8;            /* away — status teal, never confused with signal */
 
-  canvas { width: 100%; display: block; }
+  --radius-sm: .5rem;
+  --radius-md: .75rem;
+  --radius-lg: 1rem;
 
-  .score { display: flex; align-items: center; gap: 16px; padding: 12px 14px; border-bottom: 1px solid var(--line); }
-  .score .side { display: flex; align-items: baseline; gap: 8px; }
-  .score .num { font-size: 30px; font-variant-numeric: tabular-nums; letter-spacing: -0.02em; }
-  .score .lbl { font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--dim); }
-  .dot { width: 9px; height: 9px; border-radius: 50%; display: inline-block; }
+  --font-display: 'Space Grotesk', ui-sans-serif, system-ui, sans-serif;
+  --font-sans: 'Inter', ui-sans-serif, -apple-system, 'Segoe UI', system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace;
 
-  table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
-  th, td { padding: 5px 6px; text-align: right; }
-  th { font-size: 10px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--dim); font-weight: 600; }
-  th:first-child, td:first-child { text-align: left; }
-  tbody tr { border-top: 1px solid var(--line); }
-  td.pts { font-weight: 600; }
-  .num-badge {
-    display: inline-block; min-width: 22px; padding: 1px 5px; margin-right: 8px;
-    border-radius: 4px; text-align: center; font-size: 11px; font-weight: 600; color: #0d1014;
-  }
+  --ease: cubic-bezier(.16, 1, .3, 1);
+}
 
-  .feed { max-height: 190px; overflow: auto; }
-  .feed div { display: flex; gap: 10px; padding: 4px 0; border-top: 1px solid var(--line); }
-  .feed div:first-child { border-top: 0; }
-  .feed .t { color: var(--dim); font-variant-numeric: tabular-nums; min-width: 46px; }
-  .feed .made { color: var(--good); }
+* { box-sizing: border-box; }
 
-  footer { padding: 4px 24px 28px; color: var(--dim); font-size: 12px; }
+html { color-scheme: dark; -webkit-text-size-adjust: 100%; }
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background: var(--void);
+  color: var(--foreground);
+  font: 400 15px/1.6 var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  position: relative;
+  isolation: isolate;
+}
+
+/* The blueprint grid: fine minor rule with a heavier major every fourth
+   division, masked so it fades out. Stops large black areas from reading as a
+   rendering failure. */
+body::before {
+  content: '';
+  position: fixed; inset: 0; z-index: -1; pointer-events: none;
+  background-image:
+    linear-gradient(to right,  rgb(200 240 49 / .05) 1px, transparent 1px),
+    linear-gradient(to bottom, rgb(200 240 49 / .05) 1px, transparent 1px),
+    linear-gradient(to right,  rgb(255 255 255 / .022) 1px, transparent 1px),
+    linear-gradient(to bottom, rgb(255 255 255 / .022) 1px, transparent 1px);
+  background-size: 128px 128px, 128px 128px, 32px 32px, 32px 32px;
+  mask-image: radial-gradient(ellipse 85% 65% at 50% 0%, #000 45%, transparent 100%);
+}
+
+::selection { background: var(--signal); color: var(--inverse); }
+
+[data-numeric] { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+
+.label {
+  font: 500 11px/1.4 var(--font-mono);
+  letter-spacing: .16em;
+  text-transform: uppercase;
+  color: var(--subtle);
+}
+
+/* ── Header ──────────────────────────────────────────────────────────────── */
+header { border-bottom: 1px solid var(--line-soft); }
+header .bar {
+  display: flex; align-items: center; gap: 20px;
+  max-width: 1600px; margin: 0 auto;
+  padding: 20px 32px;
+}
+
+/* Boxed wordmark. A plain text wordmark on black reads as a blog; a bordered
+   one reads as equipment. */
+.wordmark {
+  display: inline-flex; align-items: center; gap: 10px;
+  border: 1px solid var(--line-strong); border-radius: 6px;
+  padding: 7px 11px;
+}
+.wordmark .name {
+  font: 500 19px/1 var(--font-display);
+  letter-spacing: -.02em;
+}
+.wordmark .name b { font-weight: 500; color: var(--signal); }
+.wordmark .tag {
+  border-left: 1px solid var(--line-strong); padding-left: 9px;
+  font: 500 11px/1 var(--font-mono); letter-spacing: .16em;
+  text-transform: uppercase; color: var(--subtle);
+}
+
+.live {
+  display: inline-flex; align-items: center; gap: 7px;
+  border: 1px solid var(--signal-line); border-radius: 999px;
+  padding: 4px 11px 4px 9px;
+  font: 500 11px/1 var(--font-mono); letter-spacing: .16em;
+  text-transform: uppercase; color: var(--signal);
+}
+.live i {
+  width: 6px; height: 6px; border-radius: 50%; background: var(--signal);
+  animation: pulse 2s var(--ease) infinite;
+}
+@keyframes pulse { 0%,100% { opacity: 1 } 50% { opacity: .25 } }
+
+.scoreboard { margin-left: auto; display: flex; align-items: center; gap: 18px; }
+.scoreboard .side { display: flex; align-items: center; gap: 9px; }
+.scoreboard .num { font: 500 30px/1 var(--font-mono); font-variant-numeric: tabular-nums; letter-spacing: -.03em; }
+.scoreboard .home .num { color: var(--signal); }
+.scoreboard .away .num { color: var(--teal); }
+.scoreboard .sep { width: 1px; height: 26px; background: var(--line); }
+.scoreboard .clock { font: 400 13px/1 var(--font-mono); color: var(--subtle); min-width: 44px; text-align: right; }
+
+/* ── Layout ──────────────────────────────────────────────────────────────── */
+main { padding: 24px 32px 40px; display: grid; gap: 20px; max-width: 1600px; margin: 0 auto; }
+.row-top { display: grid; grid-template-columns: 1.15fr 1fr; gap: 20px; }
+.row-bottom { display: grid; grid-template-columns: 1.7fr 1fr; gap: 20px; }
+@media (max-width: 1080px) { .row-top, .row-bottom { grid-template-columns: 1fr; } }
+
+.panel {
+  display: flex; flex-direction: column;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+}
+.panel > .head {
+  display: flex; align-items: center; gap: 12px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--line-soft);
+}
+.panel > .head .right { margin-left: auto; font: 400 12px/1 var(--font-mono); color: var(--subtle); }
+.panel > .body { padding: 14px 16px; }
+
+/* ── Footage ─────────────────────────────────────────────────────────────── */
+.stage { position: relative; background: var(--surface-inset); aspect-ratio: 16/9; }
+.stage video { width: 100%; height: 100%; display: block; object-fit: cover; }
+.stage .placeholder {
+  position: absolute; inset: 0;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px;
+  color: var(--subtle); text-align: center;
+}
+.stage .placeholder .big { font: 500 15px/1.4 var(--font-display); color: var(--muted); }
+
+/* ── Court ───────────────────────────────────────────────────────────────── */
+/* Fills whatever height the row ends up at, so it never leaves a dead band
+   under the drawing when the footage panel is taller. */
+canvas { flex: 1; min-height: 320px; width: 100%; display: block; background: var(--surface-inset); }
+
+/* ── Box score ───────────────────────────────────────────────────────────── */
+table { width: 100%; border-collapse: collapse; }
+th, td { padding: 7px 8px; text-align: right; }
+th {
+  font: 500 10px/1.4 var(--font-mono); letter-spacing: .12em;
+  text-transform: uppercase; color: var(--subtle);
+  border-bottom: 1px solid var(--line);
+}
+th:first-child, td:first-child { text-align: left; }
+tbody tr { border-bottom: 1px solid var(--line-soft); }
+tbody tr:last-child { border-bottom: 0; }
+td { font: 400 13px/1.5 var(--font-mono); font-variant-numeric: tabular-nums; color: var(--muted); }
+td.name { font-family: var(--font-sans); color: var(--foreground); }
+td.pts { color: var(--foreground); font-weight: 500; }
+.jersey {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-width: 24px; height: 20px; padding: 0 5px; margin-right: 10px;
+  border-radius: 4px; font: 500 11px/1 var(--font-mono); color: var(--inverse);
+}
+
+/* ── Play by play ────────────────────────────────────────────────────────── */
+.feed { max-height: 268px; overflow-y: auto; }
+.feed .ev {
+  display: flex; align-items: baseline; gap: 12px;
+  padding: 8px 16px; border-bottom: 1px solid var(--line-soft);
+}
+.feed .ev:last-child { border-bottom: 0; }
+.feed .t { font: 400 12px/1 var(--font-mono); color: var(--subtle); min-width: 40px; }
+.feed .who { width: 6px; height: 6px; border-radius: 50%; flex: none; }
+.feed .txt { font-size: 13.5px; color: var(--muted); }
+.feed .ev.made .txt { color: var(--foreground); }
+.feed .ev.made .pt { color: var(--signal); font-family: var(--font-mono); }
+.feed .empty { padding: 16px; color: var(--subtle); font-size: 13.5px; }
+.feed::-webkit-scrollbar { width: 8px; }
+.feed::-webkit-scrollbar-thumb { background: var(--line); border-radius: 4px; }
+
+footer { padding: 0 32px 32px; max-width: 1600px; margin: 0 auto; }
+footer p { margin: 0; font: 400 12px/1.6 var(--font-mono); color: var(--subtle); }
 </style>
 </head>
 <body>
 
-<header>
-  <h1>courtvision</h1>
-  <span class="tag">footage in, stat line out</span>
-  <span class="clock" id="clock">00:00</span>
-</header>
+<header><div class="bar">
+  <span class="wordmark">
+    <span class="name">court<b>vision</b></span>
+    <span class="tag">CV</span>
+  </span>
+  <span class="live"><i></i>Live</span>
+
+  <div class="scoreboard">
+    <div class="side home"><span class="label">Home</span><span class="num" id="scoreHome">0</span></div>
+    <div class="sep"></div>
+    <div class="side away"><span class="num" id="scoreAway">0</span><span class="label">Away</span></div>
+    <div class="sep"></div>
+    <span class="clock" id="clock">00:00</span>
+  </div>
+</div></header>
 
 <main>
-  <section class="card">
-    <h2>Footage</h2>
-    <div id="videoWrap">
-      <div class="drop" id="drop">
-        <div>Drop a game video here, or pick one</div>
-        <input type="file" id="file" accept="video/*">
-        <button id="useClock">No video — run on the clock</button>
+  <div class="row-top">
+    <section class="panel">
+      <div class="head"><span class="label">Footage</span><span class="right" id="srcNote"></span></div>
+      <div class="stage">
+        <video id="game" muted playsinline loop preload="auto"></video>
+        <div class="placeholder" id="placeholder">
+          <div class="big">No footage loaded</div>
+          <div class="label">drop a clip at web/media/game.mp4</div>
+        </div>
       </div>
-    </div>
-  </section>
+    </section>
 
-  <section class="card">
-    <h2>Court</h2>
-    <canvas id="court" width="1120" height="640"></canvas>
-  </section>
+    <section class="panel">
+      <div class="head"><span class="label">Court</span><span class="right" id="shotNote">0 shots</span></div>
+      <canvas id="court" width="1160" height="660"></canvas>
+    </section>
+  </div>
 
-  <section class="card">
-    <h2>Box score</h2>
-    <div class="score">
-      <div class="side"><span class="dot" style="background:var(--home)"></span><span class="lbl">Home</span><span class="num" id="scoreHome">0</span></div>
-      <div class="side"><span class="num" id="scoreAway">0</span><span class="lbl">Away</span><span class="dot" style="background:var(--away)"></span></div>
-    </div>
-    <div class="body">
-      <table>
-        <thead><tr><th>Player</th><th>PTS</th><th>FG</th><th>3P</th><th>REB</th><th>AST</th><th>TO</th></tr></thead>
-        <tbody id="rows"></tbody>
-      </table>
-    </div>
-  </section>
+  <div class="row-bottom">
+    <section class="panel">
+      <div class="head"><span class="label">Box score</span><span class="right">generated, not typed</span></div>
+      <div class="body">
+        <table>
+          <thead><tr><th>Player</th><th>PTS</th><th>FG</th><th>3P</th><th>REB</th><th>AST</th><th>TO</th></tr></thead>
+          <tbody id="rows"></tbody>
+        </table>
+      </div>
+    </section>
 
-  <section class="card">
-    <h2>Play by play</h2>
-    <div class="body feed" id="feed"></div>
-  </section>
+    <section class="panel">
+      <div class="head"><span class="label">Play by play</span></div>
+      <div class="feed" id="feed"><div class="empty">waiting for tip-off…</div></div>
+    </section>
+  </div>
 </main>
 
-<footer id="status">loading…</footer>
+<footer><p id="status">loading…</p></footer>
 
 <script>
-const COLOURS = { home: getCss('--home'), away: getCss('--away') };
-function getCss(v){ return getComputedStyle(document.documentElement).getPropertyValue(v).trim(); }
+const TEAM = { home: '#c8f031', away: '#3bc9a8' };
+const VIDEO_SRC = 'media/game.mp4';
 
 let DATA = null;
 let video = null;
-let clockStart = null;   // fallback when there is no video
-let clockRunning = false;
+let clockStart = null;   // silent fallback when there is no footage
 
 init();
 
@@ -142,61 +278,54 @@ async function init(){
     const res = await fetch('data/sample.json');
     if (!res.ok) throw new Error(res.status);
     DATA = await res.json();
-  } catch (e) {
-    status(`could not load data/sample.json — run: python pipeline/make_sample_data.py`);
+  } catch {
+    status('no data — run: python pipeline/make_sample_data.py');
     return;
   }
-  status(`${DATA.source} data · ${DATA.frames.length} frames · ${DATA.events.length} events`);
+  status(`${DATA.source} tracking · ${DATA.frames.length} frames · ${DATA.events.length} events · court ${DATA.court.length_m}×${DATA.court.width_m}m`);
+  mountVideo();
   drawCourt(0);
   render(0);
   requestAnimationFrame(tick);
 }
 
-document.getElementById('file').addEventListener('change', e => {
-  const f = e.target.files[0];
-  if (f) mountVideo(URL.createObjectURL(f));
-});
-document.getElementById('useClock').addEventListener('click', () => {
-  clockStart = performance.now();
-  clockRunning = true;
-  document.getElementById('drop').innerHTML = '<div>Running on the clock — no footage loaded</div>';
-});
+/* Play the clip straight away. If there is no file, fall back to an internal
+   clock without showing any chrome — the demo always has something moving. */
+function mountVideo(){
+  const el = document.getElementById('game');
+  el.addEventListener('loadeddata', () => {
+    video = el;
+    document.getElementById('placeholder').style.display = 'none';
+    document.getElementById('srcNote').textContent = VIDEO_SRC;
+    el.play().catch(() => {});
+  });
+  el.addEventListener('error', startClock);
+  el.src = VIDEO_SRC;
+  // some browsers never fire error for a missing file behind a static server
+  setTimeout(() => { if (!video) startClock(); }, 1200);
+}
 
-function mountVideo(src){
-  const wrap = document.getElementById('videoWrap');
-  wrap.innerHTML = '';
-  video = document.createElement('video');
-  video.src = src;
-  video.controls = true;
-  video.playsInline = true;
-  wrap.appendChild(video);
+function startClock(){
+  if (clockStart || video) return;
+  clockStart = performance.now();
+  document.getElementById('srcNote').textContent = 'clock';
 }
 
 function currentTime(){
   if (video) return video.currentTime;
-  if (clockRunning) {
-    const t = (performance.now() - clockStart) / 1000;
-    return t % DATA.video.duration;
-  }
+  if (clockStart) return ((performance.now() - clockStart) / 1000) % DATA.video.duration;
   return 0;
 }
 
 function tick(){
-  if (DATA) {
-    const t = currentTime();
-    drawCourt(t);
-    render(t);
-  }
+  if (DATA) { const t = currentTime(); drawCourt(t); render(t); }
   requestAnimationFrame(tick);
 }
 
-/* ---------- stats: everything that has happened up to t ---------- */
-
+/* ── stats: everything that has happened up to t ──────────────────────────── */
 function statsAt(t){
   const per = new Map();
-  for (const p of DATA.players) {
-    per.set(p.id, { p, pts:0, fgm:0, fga:0, tpm:0, tpa:0, reb:0, ast:0, to:0 });
-  }
+  for (const p of DATA.players) per.set(p.id, { p, pts:0, fgm:0, fga:0, tpm:0, tpa:0, reb:0, ast:0, to:0 });
   let home = 0, away = 0;
   const shots = [];
 
@@ -204,140 +333,140 @@ function statsAt(t){
     if (e.t > t) break;
     const s = per.get(e.player);
     if (!s) continue;
-    switch (e.type) {
-      case 'shot_made':
-      case 'shot_missed': {
-        const made = e.type === 'shot_made';
-        s.fga++; if (made) s.fgm++;
-        if (e.points === 3) { s.tpa++; if (made) s.tpm++; }
-        if (made) {
-          s.pts += e.points;
-          if (e.team === 'home') home += e.points; else away += e.points;
-        }
-        shots.push(e);
-        break;
-      }
-      case 'rebound':  s.reb++; break;
-      case 'assist':   s.ast++; break;
-      case 'turnover': s.to++;  break;
+    if (e.type === 'shot_made' || e.type === 'shot_missed') {
+      const made = e.type === 'shot_made';
+      s.fga++; if (made) s.fgm++;
+      if (e.points === 3) { s.tpa++; if (made) s.tpm++; }
+      if (made) { s.pts += e.points; e.team === 'home' ? home += e.points : away += e.points; }
+      shots.push(e);
     }
+    else if (e.type === 'rebound')  s.reb++;
+    else if (e.type === 'assist')   s.ast++;
+    else if (e.type === 'turnover') s.to++;
   }
   return { per, home, away, shots };
 }
 
 function render(t){
-  const { per, home, away } = statsAt(t);
+  const { per, home, away, shots } = statsAt(t);
   document.getElementById('clock').textContent = fmt(t);
   document.getElementById('scoreHome').textContent = home;
   document.getElementById('scoreAway').textContent = away;
+  document.getElementById('shotNote').textContent = `${shots.length} shot${shots.length === 1 ? '' : 's'}`;
 
-  const rows = [...per.values()]
-    .sort((a,b) => b.pts - a.pts || b.reb - a.reb || a.p.number - b.p.number);
-
+  const rows = [...per.values()].sort((a,b) => b.pts - a.pts || b.reb - a.reb || a.p.number - b.p.number);
   document.getElementById('rows').innerHTML = rows.map(s => `
     <tr>
-      <td><span class="num-badge" style="background:${COLOURS[s.p.team]}">${s.p.number}</span>${s.p.team === 'home' ? 'Home' : 'Away'}</td>
-      <td class="pts">${s.pts}</td>
-      <td>${s.fgm}/${s.fga}</td>
-      <td>${s.tpm}/${s.tpa}</td>
-      <td>${s.reb}</td>
-      <td>${s.ast}</td>
-      <td>${s.to}</td>
+      <td class="name"><span class="jersey" style="background:${TEAM[s.p.team]}">${s.p.number}</span>${s.p.team === 'home' ? 'Home' : 'Away'}</td>
+      <td class="pts" data-numeric>${s.pts}</td>
+      <td data-numeric>${s.fgm}/${s.fga}</td>
+      <td data-numeric>${s.tpm}/${s.tpa}</td>
+      <td data-numeric>${s.reb}</td>
+      <td data-numeric>${s.ast}</td>
+      <td data-numeric>${s.to}</td>
     </tr>`).join('');
 
   const recent = DATA.events.filter(e => e.t <= t).slice(-40).reverse();
-  document.getElementById('feed').innerHTML = recent.map(e => {
+  const feed = document.getElementById('feed');
+  feed.innerHTML = recent.length ? recent.map(e => {
     const p = DATA.players.find(x => x.id === e.player);
     const made = e.type === 'shot_made';
-    const label = {
-      shot_made:   `#${p.number} scored ${e.points}`,
+    const txt = {
+      shot_made:   `#${p.number} scored <span class="pt">+${e.points}</span>`,
       shot_missed: `#${p.number} missed ${e.points}`,
       rebound:     `#${p.number} rebound`,
       assist:      `#${p.number} assist`,
       turnover:    `#${p.number} turnover`,
     }[e.type] || e.type;
-    return `<div><span class="t">${fmt(e.t)}</span><span class="${made?'made':''}">${label}</span></div>`;
-  }).join('');
+    return `<div class="ev ${made ? 'made' : ''}">
+      <span class="t">${fmt(e.t)}</span>
+      <span class="who" style="background:${TEAM[p.team]}"></span>
+      <span class="txt">${txt}</span>
+    </div>`;
+  }).join('') : '<div class="empty">waiting for tip-off…</div>';
 }
 
-/* ---------- top-down court ---------- */
-
+/* ── top-down court ──────────────────────────────────────────────────────── */
 function drawCourt(t){
   const cv = document.getElementById('court');
   const ctx = cv.getContext('2d');
+
+  // Match the backing store to the laid-out size (and to the device pixel
+  // ratio) so the court stays sharp and never stretches.
+  const dpr = window.devicePixelRatio || 1;
+  const cw = cv.clientWidth, ch = cv.clientHeight;
+  const w = Math.round(cw * dpr), h = Math.round(ch * dpr);
+  if (!w || !h) return;
+  if (cv.width !== w || cv.height !== h) { cv.width = w; cv.height = h; }
+  // Draw in CSS pixels from here on; the transform handles the retina scale.
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
   const L = DATA ? DATA.court.length_m : 28;
   const W = DATA ? DATA.court.width_m : 15;
   const pad = 26;
-  const s = Math.min((cv.width - pad*2) / L, (cv.height - pad*2) / W);
-  const X = m => pad + m * s;
-  const Y = m => pad + m * s;
+  const s = Math.min((cw - pad*2) / L, (ch - pad*2) / W);
+  const ox = (cw - L*s) / 2, oy = (ch - W*s) / 2;
+  const X = m => ox + m * s;
+  const Y = m => oy + m * s;
 
-  ctx.clearRect(0, 0, cv.width, cv.height);
-  ctx.fillStyle = '#11161d';
-  ctx.fillRect(0, 0, cv.width, cv.height);
+  ctx.clearRect(0, 0, cw, ch);
+  ctx.fillStyle = '#050608';
+  ctx.fillRect(0, 0, cw, ch);
 
-  ctx.strokeStyle = '#39414d';
-  ctx.lineWidth = 2;
+  ctx.lineWidth = 1.5;
+  ctx.strokeStyle = '#333a45';
   ctx.strokeRect(X(0), Y(0), L*s, W*s);
 
-  // halfway line + centre circle
-  ctx.beginPath();
-  ctx.moveTo(X(L/2), Y(0)); ctx.lineTo(X(L/2), Y(W));
-  ctx.stroke();
-  ctx.beginPath();
-  ctx.arc(X(L/2), Y(W/2), 1.8*s, 0, Math.PI*2);
-  ctx.stroke();
+  ctx.strokeStyle = '#23272f';
+  ctx.beginPath(); ctx.moveTo(X(L/2), Y(0)); ctx.lineTo(X(L/2), Y(W)); ctx.stroke();
+  ctx.beginPath(); ctx.arc(X(L/2), Y(W/2), 1.8*s, 0, Math.PI*2); ctx.stroke();
 
   for (const left of [true, false]) {
-    const bx = left ? 1.575 : L - 1.575;      // basket centre
+    const bx = left ? 1.575 : L - 1.575;          // basket centre
     const dir = left ? 1 : -1;
-    // key
     ctx.strokeRect(X(left ? 0 : L - 5.8), Y(W/2 - 2.45), 5.8*s, 4.9*s);
-    // free-throw circle
-    ctx.beginPath();
-    ctx.arc(X(left ? 5.8 : L - 5.8), Y(W/2), 1.8*s, 0, Math.PI*2);
-    ctx.stroke();
-    // three point arc + corners.
-    // `a` is the angle off the centre line at which the 6.75 m arc meets the
-    // corner line 0.9 m in from the sideline — asin, not acos.
+    ctx.beginPath(); ctx.arc(X(left ? 5.8 : L - 5.8), Y(W/2), 1.8*s, 0, Math.PI*2); ctx.stroke();
+
+    // `a` is the angle at which the 6.75 m arc meets the corner line 0.9 m in
+    // from the sideline — asin, not acos.
     const a = Math.asin((W/2 - 0.9) / 6.75);
     ctx.beginPath();
     ctx.arc(X(bx), Y(W/2), 6.75*s, left ? -a : Math.PI - a, left ? a : Math.PI + a);
     ctx.stroke();
     const cx = bx + dir * 6.75 * Math.cos(a);
     ctx.beginPath();
-    ctx.moveTo(X(left ? 0 : L), Y(0.9));      ctx.lineTo(X(cx), Y(0.9));
-    ctx.moveTo(X(left ? 0 : L), Y(W - 0.9));  ctx.lineTo(X(cx), Y(W - 0.9));
+    ctx.moveTo(X(left ? 0 : L), Y(0.9));     ctx.lineTo(X(cx), Y(0.9));
+    ctx.moveTo(X(left ? 0 : L), Y(W - 0.9)); ctx.lineTo(X(cx), Y(W - 0.9));
     ctx.stroke();
-    // hoop
-    ctx.beginPath();
-    ctx.arc(X(bx), Y(W/2), 0.225*s, 0, Math.PI*2);
-    ctx.strokeStyle = '#5b6673'; ctx.stroke(); ctx.strokeStyle = '#39414d';
+
+    ctx.strokeStyle = '#4a525f';
+    ctx.beginPath(); ctx.arc(X(bx), Y(W/2), 0.225*s, 0, Math.PI*2); ctx.stroke();
+    ctx.strokeStyle = '#23272f';
   }
 
   if (!DATA) return;
-
-  // shot markers accumulate as the game goes
   const { shots } = statsAt(t);
+
   for (const e of shots) {
     const made = e.type === 'shot_made';
     ctx.beginPath();
-    ctx.arc(X(e.x), Y(e.y), 5, 0, Math.PI*2);
-    if (made) { ctx.fillStyle = COLOURS[e.team]; ctx.globalAlpha = 0.85; ctx.fill(); ctx.globalAlpha = 1; }
-    else { ctx.strokeStyle = COLOURS[e.team]; ctx.globalAlpha = 0.45; ctx.stroke(); ctx.globalAlpha = 1; ctx.strokeStyle = '#39414d'; }
+    ctx.arc(X(e.x), Y(e.y), 5.5, 0, Math.PI*2);
+    ctx.globalAlpha = made ? .9 : .5;
+    if (made) { ctx.fillStyle = TEAM[e.team]; ctx.fill(); }
+    else { ctx.lineWidth = 1.5; ctx.strokeStyle = TEAM[e.team]; ctx.stroke(); }
+    ctx.globalAlpha = 1;
   }
 
-  // players at time t
   const frame = frameAt(t);
   if (!frame) return;
   for (const pos of frame.positions) {
     const p = DATA.players.find(x => x.id === pos.id);
     ctx.beginPath();
-    ctx.arc(X(pos.x), Y(pos.y), 11, 0, Math.PI*2);
-    ctx.fillStyle = COLOURS[p.team];
+    ctx.arc(X(pos.x), Y(pos.y), 12, 0, Math.PI*2);
+    ctx.fillStyle = TEAM[p.team];
     ctx.fill();
-    ctx.fillStyle = '#0d1014';
-    ctx.font = '600 11px ui-sans-serif, system-ui, sans-serif';
+    ctx.fillStyle = '#08090c';
+    ctx.font = "500 11px 'JetBrains Mono', ui-monospace, monospace";
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     ctx.fillText(p.number, X(pos.x), Y(pos.y) + 0.5);
   }
@@ -345,10 +474,8 @@ function drawCourt(t){
 
 function frameAt(t){
   const hz = DATA.video.hz || 5;
-  const i = Math.max(0, Math.min(Math.round(t * hz), DATA.frames.length - 1));
-  return DATA.frames[i];
+  return DATA.frames[Math.max(0, Math.min(Math.round(t * hz), DATA.frames.length - 1))];
 }
-
 function fmt(t){
   const m = Math.floor(t / 60), s = Math.floor(t % 60);
   return `${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;

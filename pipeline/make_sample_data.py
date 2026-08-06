@@ -34,33 +34,53 @@ def build_players():
     return players
 
 
+# Each player holds a spot rather than chasing the ball, otherwise all ten
+# converge on one point and the top-down view looks like a swarm. Offsets are
+# (metres back from the basket, metres off the centre line) — roughly a 1-2-2:
+# two guards up top, wings wide, a big on each block.
+SPOTS = [
+    (7.5, -4.5),
+    (7.5, +4.5),
+    (4.5, -6.0),
+    (4.5, +6.0),
+    (2.5, +0.5),
+]
+
+
 def build_tracks(players, seconds, rng):
-    """Smooth random walk, with both teams drifting toward whichever end is in play."""
+    """Each player holds their spot at whichever end is in play, with drift."""
     n_frames = int(seconds * HZ)
 
     state = {}
     for p in players:
-        x = rng.uniform(4, COURT_L - 4)
-        y = rng.uniform(2, COURT_W - 2)
-        state[p["id"]] = [x, y, 0.0, 0.0]  # x, y, vx, vy
+        state[p["id"]] = [rng.uniform(8, COURT_L - 8), rng.uniform(3, COURT_W - 3), 0.0, 0.0]
+
+    # defenders sit a little tighter to the basket than the man they guard
+    role = {p["id"]: SPOTS[i % len(SPOTS)] for i, p in enumerate(players)}
 
     frames = []
     for i in range(n_frames):
         t = round(i / HZ, 2)
         # possessions flip roughly every 14 seconds
         attacking_left = (int(t) // 14) % 2 == 0
-        target_x = 6.0 if attacking_left else COURT_L - 6.0
+        basket_x = 1.575 if attacking_left else COURT_L - 1.575
+        direction = 1 if attacking_left else -1
 
         positions = []
         for p in players:
+            back, off = role[p["id"]]
+            on_offence = (p["team"] == "home") == attacking_left
+            back = back if on_offence else back - 1.2  # defence sags toward the rim
+            tx = clamp(basket_x + direction * back, 1.5, COURT_L - 1.5)
+            ty = clamp(COURT_W / 2 + off, 1.5, COURT_W - 1.5)
+
             x, y, vx, vy = state[p["id"]]
-            # pull toward the live end of the floor, plus jitter
-            vx += (target_x - x) * 0.012 + rng.gauss(0, 0.09)
-            vy += (COURT_W / 2 - y) * 0.010 + rng.gauss(0, 0.11)
-            vx, vy = clamp(vx, -0.7, 0.7), clamp(vy, -0.7, 0.7)
+            vx += (tx - x) * 0.030 + rng.gauss(0, 0.10)
+            vy += (ty - y) * 0.030 + rng.gauss(0, 0.10)
+            vx, vy = clamp(vx, -0.8, 0.8), clamp(vy, -0.8, 0.8)
             x = clamp(x + vx, 0.8, COURT_L - 0.8)
             y = clamp(y + vy, 0.8, COURT_W - 0.8)
-            state[p["id"]] = [x, y, vx * 0.86, vy * 0.86]
+            state[p["id"]] = [x, y, vx * 0.84, vy * 0.84]
             positions.append({"id": p["id"], "x": round(x, 2), "y": round(y, 2)})
 
         frames.append({"t": t, "positions": positions})
