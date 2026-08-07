@@ -3,110 +3,18 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>courtvision</title>
+<title>courtvision — viewer</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600&family=Inter:wght@400;500&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/theme.css">
 <style>
-/* ═══════════════════════════════════════════════════════════════════════════
-   Tokens — "Blueprint". Near-black with a cool cast, hairlines instead of
-   shadows, one acid-lime signal colour, mono for anything the machine produced.
-   ═══════════════════════════════════════════════════════════════════════════ */
-:root {
-  --void: #08090c;
-  --surface: #0e1015;
-  --surface-raised: #151920;
-  --surface-inset: #050608;
-
-  --line: #23272f;
-  --line-soft: #161a20;
-  --line-strong: #333a45;
-
-  --foreground: #eef1f5;
-  --muted: #99a2af;
-  --subtle: #6a7383;
-  --inverse: #08090c;
-
-  --signal: #c8f031;          /* home — the only chromatic accent */
-  --signal-line: #3e4d12;
-  --teal: #3bc9a8;            /* away — status teal, never confused with signal */
-
-  --radius-sm: .5rem;
-  --radius-md: .75rem;
-  --radius-lg: 1rem;
-
-  --font-display: 'Space Grotesk', ui-sans-serif, system-ui, sans-serif;
-  --font-sans: 'Inter', ui-sans-serif, -apple-system, 'Segoe UI', system-ui, sans-serif;
-  --font-mono: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace;
-
-  --ease: cubic-bezier(.16, 1, .3, 1);
-}
-
-* { box-sizing: border-box; }
-
-html { color-scheme: dark; -webkit-text-size-adjust: 100%; }
-
-body {
-  margin: 0;
-  min-height: 100vh;
-  background: var(--void);
-  color: var(--foreground);
-  font: 400 15px/1.6 var(--font-sans);
-  -webkit-font-smoothing: antialiased;
-  position: relative;
-  isolation: isolate;
-}
-
-/* The blueprint grid: fine minor rule with a heavier major every fourth
-   division, masked so it fades out. Stops large black areas from reading as a
-   rendering failure. */
-body::before {
-  content: '';
-  position: fixed; inset: 0; z-index: -1; pointer-events: none;
-  background-image:
-    linear-gradient(to right,  rgb(200 240 49 / .05) 1px, transparent 1px),
-    linear-gradient(to bottom, rgb(200 240 49 / .05) 1px, transparent 1px),
-    linear-gradient(to right,  rgb(255 255 255 / .022) 1px, transparent 1px),
-    linear-gradient(to bottom, rgb(255 255 255 / .022) 1px, transparent 1px);
-  background-size: 128px 128px, 128px 128px, 32px 32px, 32px 32px;
-  mask-image: radial-gradient(ellipse 85% 65% at 50% 0%, #000 45%, transparent 100%);
-}
-
-::selection { background: var(--signal); color: var(--inverse); }
-
-[data-numeric] { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
-
-.label {
-  font: 500 11px/1.4 var(--font-mono);
-  letter-spacing: .16em;
-  text-transform: uppercase;
-  color: var(--subtle);
-}
-
 /* ── Header ──────────────────────────────────────────────────────────────── */
 header { border-bottom: 1px solid var(--line-soft); }
 header .bar {
   display: flex; align-items: center; gap: 20px;
-  max-width: 1600px; margin: 0 auto;
+  max-width: var(--shell); margin: 0 auto;
   padding: 20px 32px;
-}
-
-/* Boxed wordmark. A plain text wordmark on black reads as a blog; a bordered
-   one reads as equipment. */
-.wordmark {
-  display: inline-flex; align-items: center; gap: 10px;
-  border: 1px solid var(--line-strong); border-radius: 6px;
-  padding: 7px 11px;
-}
-.wordmark .name {
-  font: 500 19px/1 var(--font-display);
-  letter-spacing: -.02em;
-}
-.wordmark .name b { font-weight: 500; color: var(--signal); }
-.wordmark .tag {
-  border-left: 1px solid var(--line-strong); padding-left: 9px;
-  font: 500 11px/1 var(--font-mono); letter-spacing: .16em;
-  text-transform: uppercase; color: var(--subtle);
 }
 
 .live {
@@ -131,25 +39,10 @@ header .bar {
 .scoreboard .clock { font: 400 13px/1 var(--font-mono); color: var(--subtle); min-width: 44px; text-align: right; }
 
 /* ── Layout ──────────────────────────────────────────────────────────────── */
-main { padding: 24px 32px 40px; display: grid; gap: 20px; max-width: 1600px; margin: 0 auto; }
+main { padding: 24px 32px 40px; display: grid; gap: 20px; max-width: var(--shell); margin: 0 auto; }
 .row-top { display: grid; grid-template-columns: 1.15fr 1fr; gap: 20px; }
 .row-bottom { display: grid; grid-template-columns: 1.7fr 1fr; gap: 20px; }
 @media (max-width: 1080px) { .row-top, .row-bottom { grid-template-columns: 1fr; } }
-
-.panel {
-  display: flex; flex-direction: column;
-  background: var(--surface);
-  border: 1px solid var(--line);
-  border-radius: var(--radius-lg);
-  overflow: hidden;
-}
-.panel > .head {
-  display: flex; align-items: center; gap: 12px;
-  padding: 12px 16px;
-  border-bottom: 1px solid var(--line-soft);
-}
-.panel > .head .right { margin-left: auto; font: 400 12px/1 var(--font-mono); color: var(--subtle); }
-.panel > .body { padding: 14px 16px; }
 
 /* ── Footage ─────────────────────────────────────────────────────────────── */
 .stage { position: relative; background: var(--surface-inset); aspect-ratio: 16/9; }
@@ -202,18 +95,18 @@ td.pts { color: var(--foreground); font-weight: 500; }
 .feed::-webkit-scrollbar { width: 8px; }
 .feed::-webkit-scrollbar-thumb { background: var(--line); border-radius: 4px; }
 
-footer { padding: 0 32px 32px; max-width: 1600px; margin: 0 auto; }
+footer { padding: 0 32px 32px; max-width: var(--shell); margin: 0 auto; }
 footer p { margin: 0; font: 400 12px/1.6 var(--font-mono); color: var(--subtle); }
 </style>
 </head>
 <body>
 
 <header><div class="bar">
-  <span class="wordmark">
+  <a class="wordmark" href="index.html" title="Back to courtvision.io">
     <span class="name">court<b>vision</b></span>
-    <span class="tag">CV</span>
-  </span>
-  <span class="live"><i></i>Live</span>
+    <span class="tag">AI</span>
+  </a>
+  <span class="live"><i></i>Playback</span>
 
   <div class="scoreboard">
     <div class="side home"><span class="label">Home</span><span class="num" id="scoreHome">0</span></div>
@@ -263,6 +156,7 @@ footer p { margin: 0; font: 400 12px/1.6 var(--font-mono); color: var(--subtle);
 
 <footer><p id="status">loading…</p></footer>
 
+<script src="assets/court.js"></script>
 <script>
 const TEAM = { home: '#c8f031', away: '#3bc9a8' };
 const VIDEO_SRC = 'media/game.mp4';
@@ -295,14 +189,19 @@ function mountVideo(){
   const el = document.getElementById('game');
   el.addEventListener('loadeddata', () => {
     video = el;
+    clockStart = null;
     document.getElementById('placeholder').style.display = 'none';
     document.getElementById('srcNote').textContent = VIDEO_SRC;
     el.play().catch(() => {});
   });
   el.addEventListener('error', startClock);
   el.src = VIDEO_SRC;
-  // some browsers never fire error for a missing file behind a static server
-  setTimeout(() => { if (!video) startClock(); }, 1200);
+  // Some browsers never fire error for a missing file behind a static server.
+  // Wait for the transfer to actually be idle before deciding it is missing —
+  // a big clip on a cold cache is slow, not absent.
+  setTimeout(() => {
+    if (!video && el.networkState !== HTMLMediaElement.NETWORK_LOADING) startClock();
+  }, 2500);
 }
 
 function startClock(){
@@ -389,60 +288,17 @@ function render(t){
 /* ── top-down court ──────────────────────────────────────────────────────── */
 function drawCourt(t){
   const cv = document.getElementById('court');
-  const ctx = cv.getContext('2d');
-
-  // Match the backing store to the laid-out size (and to the device pixel
-  // ratio) so the court stays sharp and never stretches.
-  const dpr = window.devicePixelRatio || 1;
-  const cw = cv.clientWidth, ch = cv.clientHeight;
-  const w = Math.round(cw * dpr), h = Math.round(ch * dpr);
-  if (!w || !h) return;
-  if (cv.width !== w || cv.height !== h) { cv.width = w; cv.height = h; }
-  // Draw in CSS pixels from here on; the transform handles the retina scale.
-  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  const surface = Court.fit(cv);
+  if (!surface) return;
+  const { ctx, w: cw, h: ch } = surface;
 
   const L = DATA ? DATA.court.length_m : 28;
   const W = DATA ? DATA.court.width_m : 15;
-  const pad = 26;
-  const s = Math.min((cw - pad*2) / L, (ch - pad*2) / W);
-  const ox = (cw - L*s) / 2, oy = (ch - W*s) / 2;
-  const X = m => ox + m * s;
-  const Y = m => oy + m * s;
+  const g = Court.geometry(cw, ch, L, W);
+  const { X, Y } = g;
 
   ctx.clearRect(0, 0, cw, ch);
-  ctx.fillStyle = '#050608';
-  ctx.fillRect(0, 0, cw, ch);
-
-  ctx.lineWidth = 1.5;
-  ctx.strokeStyle = '#333a45';
-  ctx.strokeRect(X(0), Y(0), L*s, W*s);
-
-  ctx.strokeStyle = '#23272f';
-  ctx.beginPath(); ctx.moveTo(X(L/2), Y(0)); ctx.lineTo(X(L/2), Y(W)); ctx.stroke();
-  ctx.beginPath(); ctx.arc(X(L/2), Y(W/2), 1.8*s, 0, Math.PI*2); ctx.stroke();
-
-  for (const left of [true, false]) {
-    const bx = left ? 1.575 : L - 1.575;          // basket centre
-    const dir = left ? 1 : -1;
-    ctx.strokeRect(X(left ? 0 : L - 5.8), Y(W/2 - 2.45), 5.8*s, 4.9*s);
-    ctx.beginPath(); ctx.arc(X(left ? 5.8 : L - 5.8), Y(W/2), 1.8*s, 0, Math.PI*2); ctx.stroke();
-
-    // `a` is the angle at which the 6.75 m arc meets the corner line 0.9 m in
-    // from the sideline — asin, not acos.
-    const a = Math.asin((W/2 - 0.9) / 6.75);
-    ctx.beginPath();
-    ctx.arc(X(bx), Y(W/2), 6.75*s, left ? -a : Math.PI - a, left ? a : Math.PI + a);
-    ctx.stroke();
-    const cx = bx + dir * 6.75 * Math.cos(a);
-    ctx.beginPath();
-    ctx.moveTo(X(left ? 0 : L), Y(0.9));     ctx.lineTo(X(cx), Y(0.9));
-    ctx.moveTo(X(left ? 0 : L), Y(W - 0.9)); ctx.lineTo(X(cx), Y(W - 0.9));
-    ctx.stroke();
-
-    ctx.strokeStyle = '#4a525f';
-    ctx.beginPath(); ctx.arc(X(bx), Y(W/2), 0.225*s, 0, Math.PI*2); ctx.stroke();
-    ctx.strokeStyle = '#23272f';
-  }
+  Court.lines(ctx, g, { w: cw, h: ch });
 
   if (!DATA) return;
   const { shots } = statsAt(t);

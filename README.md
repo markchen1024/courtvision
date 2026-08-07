@@ -44,15 +44,33 @@ The models need a GPU-sized environment, kept outside the repo:
 C:/Users/Mark/.venvs/courtvision/Scripts/python.exe pipeline/try_models.py --every 30
 ```
 
-The viewer itself needs nothing but Python:
+The front end itself needs nothing but Python:
 
 ```bash
 python pipeline/make_sample_data.py --seconds 180   # writes web/data/sample.json
 python pipeline/serve.py                            # open http://localhost:8765
 ```
 
-Drop a clip at `web/media/game.mp4` and it plays automatically. With no clip the page
-falls back to an internal clock so there is always something moving.
+Two pages, sharing `web/assets/theme.css` and one court renderer in
+`web/assets/court.js`:
+
+- `/` — the product page. Mock SaaS: real copy, real numbers off the tracking data, and a
+  hero that plays the actual clip beside a live top-down court. Every link but the demo
+  goes nowhere. The stat tabs — box score, team comparison, shot chart, timeline, minutes
+  — run on one invented game that is internally consistent: the zone splits add back to
+  the box score's field goals, the shot chart is generated from those zones, and the
+  plus-minus column sums to five times the final margin.
+- `/app.html` — the viewer. Footage, top-down court, box score, play by play.
+
+Drop a clip at `web/media/game.mp4` and it plays automatically. With no clip both pages
+fall back to an internal clock so there is always something moving.
+
+The clip has to be written **faststart**, or the browser cannot begin playback until it
+has pulled the entire file — an exported mp4 usually has its `moov` atom at the end:
+
+```bash
+ffmpeg -i raw.mp4 -c copy -movflags +faststart web/media/game.mp4   # remux, no re-encode
+```
 
 `serve.py` rather than `python -m http.server` because the stdlib server ignores Range
 requests — the browser then has to fetch the whole clip before it plays and the scrubber

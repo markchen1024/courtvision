@@ -13,16 +13,26 @@ import os
 import re
 import sys
 from functools import partial
-from http.server import HTTPServer, SimpleHTTPRequestHandler
+from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 
 RANGE_RE = re.compile(r"bytes=(\d*)-(\d*)")
 
 
 class RangeHandler(SimpleHTTPRequestHandler):
+    # Keep-alive matters here: the media element issues a stream of small range
+    # requests, and a fresh TCP connection for each one is most of the latency.
+    protocol_version = "HTTP/1.1"
+
     def end_headers(self):
         self.send_header("Accept-Ranges", "bytes")
         self.send_header("Cache-Control", "no-store")
         super().end_headers()
+
+    def copyfile(self, source, outputfile):
+        try:
+            super().copyfile(source, outputfile)
+        except (BrokenPipeError, ConnectionResetError, ConnectionAbortedError):
+            pass  # the browser moved on mid-stream — normal when scrubbing
 
     def send_head(self):
         header = self.headers.get("Range")
@@ -57,6 +67,7 @@ class RangeHandler(SimpleHTTPRequestHandler):
             f.close()
             self.send_response(416)
             self.send_header("Content-Range", f"bytes */{size}")
+            self.send_header("Content-Length", "0")   # HTTP/1.1 needs the framing
             self.end_headers()
             return None
 
@@ -96,7 +107,9 @@ def main():
     root = os.path.abspath(root)
     handler = partial(RangeHandler, directory=root)
     print(f"serving {root} on http://localhost:{port}  (Range supported)")
-    HTTPServer(("", port), handler).serve_forever()
+    # Threaded, because a single-threaded server spends the whole clip transfer
+    # unable to answer anything else — the page's own data request included.
+    ThreadingHTTPServer(("", port), handler).serve_forever()
 
 
 if __name__ == "__main__":
