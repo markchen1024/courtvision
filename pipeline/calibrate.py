@@ -7,7 +7,7 @@ it is a model. The solver downstream does not care which.
 
 Three uses, one tool:
 
-  1. reference frame  — one calibrated frame is all a panning camera needs; every
+  1. reference frame  - one calibrated frame is all a panning camera needs; every
                         other frame registers back to it by feature matching and
                         the two homographies compose.
   2. ground truth     — with hand-placed landmarks we can finally say how far off
@@ -20,10 +20,16 @@ Three uses, one tool:
     python pipeline/calibrate.py --check out/calibration/frame_000120.json
     python pipeline/calibrate.py --export-yolo out/court_dataset
 
-Controls: left click places the highlighted landmark, or grabs a placed one if you
-click within a few pixels of it · arrow keys nudge the grabbed point · [ ] change
-the nudge step · E toggles contrast boost in the loupe · N/P step targets · U undo
-· SPACE skip · ENTER save · Q quit.
+Points or lines, whichever the frame gives you. A landmark means finding the one
+pixel where two faint lines cross; a line means clicking twice anywhere along
+something you can plainly see. They are worth the same to the solver -- two
+constraints each -- and a line is both easier to place accurately and worth far
+more coverage, because it vouches for its whole length instead of one spot.
+
+Controls: left click places the highlighted target, or grabs a placed one if you
+click within a few pixels of it. A line takes two clicks. Arrow keys nudge
+whatever is grabbed, [ ] change the nudge step, E toggles contrast boost in the
+loupe, N/P step targets, U undo, SPACE skip, ENTER save, Q quit.
 
 The loupe boosts local contrast because the lines here are white paint on pale
 varnished pine, a few levels of luminance apart, and un-boosted they are simply
@@ -41,6 +47,8 @@ from pathlib import Path
 
 import cv2
 import numpy as np
+
+import homography
 
 # FIBA, in metres. Big V plays FIBA, and the numbers differ from NBA enough to
 # matter: the key is rectangular here, and the arc is 6.75 rather than 7.24.
@@ -88,6 +96,28 @@ LANDMARKS = [
     ("e3pt_n", COURT_LENGTH, COURT_WIDTH - THREE_INSET),
 ]
 BY_NAME = {n: (x, y) for n, x, y in LANDMARKS}
+
+# Lines you can name at a glance, each stored as the court segment that defines
+# it. Two clicks anywhere along one in the image is a full correspondence -- the
+# same two constraints a landmark gives, without having to find an intersection.
+# key_side_* is one infinite line through both keys, so click it at whichever end
+# is in shot.
+LINES = [
+    ("baseline_w", ((0.0, 0.0), (0.0, COURT_WIDTH))),
+    ("baseline_e", ((COURT_LENGTH, 0.0), (COURT_LENGTH, COURT_WIDTH))),
+    ("sideline_s", ((0.0, 0.0), (COURT_LENGTH, 0.0))),
+    ("sideline_n", ((0.0, COURT_WIDTH), (COURT_LENGTH, COURT_WIDTH))),
+    ("halfway", ((COURT_LENGTH / 2, 0.0), (COURT_LENGTH / 2, COURT_WIDTH))),
+    ("ft_w", ((KEY_DEPTH, COURT_WIDTH / 2 - KEY_WIDTH / 2), (KEY_DEPTH, COURT_WIDTH / 2 + KEY_WIDTH / 2))),
+    ("ft_e", ((COURT_LENGTH - KEY_DEPTH, COURT_WIDTH / 2 - KEY_WIDTH / 2),
+              (COURT_LENGTH - KEY_DEPTH, COURT_WIDTH / 2 + KEY_WIDTH / 2))),
+    ("key_side_s", ((0.0, COURT_WIDTH / 2 - KEY_WIDTH / 2), (KEY_DEPTH, COURT_WIDTH / 2 - KEY_WIDTH / 2))),
+    ("key_side_n", ((0.0, COURT_WIDTH / 2 + KEY_WIDTH / 2), (KEY_DEPTH, COURT_WIDTH / 2 + KEY_WIDTH / 2))),
+]
+LINE_BY_NAME = dict(LINES)
+
+# One flat list so N/P walks landmarks and lines alike.
+TARGETS = ([("point", n) for n, _, _ in LANDMARKS] + [("line", n) for n, _ in LINES])
 
 # Blueprint palette, BGR, matching try_models.py and the viewer
 LIME = (49, 240, 200)
@@ -167,34 +197,43 @@ def mirror_index():
     return idx
 
 
-def solve(picked):
-    """Return (H court->image, rms reprojection error px, spread in m^2, residuals).
+def solve(picked, lines=None):
+    """Return (H court->image, rms px, spread in m^2, residuals per name).
 
-    residuals maps landmark name -> pixels of disagreement, which is the only
-    thing that tells you *which* click was wrong. With exactly four points the fit
-    is always exact, so rms stays at zero and says nothing; the fifth point is
-    where mistakes surface.
+    Points and lines are interchangeable: each contributes two constraints, so
+    four of anything is the minimum. Clicking a line means clicking twice
+    anywhere along something you can see, rather than once on an intersection you
+    have to find, which is the accuracy this footage does not otherwise give.
+
+    residuals maps name -> pixels of disagreement, which is the only thing that
+    says *which* click was wrong. With exactly four correspondences the fit is
+    always exact, so rms stays at zero and says nothing; the fifth is the first
+    real check.
     """
-    names = [n for n in picked]
-    if len(names) < 4:
+    lines = lines or {}
+    point_pairs = [(BY_NAME[n], picked[n]) for n in picked]
+    line_pairs = [(LINE_BY_NAME[n], lines[n]) for n in lines if n in LINE_BY_NAME]
+    if 2 * (len(point_pairs) + len(line_pairs)) < 8:
         return None, None, None, {}
-    src = np.array([BY_NAME[n] for n in names], np.float32)
-    dst = np.array([picked[n] for n in names], np.float32)
 
-    method = cv2.RANSAC if len(names) >= 5 else 0
-    H, _ = cv2.findHomography(src, dst, method, 4.0)
+    # A line vouches for the stretch of court it runs along, so its defining
+    # segment counts toward coverage the same way a clicked landmark does.
+    hull_src = ([BY_NAME[n] for n in picked]
+                + [p for n in line_pairs for p in n[0]])
+    spread = float(cv2.contourArea(cv2.convexHull(np.array(hull_src, np.float32))))
+
+    H = homography.solve(point_pairs, line_pairs)
     if H is None:
-        # Fully degenerate — every point on one line. Report the spread anyway so
-        # the caller can say *why* rather than just "no solution".
-        return None, None, float(cv2.contourArea(cv2.convexHull(src))), {}
+        return None, None, spread, {}
 
-    proj = cv2.perspectiveTransform(src.reshape(-1, 1, 2), H).reshape(-1, 2)
-    err = np.linalg.norm(proj - dst, axis=1)
-    rms = float(np.sqrt((err ** 2).mean()))
-    # Points bunched into a line solve fine and extrapolate terribly, so report
-    # how much court they actually cover.
-    spread = float(cv2.contourArea(cv2.convexHull(src)))
-    return H, rms, spread, {n: float(e) for n, e in zip(names, err)}
+    r = homography.residuals(H, point_pairs, line_pairs)
+    res = {}
+    for n, e in zip(picked, r["points"]):
+        res[n] = float(e)
+    for (n, _), e in zip([(n, None) for n in lines if n in LINE_BY_NAME], r["lines"]):
+        res[n] = float(e)
+    err = np.array(list(res.values()), np.float64)
+    return H, float(np.sqrt((err ** 2).mean())), spread, res
 
 
 def draw_court(img, H, colour=TEAL, thickness=2):
@@ -246,7 +285,7 @@ def magnifier(frame, cx, cy, size=90, zoom=5, boost=True):
     return big
 
 
-def diagram(target_idx, picked, width=430):
+def diagram(target_idx, picked, lines=None, width=430):
     """Top-down court with the current target ringed — names alone are ambiguous
     when you are staring at a camera view and cannot tell north from south."""
     scale = (width - 24) / COURT_LENGTH
@@ -258,10 +297,19 @@ def diagram(target_idx, picked, width=430):
 
     for poly in court_polylines():
         cv2.polylines(img, [np.array([P(x, y) for x, y in poly], np.int32)], False, DIM, 1, cv2.LINE_AA)
+    for name, (a, b) in LINES:
+        if name in (lines or {}):
+            cv2.line(img, P(*a), P(*b), LIME, 2, cv2.LINE_AA)
     for name, x, y in LANDMARKS:
         cv2.circle(img, P(x, y), 3, LIME if name in picked else (80, 80, 80), -1)
-    name, x, y = LANDMARKS[target_idx]
-    cv2.circle(img, P(x, y), 9, RED, 2, cv2.LINE_AA)
+
+    kind, name = TARGETS[target_idx]
+    if kind == "point":
+        x, y = BY_NAME[name]
+        cv2.circle(img, P(x, y), 9, RED, 2, cv2.LINE_AA)
+    else:
+        a, b = LINE_BY_NAME[name]
+        cv2.line(img, P(*a), P(*b), RED, 3, cv2.LINE_AA)
     return img
 
 
@@ -294,25 +342,46 @@ def calibrate_frame(frame, frame_idx, display_width):
     cv2.namedWindow(win, cv2.WINDOW_AUTOSIZE)
     cv2.setMouseCallback(win, on_mouse)
 
-    picked, target, confirm = {}, 0, False
-    active, boost, step = None, True, 1.0
+    picked, lines, target, confirm = {}, {}, 0, False
+    active, boost, step, pending = None, True, 1.0, None
+
+    def grabbable():
+        """Every clicked pixel that can be picked up again: landmarks, and the two
+        ends of each placed line."""
+        out = [(n, p, None) for n, p in picked.items()]
+        out += [(n, p, e) for n, seg in lines.items() for e, p in enumerate(seg)]
+        return out
+
     while True:
         if state["click"] is not None:
-            # Clicking near a placed point grabs it instead of dropping a new one,
-            # so a point that is 3px out can be nudged rather than redone.
-            near = [n for n, p in picked.items()
-                    if abs(p[0] - state["click"][0]) < 10 / scale
-                    and abs(p[1] - state["click"][1]) < 10 / scale]
-            if near:
-                active = near[0]
-                target = [n for n, _, _ in LANDMARKS].index(active)
+            cx, cy = state["click"]
+            near = [(n, e) for n, p, e in grabbable()
+                    if abs(p[0] - cx) < 10 / scale and abs(p[1] - cy) < 10 / scale]
+            kind, name = TARGETS[target]
+            if near and pending is None:
+                # Clicking near something already placed grabs it instead of
+                # dropping a new one, so a click 3px out gets nudged, not redone.
+                active, grabbed_end = near[0]
+                pending = None
+                target = [n for _, n in TARGETS].index(active)
+                state["end"] = grabbed_end
+            elif kind == "point":
+                picked[name] = (cx, cy)
+                active, state["end"] = name, None
+                target = (target + 1) % len(TARGETS)
             else:
-                picked[LANDMARKS[target][0]] = state["click"]
-                active = LANDMARKS[target][0]
-                target = (target + 1) % len(LANDMARKS)
+                # A line takes two clicks, anywhere along it. They do not have to
+                # be the ends of anything -- that is the whole point.
+                if pending is None:
+                    pending = (cx, cy)
+                else:
+                    lines[name] = (pending, (cx, cy))
+                    pending = None
+                    active, state["end"] = name, 1
+                    target = (target + 1) % len(TARGETS)
             state["click"] = None
 
-        H, rms, spread, residuals = solve(picked)
+        H, rms, spread, residuals = solve(picked, lines)
         worst = max(residuals, key=residuals.get) if residuals else None
 
         view = cv2.resize(frame, disp_size) if scale < 1.0 else frame.copy()
@@ -329,6 +398,33 @@ def calibrate_frame(frame, frame_idx, display_width):
                 if np.isfinite(want).all() and residuals.get(name, 0) > 4.0:
                     cv2.line(view, (int(px * scale), int(py * scale)),
                              (int(want[0]), int(want[1])), RED, 1, cv2.LINE_AA)
+        # Placed lines, drawn out to the frame edges so you can see whether they
+        # follow the paint far away from where you happened to click.
+        for name, ((ax, ay), (bx, by)) in lines.items():
+            bad = name == worst and residuals.get(name, 0) > 4.0
+            colour = RED if bad else LIME
+            a = np.array([ax * scale, ay * scale])
+            b = np.array([bx * scale, by * scale])
+            d_ = b - a
+            n_ = np.linalg.norm(d_)
+            if n_ > 1e-6:
+                far = 4000.0 / n_ * d_
+                cv2.line(view, tuple((a - far).astype(int)), tuple((b + far).astype(int)),
+                         colour, 1, cv2.LINE_AA)
+            for e, p in enumerate(((ax, ay), (bx, by))):
+                q = (int(p[0] * scale), int(p[1] * scale))
+                cv2.circle(view, q, 4, colour, -1)
+                if name == active and state.get("end") == e:
+                    cv2.circle(view, q, 9, (255, 255, 255), 1, cv2.LINE_AA)
+            tag = name + (f" {residuals[name]:.0f}px" if name in residuals else "")
+            cv2.putText(view, tag, (int(ax * scale) + 8, int(ay * scale) - 6),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.38, colour, 1, cv2.LINE_AA)
+        if pending is not None:
+            q = (int(pending[0] * scale), int(pending[1] * scale))
+            cv2.circle(view, q, 4, RED, -1)
+            cv2.line(view, q, (int(state["cursor"][0] * scale), int(state["cursor"][1] * scale)),
+                     RED, 1, cv2.LINE_AA)
+
         for name, (px, py) in picked.items():
             p = (int(px * scale), int(py * scale))
             bad = name == worst and residuals.get(name, 0) > 4.0
@@ -342,26 +438,36 @@ def calibrate_frame(frame, frame_idx, display_width):
             cv2.putText(view, tag, (p[0] + 8, p[1] - 6), cv2.FONT_HERSHEY_SIMPLEX, 0.38,
                         RED if bad else LIME, 1, cv2.LINE_AA)
 
-        d = diagram(target, picked)
+        d = diagram(target, picked, lines)
         view[view.shape[0] - d.shape[0]:, :d.shape[1]] = d
         # While nudging, the loupe follows the point being nudged; otherwise the
         # cursor. Watching your own arrow keys move the crosshair is the point.
-        at = picked[active] if (active in picked and not state["moved"]) else state["cursor"]
+        at = state["cursor"]
+        if not state["moved"]:
+            if active in picked:
+                at = picked[active]
+            elif active in lines and state.get("end") is not None:
+                at = lines[active][state["end"]]
         m = magnifier(frame, *at, boost=boost)
         view[view.shape[0] - m.shape[0]:, view.shape[1] - m.shape[1]:] = m
 
-        status = [(f"frame {frame_idx}   target: {LANDMARKS[target][0]}   placed {len(picked)}", LIME)]
+        kind, tname = TARGETS[target]
+        need = 4 - len(picked) - len(lines)
+        status = [(f"frame {frame_idx}   target: {tname} ({kind})"
+                   + ("  <- click twice anywhere along it" if kind == "line" else "")
+                   + f"   placed {len(picked)}pt {len(lines)}line", LIME)]
         good = False
-        if H is None and len(picked) < 4:
-            status.append((f"need {4 - len(picked)} more point(s) to solve", DIM))
+        if H is None and need > 0:
+            status.append((f"need {need} more point(s) or line(s) - either counts the same", DIM))
         elif H is None:
-            status.append(("degenerate — your points are all on one line", RED))
+            status.append(("no unique fit - parallel lines only, or points sitting on their own lines",
+                           RED))
         else:
             good = rms <= MAX_RMS and spread >= MIN_COVERAGE
             status.append((f"reprojection {rms:.1f}px   coverage {spread:.0f}m2 "
                            f"({spread / COURT_AREA * 100:.0f}% of court)", LIME if good else RED))
-            if len(picked) == 4:
-                status.append(("four points always fit exactly - add a fifth to check yourself", DIM))
+            if len(picked) + len(lines) == 4:
+                status.append(("four always fit exactly - add a fifth to check yourself", DIM))
             elif rms > MAX_RMS:
                 status.append((f"worst: {worst} is {residuals[worst]:.0f}px out - press U on it and re-click",
                                RED))
@@ -375,16 +481,22 @@ def calibrate_frame(frame, frame_idx, display_width):
 
         cv2.imshow(win, view)
         raw = cv2.waitKeyEx(20)
-        if raw in ARROWS and active in picked:
+        if raw in ARROWS and (active in picked or active in lines):
             dx, dy = ARROWS[raw]
-            px, py = picked[active]
-            picked[active] = (px + dx * step, py + dy * step)
+            if active in picked:
+                px, py = picked[active]
+                picked[active] = (px + dx * step, py + dy * step)
+            else:
+                e = state.get("end") or 0
+                seg = list(lines[active])
+                seg[e] = (seg[e][0] + dx * step, seg[e][1] + dy * step)
+                lines[active] = tuple(seg)
             state["moved"] = False
             continue
         key = raw & 0xFF if raw != -1 else 255
         if key in (ord("q"), 27):
             cv2.destroyWindow(win)
-            return None
+            return None, None
         if key in (13, 10):
             # A bad fit used to save silently, which is how a 95px calibration ends
             # up downstream still looking like a finished measurement.
@@ -392,7 +504,7 @@ def calibrate_frame(frame, frame_idx, display_width):
                 confirm = True
             else:
                 cv2.destroyWindow(win)
-                return picked
+                return picked, lines
             continue
         if key != 255:
             confirm = False
@@ -403,15 +515,21 @@ def calibrate_frame(frame, frame_idx, display_width):
         elif key == ord("]"):
             step = min(8.0, step * 2)
         elif key == ord("n") or key == ord(" "):
-            target = (target + 1) % len(LANDMARKS)
+            target, pending = (target + 1) % len(TARGETS), None
         elif key == ord("p"):
-            target = (target - 1) % len(LANDMARKS)
+            target, pending = (target - 1) % len(TARGETS), None
         elif key == ord("u"):
-            picked.pop(active or LANDMARKS[target][0], None)
-            active = None
+            if pending is not None:
+                pending = None
+            else:
+                doomed = active or TARGETS[target][1]
+                picked.pop(doomed, None)
+                lines.pop(doomed, None)
+                active = None
 
 
-def save_calibration(path, video, frame_idx, shape, picked, H, rms, spread, residuals=None):
+def save_calibration(path, video, frame_idx, shape, picked, H, rms, spread, residuals=None,
+                     lines=None):
     Hinv = np.linalg.inv(H) if H is not None else None
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps({
@@ -424,6 +542,12 @@ def save_calibration(path, video, frame_idx, shape, picked, H, rms, spread, resi
             {"name": n, "court": list(BY_NAME[n]), "pixel": list(p),
              "residual_px": (residuals or {}).get(n)}
             for n, p in picked.items()
+        ],
+        "lines": [
+            {"name": n, "court": [list(a), list(b)], "pixel": [list(seg[0]), list(seg[1])],
+             "residual_px": (residuals or {}).get(n)}
+            for n, seg in (lines or {}).items()
+            for (a, b) in [LINE_BY_NAME[n]]
         ],
         "partial": H is None,
         "H_court_to_image": H.tolist() if H is not None else None,
@@ -454,30 +578,34 @@ def cmd_calibrate(args):
             print(f"  frame {idx}: unreadable, skipping")
             continue
 
-        picked = calibrate_frame(frame, idx, args.display_width)
+        picked, drawn = calibrate_frame(frame, idx, args.display_width)
         if picked is None:
             print("  quit")
             break
-        H, rms, spread, residuals = solve(picked)
+        H, rms, spread, residuals = solve(picked, drawn)
         if H is None:
             # A side-on view of one end cannot always spread four points. Keep the
             # clicks anyway: fuse_calibration.py transports points from several
             # frames into one and solves them together, so a frame that shows only
             # the centre circle still contributes the two points it does have.
-            if args.partial and picked:
+            if args.partial and (picked or drawn):
                 path = outdir / f"frame_{idx:06d}.json"
-                save_calibration(path, args.video, idx, frame.shape, picked, None, None, None, residuals)
-                print(f"  frame {idx}: {len(picked)} points saved as partial (no homography on its own)")
+                save_calibration(path, args.video, idx, frame.shape, picked, None, None, None,
+                                 residuals, drawn)
+                print(f"  frame {idx}: {len(picked)}pt {len(drawn)}line saved as partial "
+                      f"(no homography on its own)")
                 done += 1
             else:
-                print(f"  frame {idx}: only {len(picked)} points, not saved (use --partial to keep them)")
+                print(f"  frame {idx}: {len(picked)}pt {len(drawn)}line is not enough "
+                      f"(use --partial to keep them)")
             continue
 
         path = outdir / f"frame_{idx:06d}.json"
-        save_calibration(path, args.video, idx, frame.shape, picked, H, rms, spread, residuals)
+        save_calibration(path, args.video, idx, frame.shape, picked, H, rms, spread, residuals, drawn)
         overlay = draw_court(frame.copy(), H)
         cv2.imwrite(str(outdir / f"frame_{idx:06d}.jpg"), overlay)
-        print(f"  frame {idx}: {len(picked)} points, rms {rms:.1f}px, coverage {spread:.0f}m2 -> {path.name}")
+        print(f"  frame {idx}: {len(picked)}pt {len(drawn)}line, rms {rms:.1f}px, "
+              f"coverage {spread:.0f}m2 -> {path.name}")
         done += 1
 
     cap.release()
@@ -501,14 +629,16 @@ def cmd_check(args):
         cv2.circle(out, (int(p["pixel"][0]), int(p["pixel"][1])), 6, LIME, -1)
     path = Path(args.check).with_suffix(".check.jpg")
     cv2.imwrite(str(path), out)
-    print(f"frame {data['frame']}: {len(data['points'])} points, "
+    print(f"frame {data['frame']}: {len(data['points'])}pt {len(data.get('lines', []))}line, "
           f"rms {data['reprojection_rms_px']:.1f}px, coverage {data['coverage_m2']:.0f}m2")
     if data["reprojection_rms_px"] > MAX_RMS:
         print(f"  FAILED: above {MAX_RMS:.0f}px the points contradict each other, "
               f"so the court drawn in the overlay is not where the court is.")
     # Recomputed rather than read back, so an older file without residuals still
     # gets diagnosed.
-    _, _, _, residuals = solve({p["name"]: tuple(p["pixel"]) for p in data["points"]})
+    _, _, _, residuals = solve(
+        {p["name"]: tuple(p["pixel"]) for p in data["points"]},
+        {l["name"]: (tuple(l["pixel"][0]), tuple(l["pixel"][1])) for l in data.get("lines", [])})
     for name, err in sorted(residuals.items(), key=lambda kv: -kv[1]):
         flag = "  <-- re-click this one" if err > MAX_RMS else ""
         print(f"    {name:14s} {err:7.1f}px{flag}")
