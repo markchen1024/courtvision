@@ -8,6 +8,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600&family=Inter:wght@400;500&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/vendor/plyr.css">
 <link rel="stylesheet" href="assets/theme.css">
 <style>
 /* Marketing pages want a narrower measure than the console does. */
@@ -99,6 +100,35 @@ h1 em { font-style: normal; color: var(--signal); }
 .frame .cap .right { margin-left: auto; font: 400 11.5px/1 var(--font-mono); color: var(--subtle); }
 .frame .stage { position: relative; background: #000; aspect-ratio: 16/9; }
 .frame .stage video { width: 100%; height: 100%; display: block; object-fit: cover; }
+
+/* Plyr, dressed as the rest of the page. Its own variables do the work — the
+   only structural override is making it fill the 16/9 stage instead of sizing
+   itself to the video. */
+.frame .stage .plyr,
+.frame .stage .plyr__video-wrapper { height: 100%; width: 100%; }
+.frame .stage .plyr {
+  --plyr-color-main: var(--signal);
+  --plyr-video-background: #000;
+  --plyr-video-control-color: var(--foreground);
+  --plyr-video-control-color-hover: var(--inverse);
+  --plyr-video-controls-background: linear-gradient(rgb(8 9 12 / 0), rgb(8 9 12 / .92));
+  --plyr-font-family: var(--font-mono);
+  --plyr-font-size-time: 11px;
+  --plyr-font-size-small: 11px;
+  --plyr-control-spacing: 8px;
+  --plyr-control-radius: 6px;
+  --plyr-range-track-height: 4px;
+  --plyr-range-thumb-height: 11px;
+  --plyr-range-thumb-shadow: none;
+  --plyr-tooltip-background: var(--surface-raised);
+  --plyr-tooltip-color: var(--foreground);
+  --plyr-tooltip-radius: 6px;
+}
+.frame .stage .plyr__control svg { filter: none; }
+.frame .stage .plyr__time { font-variant-numeric: tabular-nums; letter-spacing: .04em; }
+/* The marker sits where the tracking data runs out — see the note in the court
+   caption when you scrub past it. */
+.frame .stage .plyr__progress__marker { background: var(--teal); width: 2px; opacity: .9; }
 .frame .stage .fallback {
   position: absolute; inset: 0; display: grid; place-content: center; gap: 8px;
   text-align: center; color: var(--subtle); background: var(--surface-inset);
@@ -672,6 +702,7 @@ footer { border-top: 1px solid var(--line-soft); padding: 52px 0 40px; }
   </div>
 </div></footer>
 
+<script src="assets/vendor/plyr.min.js"></script>
 <script src="assets/court.js"></script>
 <script>
 const TEAM = { home: '#c8f031', away: '#3bc9a8' };
@@ -716,17 +747,29 @@ function mountFilm(){
   const ready = () => {
     film = el;
     clockStart = null;
-    el.hidden = false;
     document.getElementById('filmFallback').hidden = true;
-    el.play().catch(() => {});
   };
   // `loadedmetadata` is enough to read currentTime. `playing` is the belt to
   // that pair of braces: if pixels are moving, a "no clip" notice has no
-  // business sitting on top of them whatever the rest of this thought.
+  // business sitting on top of them whatever the rest of this concluded.
   el.addEventListener('loadedmetadata', ready);
   el.addEventListener('playing', ready);
   el.addEventListener('error', () => fallback(true));
   el.src = CLIP;
+
+  // Transport controls. The clip is 3 minutes but the tracking only covers the
+  // first stretch of it, so the seek bar carries a marker where the data stops
+  // — scrub past it and the court says so rather than freezing without
+  // explanation.
+  new Plyr(el, {
+    iconUrl: 'assets/vendor/plyr.svg',
+    controls: ['play', 'progress', 'current-time', 'duration', 'mute', 'fullscreen'],
+    hideControls: false,
+    keyboard: { focused: true, global: false },
+    tooltips: { controls: false, seek: true },
+    markers: DATA ? { enabled: true, points: [{ time: DATA.video.duration, label: 'tracking ends' }] } : undefined,
+  });
+
   // Some static servers never fire `error` for a file that isn't there.
   setTimeout(() => {
     if (!film) fallback(el.networkState !== HTMLMediaElement.NETWORK_LOADING);
@@ -734,14 +777,12 @@ function mountFilm(){
 }
 
 /* Keep the court moving off an internal clock either way; only claim the clip
-   is missing once we are actually sure of it. */
+   is missing once we are actually sure of it. The notice is positioned over the
+   whole stage, so it covers the player without needing to hide it. */
 function fallback(missing){
   if (film) return;
   if (!clockStart) clockStart = performance.now();
-  if (missing) {
-    document.getElementById('film').hidden = true;
-    document.getElementById('filmFallback').hidden = false;
-  }
+  if (missing) document.getElementById('filmFallback').hidden = false;
 }
 
 function currentTime(){
@@ -772,6 +813,15 @@ function draw(t){
   Court.lines(ctx, g, { w, h });
   if (!DATA) return;
 
+  // The clip runs longer than the tracking does. Once you scrub past the data,
+  // show an empty floor and say so — leaving everyone frozen on their last
+  // known position would read as a tracker that had lost the plot.
+  const cap = document.getElementById('capTracks');
+  if (t > DATA.video.duration) {
+    cap.textContent = `no tracking past ${fmt(DATA.video.duration)}`;
+    return;
+  }
+
   const hz = DATA.video.hz || 6;
   const i = Math.max(0, Math.min(Math.round(t * hz), DATA.frames.length - 1));
 
@@ -788,8 +838,7 @@ function draw(t){
   const frame = DATA.frames[i];
   if (!frame) return;
   for (const pos of frame.positions) dot(ctx, g, pos, 6, true);
-  document.getElementById('capTracks').textContent =
-    `${frame.positions.length} track${frame.positions.length === 1 ? '' : 's'}`;
+  cap.textContent = `${frame.positions.length} track${frame.positions.length === 1 ? '' : 's'}`;
 }
 
 function dot(ctx, g, pos, r, ring){

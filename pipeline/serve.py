@@ -101,6 +101,24 @@ class _Slice:
         self.f.close()
 
 
+class QuietThreadingHTTPServer(ThreadingHTTPServer):
+    """A dropped connection is ordinary traffic here, not an error.
+
+    Every scrub abandons an in-flight range request, and half the time the socket
+    is reset while the handler is waiting on keep-alive for the next one, which
+    raises out of rfile rather than out of copyfile. The server survives either
+    way -- twenty-four disconnects leave it answering normally -- but the default
+    handler prints a full traceback for each, and a terminal filling with red
+    while you talk over the demo reads as broken even when nothing is.
+    """
+
+    def handle_error(self, request, client_address):
+        if isinstance(sys.exc_info()[1], (BrokenPipeError, ConnectionResetError,
+                                          ConnectionAbortedError, TimeoutError)):
+            return
+        super().handle_error(request, client_address)
+
+
 def main():
     port = int(sys.argv[1]) if len(sys.argv) > 1 else 8765
     root = sys.argv[2] if len(sys.argv) > 2 else os.path.join(os.path.dirname(__file__), "..", "web")
@@ -109,7 +127,7 @@ def main():
     print(f"serving {root} on http://localhost:{port}  (Range supported)")
     # Threaded, because a single-threaded server spends the whole clip transfer
     # unable to answer anything else — the page's own data request included.
-    ThreadingHTTPServer(("", port), handler).serve_forever()
+    QuietThreadingHTTPServer(("", port), handler).serve_forever()
 
 
 if __name__ == "__main__":

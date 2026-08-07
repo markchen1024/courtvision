@@ -51,6 +51,11 @@ python pipeline/make_sample_data.py --seconds 180   # writes web/data/sample.jso
 python pipeline/serve.py                            # open http://localhost:8765
 ```
 
+Transport controls come from [Plyr](https://github.com/sampotts/plyr) (MIT), vendored into
+`web/assets/vendor/` rather than pulled from a CDN — including its icon sprite, which Plyr
+otherwise fetches from `cdn.plyr.io` at runtime. The demo has to survive a room with bad
+wifi.
+
 Two pages, sharing `web/assets/theme.css` and one court renderer in
 `web/assets/court.js`:
 
