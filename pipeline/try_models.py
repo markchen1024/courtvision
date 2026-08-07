@@ -68,9 +68,12 @@ def run_detector(proc, model, frame, threshold):
 
 
 def load_keypoints():
+    # Ultralytics wants a local .pt, not a Hub repo id, so fetch the weights first.
+    from huggingface_hub import hf_hub_download
     from ultralytics import YOLO
 
-    return YOLO(KEYPOINTS)
+    weights = hf_hub_download(repo_id=KEYPOINTS, filename="best.pt")
+    return YOLO(weights)
 
 
 def run_keypoints(model, frame, threshold):
