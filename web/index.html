@@ -76,6 +76,7 @@ h1 em { font-style: normal; color: var(--signal); }
   border: 1px solid var(--line); border-radius: 14px;
   background: var(--surface); overflow: hidden;
   box-shadow: 0 0 0 1px rgb(8 9 12 / .8), 0 40px 90px -50px rgb(200 240 49 / .18);
+  text-align: left;   /* the hero centres its copy; the app inside it does not */
 }
 .frame .chrome {
   display: flex; align-items: center; gap: 12px;
@@ -192,8 +193,9 @@ h1 em { font-style: normal; color: var(--signal); }
 @media (max-width: 640px) { .grid-3 { grid-template-columns: 1fr; } }
 
 /* ── Stat tabs ───────────────────────────────────────────────────────────── */
-.tabwrap { border: 1px solid var(--line); border-radius: var(--radius-lg); background: var(--surface); overflow: hidden; }
-.tabs { display: flex; gap: 2px; border-bottom: 1px solid var(--line); overflow-x: auto; scrollbar-width: none; }
+/* These live inside the product window, directly under the footage, so the hero
+   reads as one application rather than a video with charts filed elsewhere. */
+.tabs { display: flex; gap: 2px; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); overflow-x: auto; scrollbar-width: none; }
 .tabs::-webkit-scrollbar { display: none; }
 .tabs button {
   appearance: none; background: none; border: 0; border-bottom: 2px solid transparent;
@@ -205,7 +207,11 @@ h1 em { font-style: normal; color: var(--signal); }
 .tabs button:hover { color: var(--muted); }
 .tabs button[aria-selected="true"] { color: var(--signal); border-bottom-color: var(--signal); }
 .tabpanel { padding: 20px 22px 24px; }
-.tabnote { margin: 14px 2px 0; font: 400 12px/1.6 var(--font-mono); color: var(--subtle); }
+.tabnote {
+  margin: 14px auto 0; max-width: 78ch;
+  font: 400 12px/1.6 var(--font-mono); color: var(--subtle);
+}
+.tabnote a { color: var(--muted); }
 
 /* Tables shared by the box score and minutes panels */
 .stat { width: 100%; border-collapse: collapse; }
@@ -357,7 +363,6 @@ footer { border-top: 1px solid var(--line-soft); padding: 52px 0 40px; }
   </a>
   <div class="links">
     <a href="#product">Product</a>
-    <a href="#stats">Stats</a>
     <a href="#method">Method</a>
     <a href="#limits">Limits</a>
     <a href="#pricing">Pricing</a>
@@ -405,7 +410,51 @@ footer { border-top: 1px solid var(--line-soft); padding: 52px 0 40px; }
         <canvas id="court"></canvas>
       </div>
     </div>
+
+    <div class="tabs" role="tablist" aria-label="Statistics">
+      <button role="tab" id="tab-box"    aria-controls="p-box"    aria-selected="true">Box score</button>
+      <button role="tab" id="tab-team"   aria-controls="p-team"   aria-selected="false">Team stats</button>
+      <button role="tab" id="tab-shots"  aria-controls="p-shots"  aria-selected="false">Shot chart</button>
+      <button role="tab" id="tab-clips"  aria-controls="p-clips"  aria-selected="false">Timeline</button>
+      <button role="tab" id="tab-mins"   aria-controls="p-mins"   aria-selected="false">Minutes &amp; impact</button>
+    </div>
+
+    <div class="tabpanel" role="tabpanel" id="p-box" aria-labelledby="tab-box">
+      <div class="scroll-x"><table class="stat" id="boxTable"></table></div>
+    </div>
+
+    <div class="tabpanel" role="tabpanel" id="p-team" aria-labelledby="tab-team" hidden>
+      <div class="compare" id="compare"></div>
+    </div>
+
+    <div class="tabpanel" role="tabpanel" id="p-shots" aria-labelledby="tab-shots" hidden>
+      <div class="shots">
+        <div>
+          <canvas id="shotChart"></canvas>
+          <div class="legend">
+            <span><i class="made"></i>Made</span>
+            <span><i class="miss"></i>Missed</span>
+            <span id="shotTotal"></span>
+          </div>
+        </div>
+        <div class="zones" id="zones"></div>
+      </div>
+    </div>
+
+    <div class="tabpanel" role="tabpanel" id="p-clips" aria-labelledby="tab-clips" hidden>
+      <div class="clips" id="clips"></div>
+    </div>
+
+    <div class="tabpanel" role="tabpanel" id="p-mins" aria-labelledby="tab-mins" hidden>
+      <div class="scroll-x"><table class="stat" id="minsTable"></table></div>
+    </div>
   </div>
+
+  <p class="tabnote">
+    Sample game, illustrative numbers. Positions and shot locations are the kind of thing
+    the geometry measures; the event labels behind them are hand-tagged — see
+    <a href="#limits">Limits</a>.
+  </p>
 
   <div class="figures">
     <div><div class="n" id="figCourt">28 × 15</div><div class="k">metre court model, FIBA</div></div>
@@ -469,64 +518,6 @@ footer { border-top: 1px solid var(--line-soft); padding: 52px 0 40px; }
       take them to whatever you already use.</p>
     </div>
   </div>
-</div></section>
-
-<section class="band" id="stats"><div class="shell">
-  <div class="head-block">
-    <span class="label">Output</span>
-    <h2>The five screens a coach actually opens.</h2>
-    <p>
-      One clip in, and the film session stops being a scrub bar. Box score, team
-      comparison, where the points came from, every tagged play, and who was on the floor
-      while the margin moved.
-    </p>
-  </div>
-
-  <div class="tabwrap">
-    <div class="tabs" role="tablist" aria-label="Statistics">
-      <button role="tab" id="tab-box"    aria-controls="p-box"    aria-selected="true">Box score</button>
-      <button role="tab" id="tab-team"   aria-controls="p-team"   aria-selected="false">Team stats</button>
-      <button role="tab" id="tab-shots"  aria-controls="p-shots"  aria-selected="false">Shot chart</button>
-      <button role="tab" id="tab-clips"  aria-controls="p-clips"  aria-selected="false">Timeline</button>
-      <button role="tab" id="tab-mins"   aria-controls="p-mins"   aria-selected="false">Minutes &amp; impact</button>
-    </div>
-
-    <div class="tabpanel" role="tabpanel" id="p-box" aria-labelledby="tab-box">
-      <div class="scroll-x"><table class="stat" id="boxTable"></table></div>
-    </div>
-
-    <div class="tabpanel" role="tabpanel" id="p-team" aria-labelledby="tab-team" hidden>
-      <div class="compare" id="compare"></div>
-    </div>
-
-    <div class="tabpanel" role="tabpanel" id="p-shots" aria-labelledby="tab-shots" hidden>
-      <div class="shots">
-        <div>
-          <canvas id="shotChart"></canvas>
-          <div class="legend">
-            <span><i class="made"></i>Made</span>
-            <span><i class="miss"></i>Missed</span>
-            <span id="shotTotal"></span>
-          </div>
-        </div>
-        <div class="zones" id="zones"></div>
-      </div>
-    </div>
-
-    <div class="tabpanel" role="tabpanel" id="p-clips" aria-labelledby="tab-clips" hidden>
-      <div class="clips" id="clips"></div>
-    </div>
-
-    <div class="tabpanel" role="tabpanel" id="p-mins" aria-labelledby="tab-mins" hidden>
-      <div class="scroll-x"><table class="stat" id="minsTable"></table></div>
-    </div>
-  </div>
-
-  <p class="tabnote">
-    Sample game, illustrative numbers. Positions and shot locations are the kind of thing
-    the geometry measures; the event labels behind them are hand-tagged — see
-    <a href="#limits" style="color:var(--muted)">Limits</a>.
-  </p>
 </div></section>
 
 <section class="band" id="method"><div class="shell">
