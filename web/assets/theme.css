@@ -69,6 +69,12 @@ body::before {
 
 ::selection { background: var(--signal); color: var(--inverse); }
 
+/* The UA's `[hidden] { display: none }` is weaker than any author rule that
+   sets a display, so an element styled `display: grid` stays on screen with the
+   attribute set — silently, which makes it a miserable bug to find. Put the
+   attribute back in charge. */
+[hidden] { display: none !important; }
+
 :focus-visible { outline: 2px solid var(--signal); outline-offset: 3px; }
 
 [data-numeric] { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }

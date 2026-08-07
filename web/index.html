@@ -713,13 +713,18 @@ async function init(){
    flight — and if it turns up late, take it. */
 function mountFilm(){
   const el = document.getElementById('film');
-  el.addEventListener('loadedmetadata', () => {   // enough to read currentTime
+  const ready = () => {
     film = el;
     clockStart = null;
     el.hidden = false;
     document.getElementById('filmFallback').hidden = true;
     el.play().catch(() => {});
-  });
+  };
+  // `loadedmetadata` is enough to read currentTime. `playing` is the belt to
+  // that pair of braces: if pixels are moving, a "no clip" notice has no
+  // business sitting on top of them whatever the rest of this thought.
+  el.addEventListener('loadedmetadata', ready);
+  el.addEventListener('playing', ready);
   el.addEventListener('error', () => fallback(true));
   el.src = CLIP;
   // Some static servers never fire `error` for a file that isn't there.
