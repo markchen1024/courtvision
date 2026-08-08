@@ -227,11 +227,11 @@ h1 em { font-style: normal; color: var(--signal); }
 .stat td {
   font: 400 13px/1.5 var(--font-mono); font-variant-numeric: tabular-nums; color: var(--muted);
 }
-.stat td.who { font-family: var(--font-sans); color: var(--foreground); }
+.stat td.who { font-family: var(--font-sans); color: var(--foreground); white-space: nowrap; }
 .stat td.hi { color: var(--signal); background: rgb(200 240 49 / .06); }
 .stat .num {
   display: inline-flex; align-items: center; justify-content: center;
-  min-width: 22px; height: 19px; margin-right: 10px; padding: 0 5px;
+  min-width: 30px; height: 19px; margin-right: 10px; padding: 0 5px;
   border: 1px solid var(--line-strong); border-radius: 4px;
   font: 500 10.5px/1 var(--font-mono); color: var(--subtle);
 }
@@ -865,15 +865,15 @@ function fmt(t){
 const ROSTER = [
   // Golden State's official ESPN box for this game, standing in until tracked
   // stats are labelled. n=jersey, m2/a2 two-point, m3/a3 three-point, mf/af FT.
-  { n:  1, name: 'Y. Lendeborg',  min: 32, m2: 7, a2: 12, m3: 2, a3: 6, mf: 1, af: 1, oreb: 4, dreb: 6, ast: 2, stl: 2, blk: 0, tov: 3, pf: 4, pm:   7 },
-  { n: 36, name: 'D. Smith',      min: 23, m2: 9, a2: 13, m3: 0, a3: 1, mf: 3, af: 4, oreb: 4, dreb: 5, ast: 3, stl: 0, blk: 0, tov: 2, pf: 0, pm:  -2 },
-  { n: 18, name: 'L. Cryer',      min: 29, m2: 1, a2:  2, m3: 4, a3: 8, mf: 1, af: 2, oreb: 0, dreb: 3, ast: 6, stl: 0, blk: 0, tov: 3, pf: 2, pm:  12 },
-  { n:  3, name: 'W. Richard',    min: 29, m2: 2, a2:  4, m3: 3, a3: 6, mf: 0, af: 0, oreb: 2, dreb: 2, ast: 1, stl: 2, blk: 1, tov: 1, pf: 2, pm:   9 },
-  { n: 33, name: 'M. Leons',      min: 22, m2: 3, a2:  4, m3: 1, a3: 5, mf: 1, af: 1, oreb: 1, dreb: 2, ast: 1, stl: 1, blk: 1, tov: 1, pf: 0, pm:  -1 },
-  { n: 45, name: 'G. Ike',        min: 24, m2: 2, a2:  4, m3: 0, a3: 0, mf: 2, af: 3, oreb: 6, dreb: 3, ast: 3, stl: 0, blk: 1, tov: 1, pf: 3, pm:  12 },
-  { n: 25, name: 'L. Jones',      min: 11, m2: 2, a2:  3, m3: 0, a3: 2, mf: 0, af: 0, oreb: 0, dreb: 0, ast: 0, stl: 0, blk: 0, tov: 1, pf: 2, pm:  -5 },
-  { n: 55, name: 'C. McMillian',  min: 14, m2: 1, a2:  2, m3: 0, a3: 2, mf: 0, af: 0, oreb: 0, dreb: 1, ast: 0, stl: 1, blk: 0, tov: 0, pf: 2, pm:  -3 },
-  { n: 47, name: 'L. Olbrich',    min: 16, m2: 1, a2:  1, m3: 0, a3: 0, mf: 0, af: 1, oreb: 1, dreb: 2, ast: 0, stl: 0, blk: 0, tov: 2, pf: 3, pm:  -9 },
+  { n:  1, name: 'Yaxel Lendeborg',  min: 32, m2: 7, a2: 12, m3: 2, a3: 6, mf: 1, af: 1, oreb: 4, dreb: 6, ast: 2, stl: 2, blk: 0, tov: 3, pf: 4, pm:   7 },
+  { n: 36, name: 'Deivon Smith',      min: 23, m2: 9, a2: 13, m3: 0, a3: 1, mf: 3, af: 4, oreb: 4, dreb: 5, ast: 3, stl: 0, blk: 0, tov: 2, pf: 0, pm:  -2 },
+  { n: 18, name: 'LJ Cryer',      min: 29, m2: 1, a2:  2, m3: 4, a3: 8, mf: 1, af: 2, oreb: 0, dreb: 3, ast: 6, stl: 0, blk: 0, tov: 3, pf: 2, pm:  12 },
+  { n:  3, name: 'Will Richard',    min: 29, m2: 2, a2:  4, m3: 3, a3: 6, mf: 0, af: 0, oreb: 2, dreb: 2, ast: 1, stl: 2, blk: 1, tov: 1, pf: 2, pm:   9 },
+  { n: 33, name: 'Malevy Leons',      min: 22, m2: 3, a2:  4, m3: 1, a3: 5, mf: 1, af: 1, oreb: 1, dreb: 2, ast: 1, stl: 1, blk: 1, tov: 1, pf: 0, pm:  -1 },
+  { n: 45, name: 'Graham Ike',        min: 24, m2: 2, a2:  4, m3: 0, a3: 0, mf: 2, af: 3, oreb: 6, dreb: 3, ast: 3, stl: 0, blk: 1, tov: 1, pf: 3, pm:  12 },
+  { n: 25, name: 'Lajae Jones',      min: 11, m2: 2, a2:  3, m3: 0, a3: 2, mf: 0, af: 0, oreb: 0, dreb: 0, ast: 0, stl: 0, blk: 0, tov: 1, pf: 2, pm:  -5 },
+  { n: 55, name: 'Chance McMillian',  min: 14, m2: 1, a2:  2, m3: 0, a3: 2, mf: 0, af: 0, oreb: 0, dreb: 1, ast: 0, stl: 1, blk: 0, tov: 0, pf: 2, pm:  -3 },
+  { n: 47, name: 'Lachlan Olbrich',    min: 16, m2: 1, a2:  1, m3: 0, a3: 0, mf: 0, af: 1, oreb: 1, dreb: 2, ast: 0, stl: 0, blk: 0, tov: 2, pf: 3, pm:  -9 },
 ];
 
 // Memphis, totals only for now — the detail rows will come from tracked stats.
@@ -891,14 +891,20 @@ const ZONES = [
 ];
 
 const CLIPS = [
-  { q: 'Q1', clock: '08:12', kind: 'score', cls: 'score', what: '3PT made',            who: 'S. Petrov',   at: '04:38' },
-  { q: 'Q1', clock: '06:41', kind: 'board', cls: 'board', what: 'Defensive rebound',   who: 'D. Okafor',   at: '07:02' },
-  { q: 'Q2', clock: '09:58', kind: 'loss',  cls: 'loss',  what: 'Turnover — bad pass', who: 'J. Karras',   at: '14:26' },
-  { q: 'Q2', clock: '04:07', kind: 'score', cls: 'score', what: 'Layup made',          who: 'A. Whitfield', at: '21:19' },
-  { q: 'Q3', clock: '07:33', kind: 'board', cls: 'board', what: 'Offensive rebound',   who: 'T. Nakamura', at: '33:45' },
-  { q: 'Q3', clock: '02:19', kind: 'score', cls: 'score', what: '2PT missed',          who: 'M. Reyes',    at: '41:08' },
-  { q: 'Q4', clock: '05:52', kind: 'score', cls: 'score', what: '3PT made',            who: 'L. Brennan',  at: '52:37' },
-  { q: 'Q4', clock: '01:04', kind: 'loss',  cls: 'loss',  what: 'Turnover — stolen',   who: 'C. Aitken',   at: '58:50' },
+  // The twelve hand-tagged events from the processed stretch, at clip time.
+  // Names are the placeholder roster assignment; the club tag is the kit colour.
+  { q: 'Q1', clock: '—', kind: 'score', cls: 'score', what: '3PT made',    who: 'Cameron Boozer · MEM',          at: '00:06' },
+  { q: 'Q1', clock: '—', kind: 'board', cls: 'board', what: 'Rebound',     who: 'Cedric Coward · MEM',           at: '00:25' },
+  { q: 'Q1', clock: '—', kind: 'board', cls: 'board', what: 'Rebound',     who: 'Carson Cooper · MEM',           at: '00:33' },
+  { q: 'Q1', clock: '—', kind: 'score', cls: 'score', what: '3PT made',    who: 'Yaxel Lendeborg · GSW',         at: '00:36' },
+  { q: 'Q1', clock: '—', kind: 'score', cls: 'score', what: 'Shot made',   who: 'Taylor Hendricks · MEM',        at: '01:00' },
+  { q: 'Q1', clock: '—', kind: 'score', cls: 'score', what: '2PT missed',  who: 'Deivon Smith · GSW',            at: '01:12' },
+  { q: 'Q1', clock: '—', kind: 'score', cls: 'score', what: '2PT made',    who: 'LJ Cryer · GSW',                at: '01:15' },
+  { q: 'Q1', clock: '—', kind: 'score', cls: 'score', what: '2PT missed',  who: 'Will Richard · GSW',            at: '01:32' },
+  { q: 'Q1', clock: '—', kind: 'score', cls: 'score', what: '2PT missed',  who: 'Javon Small · MEM',             at: '01:39' },
+  { q: 'Q1', clock: '—', kind: 'board', cls: 'board', what: 'Rebound',     who: 'Malevy Leons · GSW',            at: '01:39' },
+  { q: 'Q1', clock: '—', kind: 'score', cls: 'score', what: '2PT made',    who: 'Olivier-Maxence Prosper · MEM', at: '01:47' },
+  { q: 'Q1', clock: '—', kind: 'loss',  cls: 'loss',  what: 'Turnover',    who: 'Graham Ike · GSW',              at: '02:02' },
 ];
 
 const sum = k => ROSTER.reduce((t, p) => t + p[k], 0);
@@ -979,7 +985,7 @@ function renderBox(){
     </tr></thead>
     <tbody>${rows}</tbody>
     <tfoot><tr>
-      <td class="who">Team</td>
+      <td class="who">Warriors — 94</td>
       <td>${sum('min')}</td>
       <td>${US.pts}</td>
       <td>${US.m2 + US.m3}/${US.a2 + US.a3}</td>
@@ -993,11 +999,29 @@ function renderBox(){
       <td>${US.blk}</td>
       <td>${US.tov}</td>
       <td>${US.pf}</td>
+    </tr><tr>
+      <td class="who">Grizzlies — 90</td>
+      <td>—</td>
+      <td>${OPP.pts}</td>
+      <td>${OPP.m2 + OPP.m3}/${OPP.a2 + OPP.a3}</td>
+      <td>${OPP.m3}/${OPP.a3}</td>
+      <td>${OPP.mf}/${OPP.af}</td>
+      <td>${OPP.oreb}</td>
+      <td>${OPP.reb - OPP.oreb}</td>
+      <td>${OPP.reb}</td>
+      <td>${OPP.ast}</td>
+      <td>${OPP.stl}</td>
+      <td>${OPP.blk}</td>
+      <td>${OPP.tov}</td>
+      <td>${OPP.pf}</td>
     </tr></tfoot>`;
 }
 
 /* ── team comparison ─────────────────────────────────────────────────────── */
 function renderCompare(){
+  const legend = `<div class="r">
+    <span class="v us">Warriors</span><span></span><span class="k">GSW · MEM</span>
+    <span></span><span class="v them">Grizzlies</span></div>`;
   const rows = [
     ['Points',      US.pts,                       OPP.pts,                       false],
     ['Field goal %', pct(US.m2 + US.m3, US.a2 + US.a3), pct(OPP.m2 + OPP.m3, OPP.a2 + OPP.a3), true],
@@ -1013,7 +1037,7 @@ function renderCompare(){
     ['Fouls',       US.pf,                        OPP.pf,                        false],
   ];
 
-  document.getElementById('compare').innerHTML = rows.map(([k, a, b, isPct]) => {
+  document.getElementById('compare').innerHTML = legend + rows.map(([k, a, b, isPct]) => {
     const span = isPct ? 100 : Math.max(a, b) || 1;
     const show = v => isPct ? `${v.toFixed(1)}%` : v;
     return `<div class="r">
