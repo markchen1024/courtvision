@@ -1150,6 +1150,9 @@ function place(zone, left, rnd){
    as mid-range. */
 function zoneAt(x, y){
   const bx = x < 14 ? 1.6 : 26.4;
+  // Beyond the scoring area the tint says nothing -- an atb-red ocean across
+  // the backcourt is classification being right and the chart being wrong.
+  if ((x < 14 ? x : 28 - x) > 10.5) return null;
   const dx = Math.abs(x - bx), dist = Math.hypot(x - bx, y - 7.5);
   const tangent = Math.sqrt(7.24 ** 2 - (7.5 - 0.914) ** 2);   // where arc meets straight
   const inCorner = dx < tangent && (x < 14 ? x >= 0 : x <= 28);
@@ -1172,7 +1175,7 @@ function zoneTint(m, a){
   const rgb = t < .5
     ? [stop(228, 138), stop(86, 133), stop(74, 120)]     // red -> neutral
     : [stop(138, 47), stop(133, 191), stop(120, 158)];   // neutral -> teal
-  const alpha = .28 + .38 * Math.abs(t - .5) * 2;
+  const alpha = .42 + .30 * Math.abs(t - .5) * 2;
   return `rgba(${rgb[0]}, ${rgb[1]}, ${rgb[2]}, ${alpha.toFixed(2)})`;
 }
 
@@ -1201,24 +1204,29 @@ function drawShots(view){
       }
     }
     const px = x => g.X(x * step), py = y => g.Y(y * step);
-    const cw = px(1) - px(0) + 1, ch = py(0) - py(1) + 1;
+    // Direction-proof: this geometry's Y turned out not to be inverted, so the
+    // previous cell height came out negative and fillRect drew nothing at all.
+    // Min/abs makes the cells correct whichever way an axis runs.
+    const cw = Math.abs(px(1) - px(0)) + 1, ch = Math.abs(py(1) - py(0)) + 1;
     for (let i = 0; i < cols; i++) {
       for (let j = 0; j < rows; j++) {
         const z = stats[zone[i][j]];
         if (!z) continue;
         ctx.fillStyle = zoneTint(z.m, z.a);
-        ctx.fillRect(px(i), py(j + 1), cw, ch);
+        ctx.fillRect(Math.min(px(i), px(i + 1)), Math.min(py(j), py(j + 1)), cw, ch);
       }
     }
-    ctx.strokeStyle = 'rgba(8, 9, 12, .85)';
+    // Light stroke: the first attempt drew the boundaries in near-black on a
+    // near-black page, which is a way of not drawing them.
+    ctx.strokeStyle = 'rgba(232, 230, 223, .30)';
     ctx.lineWidth = 1.5;
     ctx.beginPath();
     for (let i = 0; i < cols; i++) {
       for (let j = 0; j < rows; j++) {
-        if (i + 1 < cols && zone[i][j] !== zone[i + 1][j]) {
+        if (i + 1 < cols && zone[i][j] && zone[i + 1][j] && zone[i][j] !== zone[i + 1][j]) {
           ctx.moveTo(px(i + 1), py(j)); ctx.lineTo(px(i + 1), py(j + 1));
         }
-        if (j + 1 < rows && zone[i][j] !== zone[i][j + 1]) {
+        if (j + 1 < rows && zone[i][j] && zone[i][j + 1] && zone[i][j] !== zone[i][j + 1]) {
           ctx.moveTo(px(i), py(j + 1)); ctx.lineTo(px(i + 1), py(j + 1));
         }
       }
@@ -1228,7 +1236,7 @@ function drawShots(view){
     // Labels on the left half; the numbers are game aggregates, so the right
     // half is its mirror and one set of labels is enough.
     const spots = { ra: [1.5, 7.5], paint: [4.2, 7.5], mid: [7.4, 7.5],
-                    atb: [10.6, 7.5], c3: [2.0, 1.6] };
+                    atb: [9.9, 7.5], c3: [2.3, 0.46] };
     for (const z of ZONES) {
       const [zx, zy] = spots[z.key];
       const X = g.X(zx), Y = g.Y(zy);
