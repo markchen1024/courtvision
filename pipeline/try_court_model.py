@@ -34,6 +34,27 @@ PROJECT = "basketball-court-detection-2"
 ENDPOINT = "https://detect.roboflow.com"
 
 
+def local_keypoints(model, image, kp_conf):
+    """Same shape of answer as the hosted endpoint, from a local .pt.
+
+    Names are the keypoint index as a string, matching how the Roboflow export
+    names them, so court_model.court_point() reads either source.
+    """
+    res = model.predict(image, verbose=False)[0]
+    if res.keypoints is None or res.keypoints.xy is None or len(res.keypoints.xy) == 0:
+        return {}, 0, 0.0
+    # Highest-scoring court instance, as the hosted path also does.
+    box_conf = res.boxes.conf.cpu().numpy() if res.boxes is not None else None
+    i = int(box_conf.argmax()) if box_conf is not None and len(box_conf) else 0
+    xy = res.keypoints.xy[i].cpu().numpy()
+    conf = (res.keypoints.conf[i].cpu().numpy()
+            if res.keypoints.conf is not None else [1.0] * len(xy))
+    out = {str(k): (float(x), float(y))
+           for k, ((x, y), c) in enumerate(zip(xy, conf)) if c >= kp_conf}
+    n = len(box_conf) if box_conf is not None else 1
+    return out, n, float(box_conf[i]) if box_conf is not None and len(box_conf) else 0.0
+
+
 def predict(image, version, api_key, box_conf):
     buf = base64.b64encode(cv2.imencode(".jpg", image, [cv2.IMWRITE_JPEG_QUALITY, 95])[1]).decode()
     r = requests.post(f"{ENDPOINT}/{PROJECT}/{version}",
@@ -55,13 +76,20 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--video", default="web/media/game.mp4")
     ap.add_argument("--version", type=int, default=22)
+    ap.add_argument("--weights", help="a local .pt to test instead of the hosted model")
     ap.add_argument("--frames", default="4017,4100,4326,4400")
     ap.add_argument("--box-conf", type=int, default=20)
     ap.add_argument("--kp-conf", type=float, default=0.5)
     args = ap.parse_args()
 
-    key = secret("ROBOFLOW_API_KEY", "the model is public; the key only authorises the call")
     frames = [int(f) for f in args.frames.split(",")]
+    model = None
+    key = None
+    if args.weights:
+        from ultralytics import YOLO
+        model = YOLO(args.weights)
+    else:
+        key = secret("ROBOFLOW_API_KEY", "the model is public; the key only authorises the call")
 
     cap = cv2.VideoCapture(args.video)
     if not cap.isOpened():
@@ -79,14 +107,18 @@ def main():
             images[f] = im
     cap.release()
 
-    print(f"{PROJECT}/{args.version} on {len(images)} frames "
+    who = args.weights if args.weights else f"{PROJECT}/{args.version}"
+    print(f"{who} on {len(images)} frames "
           f"(box>={args.box_conf}%, keypoint>={args.kp_conf})")
     found = {}
     for f, im in images.items():
-        preds = predict(im, args.version, key, args.box_conf)
-        found[f] = keypoints(preds, args.kp_conf)
-        best = preds[0]["confidence"] if preds else 0.0
-        print(f"  frame {f:5d}: {len(preds)} court instance(s), best {best:.2f}, "
+        if model is not None:
+            found[f], npred, best = local_keypoints(model, im, args.kp_conf)
+        else:
+            preds = predict(im, args.version, key, args.box_conf)
+            found[f] = keypoints(preds, args.kp_conf)
+            npred, best = len(preds), (preds[0]["confidence"] if preds else 0.0)
+        print(f"  frame {f:5d}: {npred} court instance(s), best {best:.2f}, "
               f"{len(found[f])} keypoints above threshold")
 
     scale = 0.5
@@ -121,15 +153,26 @@ def main():
         print(f"  {a}->{b:5d} {len(shared):>7} {err:8.2f}px {gap:12.1f}px")
 
     if gaps:
-        print(f"\nbest disagreement {min(gaps):.0f}px against an ORB baseline good to "
-              f"about 1px.")
-        print("A model whose keypoints were on the court would agree with it to a few")
-        print("pixels. These do not, at any keypoint confidence -- raising the threshold")
-        print("drops the reliable-looking points too and makes the fit worse.")
-        print("\nThe training set is NBA broadcast: arena floors, elevated corner cameras.")
-        print("Ours is a community stadium from a tripod at halfway. The model reports")
-        print("map95 0.98 on its own test split, which is the size of the gap between")
-        print("a benchmark and a different gym.")
+        best = min(gaps)
+        print(f"\nbest disagreement {best:.0f}px against an ORB baseline good to about 1px.")
+        # The verdict is the number. Writing the conclusion into the script ahead
+        # of the measurement is how you stop noticing when it changes.
+        if best <= 15:
+            print("Usable. The keypoints are on the court: a homography built from them")
+            print("agrees with feature matching to within a few pixels, so the calibration")
+            print("can come from the model and nobody has to click anything.")
+        elif best <= 60:
+            print("Marginal. Enough to draw a court overlay that looks about right, not")
+            print("enough to measure positions from -- at this scale the error is metres")
+            print("on the floor, not centimetres.")
+        else:
+            print("Not usable. A model whose keypoints were on the court would agree with")
+            print("the baseline to a few pixels. Raising the keypoint confidence does not")
+            print("rescue it either: that drops the reliable-looking points too and the fit")
+            print("gets worse. Both public models trained on professional broadcast, where")
+            print("floors carry large painted areas and the camera is high. A community")
+            print("stadium from a tripod at halfway is a different distribution, and mAP95")
+            print("of 0.98 on the model's own split says nothing about it.")
 
 
 if __name__ == "__main__":
