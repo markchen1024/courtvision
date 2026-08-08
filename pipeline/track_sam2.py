@@ -52,11 +52,19 @@ def main():
         conf=args.conf, task="segment", mode="predict", imgsz=1024,
         model=args.model, save=False, verbose=False))
 
+    import cv2
+    cap = cv2.VideoCapture(args.video)
+    total = int(cap.get(cv2.CAP_PROP_FRAME_COUNT)) or None
+    cap.release()
+
     tracks = {}
     n = 0
-    prog = Progress("sam2", total=None)
+    prog = Progress("sam2", total=total)
     partial = Path(args.out).with_suffix(".partial.json")
-    for r in predictor(source=args.video, bboxes=boxes):
+    # stream=True is load-bearing: without it ultralytics buffers every result
+    # and returns a list, so this loop -- progress, checkpoints, everything --
+    # runs only after the whole video is done. That was the invisible 2.5h run.
+    for r in predictor(source=args.video, bboxes=boxes, stream=True):
         rows = []
         if r.boxes is not None and len(r.boxes):
             xyxy = r.boxes.xyxy.cpu().numpy()
