@@ -44,6 +44,19 @@ DETECTOR = "koppolusameer/rfdetr-basketball-player-ball-referee-detection"
 # Otherwise every tracker experiment costs another ten minutes of GPU.
 CACHE_THRESHOLD = 0.25
 
+# Fashion-CLIP, used for its image embedding rather than its zero-shot head: the
+# tutorials prompt it with colour names, which means knowing the strips in
+# advance, and clustering embeddings does not.
+#
+# It is not the default, because it measured no better. On the frames where all
+# ten players are detected -- the only ones where the split can be judged --
+# embeddings and mean chroma both leave a median imbalance of 2 and get a clean
+# 5v5 in 24% of frames, identically. The shirt descriptor is not the bottleneck:
+# only 90 of 600 frames detect exactly ten players, and 128 detect eleven to
+# thirteen, which is the on-court margin letting the bench in. Both numbers trace
+# back to calibration precision.
+CLIP_MODEL = "patrickjohncyh/fashion-clip"
+
 # A foot position is only believable if it lands on the floor we calibrated, plus
 # slack. 1.5m is not a physical allowance -- it is the measured size of the
 # calibration error: tighten it to 0.5m and 516 detections fall outside the lines
@@ -102,6 +115,72 @@ def jersey_colour(frame, box):
         return None
     patch = cv2.cvtColor(frame[cy0:cy1, cx0:cx1], cv2.COLOR_BGR2LAB)
     return patch.reshape(-1, 3).mean(axis=0)
+
+
+def clip_embeddings(cache, video, path, batch=64):
+    """One 512-d vector per player box. Cached: it is a second pass over the video."""
+    import numpy as _np
+    if Path(path).exists():
+        z = _np.load(path)
+        return {tuple(k): v for k, v in zip(z["keys"], z["vecs"])}
+
+    import torch
+    from transformers import CLIPModel, CLIPProcessor
+    model = CLIPModel.from_pretrained(CLIP_MODEL).eval()
+    proc = CLIPProcessor.from_pretrained(CLIP_MODEL)
+    if torch.cuda.is_available():
+        model = model.cuda()
+
+    cap = cv2.VideoCapture(video)
+    keys, crops, vecs = [], [], []
+
+    def flush():
+        if not crops:
+            return
+        inputs = proc(images=crops, return_tensors="pt")
+        if torch.cuda.is_available():
+            inputs = {k: v.cuda() for k, v in inputs.items()}
+        with torch.no_grad():
+            f = model.get_image_features(**inputs)
+        # transformers 5 hands back an output object here, not a tensor; the
+        # projected embedding is pooler_output.
+        if not torch.is_tensor(f):
+            f = f.pooler_output
+        f = torch.nn.functional.normalize(f, dim=-1)
+        vecs.extend(f.cpu().numpy())
+        crops.clear()
+
+    for n, (frame_idx, rows) in enumerate(sorted(cache.items())):
+        players = [(i, r) for i, r in enumerate(rows) if r["name"] == "player"]
+        if not players:
+            continue
+        cap.set(cv2.CAP_PROP_POS_FRAMES, frame_idx)
+        ok, frame = cap.read()
+        if not ok:
+            continue
+        h, w = frame.shape[:2]
+        for i, r in players:
+            x1, y1, x2, y2 = r["box"]
+            # torso only: legs and floor dilute the shirt
+            cx0, cx1 = int(max(0, x1)), int(min(w, x2))
+            cy0 = int(max(0, y1 + (y2 - y1) * 0.10))
+            cy1 = int(min(h, y1 + (y2 - y1) * 0.55))
+            if cx1 - cx0 < 4 or cy1 - cy0 < 4:
+                continue
+            keys.append((frame_idx, i))
+            crops.append(cv2.cvtColor(frame[cy0:cy1, cx0:cx1], cv2.COLOR_BGR2RGB))
+            if len(crops) >= batch:
+                flush()
+        if (n + 1) % 100 == 0:
+            print(f"  embedding {n + 1}/{len(cache)} frames...")
+    flush()
+    cap.release()
+
+    arr = _np.array(vecs, _np.float32)
+    Path(path).parent.mkdir(parents=True, exist_ok=True)
+    _np.savez_compressed(path, keys=_np.array(keys, _np.int64), vecs=arr)
+    print(f"cached {len(arr)} CLIP embeddings to {path}")
+    return {k: v for k, v in zip(keys, arr)}
 
 
 def two_means(x, iters=40, seed=0):
@@ -188,6 +267,10 @@ def main():
     ap.add_argument("--margin", type=float, default=MARGIN,
                     help="metres outside the lines still counted as on court")
     ap.add_argument("--gate", type=float, default=GATE_M, help="association gate, metres")
+    ap.add_argument("--team", choices=["colour", "clip"], default="colour",
+                    help="shirt description used to split the two sides; clip is "
+                         "available but measured no better here")
+    ap.add_argument("--embeddings", default="out/embeddings.npz")
     ap.add_argument("--min-samples", type=int, default=8,
                     help="drop tracks seen fewer times than this")
     ap.add_argument("--out", default="web/data/sample.json")
@@ -246,6 +329,10 @@ def main():
         }))
         print(f"cached raw detections to {cache_path}")
 
+    embeddings = {}
+    if args.team == "clip":
+        embeddings = clip_embeddings(cache, args.video, args.embeddings)
+
     tracker = CourtTracker(gate=args.gate, max_misses=args.max_misses)
     frames_out, kept, dropped_off_court, dropped_class, dropped_score = [], 0, 0, 0, 0
 
@@ -257,7 +344,7 @@ def main():
             continue
 
         pts, cols = [], []
-        for det in cache.get(r["frame"], []):
+        for di, det in enumerate(cache.get(r["frame"], [])):
             if det["name"] != "player":
                 dropped_class += 1
                 continue
@@ -274,7 +361,10 @@ def main():
                 dropped_off_court += 1
                 continue
             pts.append((float(cx), float(cy)))
-            cols.append(None if det["colour"] is None else np.array(det["colour"]))
+            if args.team == "clip":
+                cols.append(embeddings.get((r["frame"], di)))
+            else:
+                cols.append(None if det["colour"] is None else np.array(det["colour"]))
             kept += 1
 
         assigned = tracker.step(pts, cols)
@@ -293,12 +383,19 @@ def main():
 
     # Team from shirt colour. Two teams, so two clusters; which is "home" is
     # arbitrary and the viewer only uses it to pick a colour.
-    # Chroma only, dropping L. Lightness carries 90% of the variance in these
-    # torso patches but almost all of it is illumination and whether we are seeing
-    # the front or the back of a shirt -- clustering on it puts a shadowed white
-    # jersey with the blue team. On a/b the per-frame imbalance drops from a
-    # median of 3 players to 2.
-    palette = {tid: np.mean(tracker.palette[tid], axis=0)[1:]
+    # colour: chroma only, dropping L. Lightness carries 90% of the variance in
+    # these torso patches and almost all of it is illumination and whether we are
+    # seeing the front or the back of a shirt, so clustering on it files a
+    # shadowed white jersey with the blue team.
+    # clip: the whole embedding, re-normalised after averaging over the track.
+    def describe(vs):
+        m = np.mean(vs, axis=0)
+        if args.team == "clip":
+            n = np.linalg.norm(m)
+            return m / n if n > 0 else m
+        return m[1:]
+
+    palette = {tid: describe(tracker.palette[tid])
                for tid in live if tracker.palette.get(tid)}
     teams = {}
     if len(palette) >= 2:
