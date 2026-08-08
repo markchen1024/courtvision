@@ -619,6 +619,24 @@ def main():
     }
     out = Path(args.out)
     out.parent.mkdir(parents=True, exist_ok=True)
+    # Hand-tagged events and hand-labelled identities are human work living in
+    # the output file; regenerating the tracking must not silently destroy them.
+    # Track ids only survive a rerun if the tracker and its inputs are unchanged,
+    # so carry them forward with a warning rather than pretending it is safe.
+    if out.exists():
+        old = json.loads(out.read_text())
+        if old.get("events"):
+            doc["events"] = old["events"]
+            doc["source"] = old.get("source", doc["source"])
+            print(f"kept {len(old['events'])} hand-tagged events from the previous output;")
+            print("  their track ids are only valid if the tracker configuration is unchanged")
+        names = {p["id"]: p for p in old.get("players", []) if p.get("name")}
+        if names:
+            for pl in doc["players"]:
+                if pl["id"] in names:
+                    pl["name"] = names[pl["id"]]["name"]
+                    pl["number"] = names[pl["id"]]["number"]
+            print(f"kept {len(names)} hand-labelled identities")
     out.write_text(json.dumps(doc), encoding="utf-8")
 
     per_frame = np.array([len(f["positions"]) for f in frames_out])
