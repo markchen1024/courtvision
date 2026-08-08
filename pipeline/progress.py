@@ -76,12 +76,20 @@ class Progress:
 
 def read_jobs():
     """Every job file, parsed, with rate/eta/silence computed the one place."""
+    # totals.hint fills in a total the reporting script didn't know (or, as with
+    # the first SAM2 run, predated): {"sam2": 750}. Not .json, so it isn't a job.
+    try:
+        hints = json.loads((DIR / "totals.hint").read_text())
+    except (json.JSONDecodeError, OSError):
+        hints = {}
     jobs = []
     for f in sorted(DIR.glob("*.json")):
         try:
             d = json.loads(f.read_text())
         except (json.JSONDecodeError, OSError):
             continue
+        if not d.get("total"):
+            d["total"] = hints.get(d["job"])
         now = time.time()
         elapsed = now - d["started"]
         rate = d["done"] / elapsed if elapsed > 0 and d["done"] else 0
