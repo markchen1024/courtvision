@@ -93,10 +93,6 @@ export default function Home() {
 
     <div className="tabpanel" role="tabpanel" id="p-shots" aria-labelledby="tab-shots" hidden>
       <div className="pillrow">
-        <div className="clubs" role="tablist" aria-label="Shot view">
-          <button role="tab" aria-selected="true" className="on gsw" data-view="zones">Zones</button>
-          <button role="tab" aria-selected="false" className="gsw" data-view="shots">Shot map</button>
-        </div>
         <div className="clubs" role="tablist" aria-label="Club">
           <button role="tab" aria-selected="true" className="on gsw" data-shotclub="gsw">Warriors</button>
           <button role="tab" aria-selected="false" className="mem" data-shotclub="mem">Grizzlies</button>

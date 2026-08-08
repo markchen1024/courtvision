@@ -266,7 +266,7 @@ h1 em { font-style: normal; color: var(--signal); }
 
 /* Shot chart */
 .shots { display: grid; grid-template-columns: 1.5fr 1fr; gap: 22px; align-items: start; }
-.shots canvas { width: 100%; aspect-ratio: 28/15; display: block; background: var(--surface-inset); border-radius: var(--radius-md); }
+.shots canvas { width: 100%; aspect-ratio: 15/11; display: block; background: var(--surface-inset); border-radius: var(--radius-md); }
 .legend { display: flex; gap: 18px; margin-top: 12px; font: 400 12px/1 var(--font-mono); color: var(--subtle); }
 .legend span { display: inline-flex; align-items: center; gap: 7px; }
 .legend .made, .legend .miss { width: 9px; height: 9px; border-radius: 50%; }
@@ -446,10 +446,6 @@ footer { border-top: 1px solid var(--line-soft); padding: 52px 0 40px; }
 
     <div class="tabpanel" role="tabpanel" id="p-shots" aria-labelledby="tab-shots" hidden>
       <div class="pillrow">
-        <div class="clubs" role="tablist" aria-label="Shot view">
-          <button role="tab" aria-selected="true" class="on gsw" data-view="zones">Zones</button>
-          <button role="tab" aria-selected="false" class="gsw" data-view="shots">Shot map</button>
-        </div>
         <div class="clubs" role="tablist" aria-label="Club">
           <button role="tab" aria-selected="true" class="on gsw" data-shotclub="gsw">Warriors</button>
           <button role="tab" aria-selected="false" class="mem" data-shotclub="mem">Grizzlies</button>
@@ -985,7 +981,6 @@ for (const host of document.querySelectorAll('.clubs')) {
       x.setAttribute('aria-selected', on);
     }
     if (b.dataset.club !== undefined) renderBox(+b.dataset.club);
-    if (b.dataset.view !== undefined) drawShots(b.dataset.view);
     if (b.dataset.shotclub !== undefined) {
       drawShots.club = b.dataset.shotclub;
       renderZones();
@@ -1132,8 +1127,7 @@ function shotPoints(){
   const out = [];
   for (const z of zonesFor()) {
     for (let i = 0; i < z.a; i++) {
-      // Teams swap ends at half, so the attempts land at both baskets.
-      const p = place(z.key, i % 2 === 0, rnd);
+      const p = place(z.key, true, rnd);
       out.push({ ...p, made: i < z.m });
     }
   }
@@ -1170,129 +1164,60 @@ function place(zone, left, rnd){
   return at(6.95 + rnd() * 1.45, -50 + rnd() * 100);   // above the break
 }
 
-/* Which zone a floor point belongs to. Same rules as the event tagger, corner
-   threes included -- the arc is 7.24m but the corners are straight segments
-   0.914m off each sideline, and a single radius would tint every corner three
-   as mid-range. */
-function zoneAt(x, y){
-  const bx = x < 14 ? 1.6 : 26.4;
-  // Beyond the scoring area the tint says nothing -- an atb-red ocean across
-  // the backcourt is classification being right and the chart being wrong.
-  if ((x < 14 ? x : 28 - x) > 10.5) return null;
-  const dx = Math.abs(x - bx), dist = Math.hypot(x - bx, y - 7.5);
-  const tangent = Math.sqrt(7.24 ** 2 - (7.5 - 0.914) ** 2);   // where arc meets straight
-  const inCorner = dx < tangent && (x < 14 ? x >= 0 : x <= 28);
-  const three = inCorner ? (y < 0.914 || y > 14.086) : dist > 7.24;
-  if (dist <= 1.6) return 'ra';
-  const fromBase = x < 14 ? x : 28 - x;
-  if (fromBase <= 5.79 && Math.abs(y - 7.5) <= 2.45) return 'paint';
-  if (three) return (y < 0.914 || y > 14.086) && inCorner ? 'c3' : 'atb';
-  return 'mid';
-}
-
-/* Three-stop ramp, red through neutral to teal, anchored at the game's own
-   average. Extremes get more opacity as well as more hue, because on a dark
-   ground a flat alpha wash reads as one colour with a vague gradient -- which
-   it did, and that is what this replaces. */
-function zoneTint(m, a){
-  const zs = zonesFor();
-  const avg = zs.reduce((t, z) => t + z.m, 0) / zs.reduce((t, z) => t + z.a, 0);
-  const t = Math.max(0, Math.min(1, ((a ? m / a : 0) - avg + .18) / .36));
-  const stop = (u, v) => Math.round(u + (v - u) * (t < .5 ? t * 2 : (t - .5) * 2));
-  const rgb = t < .5
-    ? [stop(228, 138), stop(86, 133), stop(74, 120)]     // red -> neutral
-    : [stop(138, 47), stop(133, 191), stop(120, 158)];   // neutral -> teal
-  const alpha = .42 + .30 * Math.abs(t - .5) * 2;
-  return `rgba(${rgb[0]}, ${rgb[1]}, ${rgb[2]}, ${alpha.toFixed(2)})`;
-}
-
-function drawShots(view){
-  view = drawShots.view = view ?? drawShots.view ?? 'zones';
+function drawShots(){
   const cv = document.getElementById('shotChart');
   const surface = Court.fit(cv);
   if (!surface) return;
   const { ctx, w, h } = surface;
-  const g = Court.geometry(w, h, 28, 15, 12);
+
+  /* An upright halfcourt, baseline at the bottom -- the orientation every shot
+     chart a basketball reader has ever seen. All attempts land at one basket
+     now; a full court with shots at both ends was the tracking view's framing
+     leaking into a chart that is really about one offence. */
+  const DEPTH = 11;
+  const pad = 14;
+  const s = Math.min((w - pad * 2) / 15, (h - pad * 2) / DEPTH);
+  const ox = (w - 15 * s) / 2, oy = (h - DEPTH * s) / 2;
+  const X = lat => ox + lat * s;
+  const Y = depth => oy + (DEPTH - depth) * s;
 
   ctx.clearRect(0, 0, w, h);
+  ctx.fillStyle = '#050608';
+  ctx.fillRect(0, 0, w, h);
 
-  if (view === 'zones') {
-    // Court first: Court.lines fills the canvas with its background, so any
-    // tint laid down before it is painted over -- which is exactly how the
-    // first version shipped labels floating on a bare court.
-    Court.lines(ctx, g, { w, h });
-    const stats = Object.fromEntries(zonesFor().map(z => [z.key, z]));
-    // Classify once into a grid, then draw fills and, in a second pass, a
-    // stroke wherever two neighbouring cells disagree -- that line is the zone
-    // boundary, and it is what makes the regions read as regions.
-    const step = 0.1;
-    const cols = Math.round(28 / step), rows = Math.round(15 / step);
-    const zone = [];
-    for (let i = 0; i < cols; i++) {
-      zone.push([]);
-      for (let j = 0; j < rows; j++) {
-        zone[i].push(zoneAt((i + .5) * step, (j + .5) * step));
-      }
-    }
-    const px = x => g.X(x * step), py = y => g.Y(y * step);
-    // Direction-proof: this geometry's Y turned out not to be inverted, so the
-    // previous cell height came out negative and fillRect drew nothing at all.
-    // Min/abs makes the cells correct whichever way an axis runs.
-    const cw = Math.abs(px(1) - px(0)) + 1, ch = Math.abs(py(1) - py(0)) + 1;
-    for (let i = 0; i < cols; i++) {
-      for (let j = 0; j < rows; j++) {
-        const z = stats[zone[i][j]];
-        if (!z) continue;
-        ctx.fillStyle = zoneTint(z.m, z.a);
-        ctx.fillRect(Math.min(px(i), px(i + 1)), Math.min(py(j), py(j + 1)), cw, ch);
-      }
-    }
-    // Light stroke: the first attempt drew the boundaries in near-black on a
-    // near-black page, which is a way of not drawing them.
-    ctx.strokeStyle = 'rgba(232, 230, 223, .30)';
-    ctx.lineWidth = 1.5;
+  const line = '#23272f', strong = '#333a45', rim = '#4a525f';
+  ctx.lineWidth = 1.5;
+  ctx.strokeStyle = strong;
+  ctx.strokeRect(X(0), Y(DEPTH), 15 * s, DEPTH * s);
+  ctx.strokeStyle = line;
+  ctx.strokeRect(X(7.5 - 2.45), Y(5.8), 4.9 * s, 5.8 * s);
+  ctx.beginPath(); ctx.arc(X(7.5), Y(5.8), 1.8 * s, 0, Math.PI * 2); ctx.stroke();
+  // The 6.75 arc, swept about straight-up, meeting the corner lines 0.9 in.
+  const a = Math.asin((7.5 - 0.9) / 6.75);
+  ctx.beginPath();
+  ctx.arc(X(7.5), Y(1.575), 6.75 * s, -Math.PI / 2 - a, -Math.PI / 2 + a);
+  ctx.stroke();
+  const meet = 1.575 + 6.75 * Math.cos(a);
+  ctx.beginPath();
+  ctx.moveTo(X(0.9), Y(0)); ctx.lineTo(X(0.9), Y(meet));
+  ctx.moveTo(X(15 - 0.9), Y(0)); ctx.lineTo(X(15 - 0.9), Y(meet));
+  ctx.stroke();
+  ctx.strokeStyle = rim;
+  ctx.beginPath(); ctx.arc(X(7.5), Y(1.575), 0.225 * s, 0, Math.PI * 2); ctx.stroke();
+
+  // place() gives left-basket full-court coords: x is depth off the baseline,
+  // y is lateral -- exactly the two axes of this view.
+  for (const sh of shotPoints()) {
+    if (sh.x > DEPTH) continue;
     ctx.beginPath();
-    for (let i = 0; i < cols; i++) {
-      for (let j = 0; j < rows; j++) {
-        if (i + 1 < cols && zone[i][j] && zone[i + 1][j] && zone[i][j] !== zone[i + 1][j]) {
-          ctx.moveTo(px(i + 1), py(j)); ctx.lineTo(px(i + 1), py(j + 1));
-        }
-        if (j + 1 < rows && zone[i][j] && zone[i][j + 1] && zone[i][j] !== zone[i][j + 1]) {
-          ctx.moveTo(px(i), py(j + 1)); ctx.lineTo(px(i + 1), py(j + 1));
-        }
-      }
-    }
-    ctx.stroke();
-    // Labels on the left half; the numbers are game aggregates, so the right
-    // half is its mirror and one set of labels is enough.
-    const spots = { ra: [1.5, 7.5], paint: [4.2, 7.5], mid: [7.4, 7.5],
-                    atb: [9.9, 7.5], c3: [2.3, 0.46] };
-    for (const z of zonesFor()) {
-      const [zx, zy] = spots[z.key];
-      const X = g.X(zx), Y = g.Y(zy);
-      ctx.textAlign = 'center';
-      ctx.fillStyle = '#0b0c10'; ctx.globalAlpha = .72;
-      ctx.fillRect(X - 24, Y - 15, 48, 30);
-      ctx.globalAlpha = 1; ctx.fillStyle = '#e8e6df';
-      ctx.font = "600 12px 'JetBrains Mono', ui-monospace, monospace";
-      ctx.fillText(pc1(z.m, z.a), X, Y - 2);
-      ctx.fillStyle = '#9a978d';
-      ctx.font = "400 9px 'JetBrains Mono', ui-monospace, monospace";
-      ctx.fillText(`${z.m}-${z.a}`, X, Y + 10);
-    }
-  } else {
-    Court.lines(ctx, g, { w, h });
-    for (const sh of shotPoints()) {
-      ctx.beginPath();
-      ctx.arc(g.X(sh.x), g.Y(sh.y), 4.5, 0, Math.PI * 2);
-      if (sh.made) { ctx.fillStyle = '#c8f031'; ctx.globalAlpha = .92; ctx.fill(); }
-      else { ctx.strokeStyle = '#c8f031'; ctx.globalAlpha = .55; ctx.lineWidth = 1.5; ctx.stroke(); }
-      ctx.globalAlpha = 1;
-    }
+    ctx.arc(X(sh.y), Y(sh.x), 4.5, 0, Math.PI * 2);
+    if (sh.made) { ctx.fillStyle = '#c8f031'; ctx.globalAlpha = .92; ctx.fill(); }
+    else { ctx.strokeStyle = '#c8f031'; ctx.globalAlpha = .55; ctx.lineWidth = 1.5; ctx.stroke(); }
+    ctx.globalAlpha = 1;
   }
 
-  const m = zonesFor().reduce((t, z) => t + z.m, 0), a = zonesFor().reduce((t, z) => t + z.a, 0);
-  document.getElementById('shotTotal').textContent = `${m}/${a} · ${pc1(m, a)}`;
+  const m = zonesFor().reduce((t, z) => t + z.m, 0), a2 = zonesFor().reduce((t, z) => t + z.a, 0);
+  document.getElementById('shotTotal').textContent = `${m}/${a2} · ${pc1(m, a2)}`;
 }
 
 function renderZones(){

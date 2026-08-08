@@ -258,7 +258,7 @@ h1 em { font-style: normal; color: var(--signal); }
 
 /* Shot chart */
 .shots { display: grid; grid-template-columns: 1.5fr 1fr; gap: 22px; align-items: start; }
-.shots canvas { width: 100%; aspect-ratio: 28/15; display: block; background: var(--surface-inset); border-radius: var(--radius-md); }
+.shots canvas { width: 100%; aspect-ratio: 15/11; display: block; background: var(--surface-inset); border-radius: var(--radius-md); }
 .legend { display: flex; gap: 18px; margin-top: 12px; font: 400 12px/1 var(--font-mono); color: var(--subtle); }
 .legend span { display: inline-flex; align-items: center; gap: 7px; }
 .legend .made, .legend .miss { width: 9px; height: 9px; border-radius: 50%; }
