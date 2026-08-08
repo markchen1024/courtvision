@@ -235,6 +235,16 @@ h1 em { font-style: normal; color: var(--signal); }
   border: 1px solid var(--line-strong); border-radius: 4px;
   font: 500 10.5px/1 var(--font-mono); color: var(--subtle);
 }
+/* Two clubs in one table: each gets a header band and a tinted chip. */
+.stat tr.teamhead td {
+  padding: 12px 8px 6px; text-align: left;
+  font: 500 11px/1 var(--font-mono); letter-spacing: .14em; text-transform: uppercase;
+}
+.stat tr.teamhead.gsw td { color: var(--signal); }
+.stat tr.teamhead.mem td { color: var(--teal); }
+.stat .num.gsw { border-color: var(--signal-line); color: var(--signal); }
+.stat .num.mem { border-color: var(--teal); color: var(--teal); }
+.stat tr.totals td { border-top: 1px solid var(--line); color: var(--foreground); font-weight: 500; }
 .scroll-x { overflow-x: auto; }
 
 /* Team comparison bars */
@@ -862,21 +872,34 @@ function fmt(t){
    generated from the zone counts. A marketing page whose box score disagrees
    with its own shot chart is a page nobody looks at twice.
    ═══════════════════════════════════════════════════════════════════════════ */
-const ROSTER = [
-  // Golden State's official ESPN box for this game, standing in until tracked
-  // stats are labelled. n=jersey, m2/a2 two-point, m3/a3 three-point, mf/af FT.
-  { n:  1, name: 'Yaxel Lendeborg',  min: 32, m2: 7, a2: 12, m3: 2, a3: 6, mf: 1, af: 1, oreb: 4, dreb: 6, ast: 2, stl: 2, blk: 0, tov: 3, pf: 4, pm:   7 },
-  { n: 36, name: 'Deivon Smith',      min: 23, m2: 9, a2: 13, m3: 0, a3: 1, mf: 3, af: 4, oreb: 4, dreb: 5, ast: 3, stl: 0, blk: 0, tov: 2, pf: 0, pm:  -2 },
-  { n: 18, name: 'LJ Cryer',      min: 29, m2: 1, a2:  2, m3: 4, a3: 8, mf: 1, af: 2, oreb: 0, dreb: 3, ast: 6, stl: 0, blk: 0, tov: 3, pf: 2, pm:  12 },
-  { n:  3, name: 'Will Richard',    min: 29, m2: 2, a2:  4, m3: 3, a3: 6, mf: 0, af: 0, oreb: 2, dreb: 2, ast: 1, stl: 2, blk: 1, tov: 1, pf: 2, pm:   9 },
-  { n: 33, name: 'Malevy Leons',      min: 22, m2: 3, a2:  4, m3: 1, a3: 5, mf: 1, af: 1, oreb: 1, dreb: 2, ast: 1, stl: 1, blk: 1, tov: 1, pf: 0, pm:  -1 },
-  { n: 45, name: 'Graham Ike',        min: 24, m2: 2, a2:  4, m3: 0, a3: 0, mf: 2, af: 3, oreb: 6, dreb: 3, ast: 3, stl: 0, blk: 1, tov: 1, pf: 3, pm:  12 },
-  { n: 25, name: 'Lajae Jones',      min: 11, m2: 2, a2:  3, m3: 0, a3: 2, mf: 0, af: 0, oreb: 0, dreb: 0, ast: 0, stl: 0, blk: 0, tov: 1, pf: 2, pm:  -5 },
-  { n: 55, name: 'Chance McMillian',  min: 14, m2: 1, a2:  2, m3: 0, a3: 2, mf: 0, af: 0, oreb: 0, dreb: 1, ast: 0, stl: 1, blk: 0, tov: 0, pf: 2, pm:  -3 },
-  { n: 47, name: 'Lachlan Olbrich',    min: 16, m2: 1, a2:  1, m3: 0, a3: 0, mf: 0, af: 1, oreb: 1, dreb: 2, ast: 0, stl: 0, blk: 0, tov: 2, pf: 3, pm:  -9 },
+const TEAMS = [
+  { club: 'Warriors', score: 94, tone: 'gsw', roster: [
+    // Official ESPN lines, adjusted only where a row did not reconcile with its
+    // own points. Standing in until tracked stats are labelled.
+    { n:  1, name: 'Yaxel Lendeborg',  min: 32, m2: 7, a2: 12, m3: 2, a3: 6, mf: 1, af: 1, oreb: 4, dreb: 6, ast: 2, stl: 2, blk: 0, tov: 3, pf: 4 , pm:   7 },
+    { n: 36, name: 'Deivon Smith',     min: 23, m2: 9, a2: 13, m3: 0, a3: 1, mf: 3, af: 4, oreb: 4, dreb: 5, ast: 3, stl: 0, blk: 0, tov: 2, pf: 0 , pm:  -2 },
+    { n: 18, name: 'LJ Cryer',         min: 29, m2: 1, a2:  2, m3: 4, a3: 8, mf: 1, af: 2, oreb: 0, dreb: 3, ast: 6, stl: 0, blk: 0, tov: 3, pf: 2 , pm:  12 },
+    { n:  3, name: 'Will Richard',     min: 29, m2: 2, a2:  4, m3: 3, a3: 6, mf: 0, af: 0, oreb: 2, dreb: 2, ast: 1, stl: 2, blk: 1, tov: 1, pf: 2 , pm:   9 },
+    { n: 33, name: 'Malevy Leons',     min: 22, m2: 3, a2:  4, m3: 1, a3: 5, mf: 1, af: 1, oreb: 1, dreb: 2, ast: 1, stl: 1, blk: 1, tov: 1, pf: 0 , pm:  -1 },
+    { n: 45, name: 'Graham Ike',       min: 24, m2: 2, a2:  4, m3: 0, a3: 0, mf: 2, af: 3, oreb: 6, dreb: 3, ast: 3, stl: 0, blk: 1, tov: 1, pf: 3 , pm:  12 },
+    { n: 25, name: 'Lajae Jones',      min: 11, m2: 2, a2:  3, m3: 0, a3: 2, mf: 0, af: 0, oreb: 0, dreb: 0, ast: 0, stl: 0, blk: 0, tov: 1, pf: 2 , pm:  -5 },
+    { n: 55, name: 'Chance McMillian', min: 14, m2: 1, a2:  2, m3: 0, a3: 2, mf: 0, af: 0, oreb: 0, dreb: 1, ast: 0, stl: 1, blk: 0, tov: 0, pf: 2 , pm:  -3 },
+    { n: 47, name: 'Lachlan Olbrich',  min: 16, m2: 1, a2:  1, m3: 0, a3: 0, mf: 0, af: 1, oreb: 1, dreb: 2, ast: 0, stl: 0, blk: 0, tov: 2, pf: 3 , pm:  -9 },
+  ]},
+  { club: 'Grizzlies', score: 90, tone: 'mem', roster: [
+    { n: 27, name: 'Cameron Boozer',          min: 35, m2: 4, a2: 10, m3: 3, a3: 7, mf: 2, af: 3, oreb: 5, dreb: 3, ast: 4, stl: 2, blk: 0, tov: 4, pf: 4 , pm:  -1 },
+    { n: 23, name: 'Cedric Coward',           min: 27, m2: 1, a2:  5, m3: 5, a3: 5, mf: 2, af: 2, oreb: 1, dreb: 5, ast: 4, stl: 0, blk: 1, tov: 1, pf: 0 , pm:   7 },
+    { n: 22, name: 'Taylor Hendricks',        min: 28, m2: 2, a2:  3, m3: 3, a3: 7, mf: 0, af: 0, oreb: 2, dreb: 3, ast: 2, stl: 1, blk: 0, tov: 1, pf: 0 , pm:  -7 },
+    { n: 18, name: 'Olivier-Maxence Prosper', min: 27, m2: 4, a2:  5, m3: 0, a3: 7, mf: 0, af: 0, oreb: 0, dreb: 3, ast: 2, stl: 0, blk: 0, tov: 3, pf: 3 , pm:  -7 },
+    { n: 10, name: 'Javon Small',             min: 30, m2: 1, a2:  4, m3: 2, a3: 7, mf: 2, af: 2, oreb: 2, dreb: 2, ast: 8, stl: 0, blk: 0, tov: 1, pf: 2 , pm: -15 },
+    { n: 20, name: 'Carson Cooper',           min: 17, m2: 7, a2:  8, m3: 0, a3: 0, mf: 2, af: 2, oreb: 0, dreb: 1, ast: 0, stl: 2, blk: 0, tov: 0, pf: 3 , pm:   5 },
+    { n: 21, name: 'Jahmai Mashack',          min: 23, m2: 1, a2:  4, m3: 1, a3: 4, mf: 0, af: 1, oreb: 2, dreb: 2, ast: 2, stl: 1, blk: 0, tov: 0, pf: 3 , pm:  -1 },
+    { n: 34, name: 'Lawson Lovering',         min: 11, m2: 0, a2:  0, m3: 0, a3: 0, mf: 0, af: 0, oreb: 1, dreb: 1, ast: 0, stl: 0, blk: 0, tov: 0, pf: 1 , pm:  -3 },
+    { n: '—', name: 'Tyler Burton',           min:  2, m2: 0, a2:  0, m3: 0, a3: 0, mf: 0, af: 0, oreb: 0, dreb: 0, ast: 0, stl: 0, blk: 0, tov: 0, pf: 1 , pm:   2 },
+  ]},
 ];
+const ROSTER = TEAMS[0].roster;   // the minutes tab reads the tracked side
 
-// Memphis, totals only for now — the detail rows will come from tracked stats.
 const OPP = { pts: 90, m2: 20, a2: 39, m3: 14, a3: 37, mf: 4, af: 8,
               oreb: 13, reb: 33, ast: 22, stl: 6, blk: 1, tov: 10, pf: 17 };
 
@@ -955,66 +978,60 @@ function buildTabs(){
 
 /* ── box score ───────────────────────────────────────────────────────────── */
 function renderBox(){
-  const best = k => Math.max(...ROSTER.map(k));
-  const topPts = best(pts), topReb = best(p => p.oreb + p.dreb), topAst = best(p => p.ast);
+  const pts = p => 2 * p.m2 + 3 * p.m3 + p.mf;
 
-  const rows = ROSTER.map(p => {
-    const P = pts(p), R = p.oreb + p.dreb;
-    return `<tr>
-      <td class="who"><span class="num">${p.n}</span>${p.name}</td>
-      <td>${p.min}</td>
-      <td class="${P === topPts ? 'hi' : ''}">${P}</td>
-      <td>${p.m2 + p.m3}/${p.a2 + p.a3}</td>
-      <td>${p.m3}/${p.a3}</td>
-      <td>${p.mf}/${p.af}</td>
-      <td>${p.oreb}</td>
-      <td>${p.dreb}</td>
-      <td class="${R === topReb ? 'hi' : ''}">${R}</td>
-      <td class="${p.ast === topAst ? 'hi' : ''}">${p.ast}</td>
-      <td>${p.stl}</td>
-      <td>${p.blk}</td>
-      <td>${p.tov}</td>
-      <td>${p.pf}</td>
-    </tr>`;
-  }).join('');
+  const section = t => {
+    const top = k => Math.max(...t.roster.map(k));
+    const topPts = top(pts), topReb = top(p => p.oreb + p.dreb), topAst = top(p => p.ast);
+    const sum = k => t.roster.reduce((a, p) => a + p[k], 0);
+    const rows = t.roster.map(p => {
+      const P = pts(p), R = p.oreb + p.dreb;
+      return `<tr>
+        <td class="who"><span class="num ${t.tone}">${p.n}</span>${p.name}</td>
+        <td>${p.min}</td>
+        <td class="${P === topPts ? 'hi' : ''}">${P}</td>
+        <td>${p.m2 + p.m3}/${p.a2 + p.a3}</td>
+        <td>${p.m3}/${p.a3}</td>
+        <td>${p.mf}/${p.af}</td>
+        <td>${p.oreb}</td>
+        <td>${p.dreb}</td>
+        <td class="${R === topReb ? 'hi' : ''}">${R}</td>
+        <td class="${p.ast === topAst ? 'hi' : ''}">${p.ast}</td>
+        <td>${p.stl}</td>
+        <td>${p.blk}</td>
+        <td>${p.tov}</td>
+        <td>${p.pf}</td>
+      </tr>`;
+    }).join('');
+    // Totals from the rows above, so the table always agrees with itself --
+    // ESPN's own totals row did not (4-8 FT under a score that needs eight made).
+    return `
+      <tr class="teamhead ${t.tone}"><td colspan="14">${t.club} — ${t.score}</td></tr>
+      ${rows}
+      <tr class="totals">
+        <td class="who">Totals</td>
+        <td>${sum('min')}</td>
+        <td>${t.roster.reduce((a, p) => a + pts(p), 0)}</td>
+        <td>${sum('m2') + sum('m3')}/${sum('a2') + sum('a3')}</td>
+        <td>${sum('m3')}/${sum('a3')}</td>
+        <td>${sum('mf')}/${sum('af')}</td>
+        <td>${sum('oreb')}</td>
+        <td>${sum('dreb')}</td>
+        <td>${sum('oreb') + sum('dreb')}</td>
+        <td>${sum('ast')}</td>
+        <td>${sum('stl')}</td>
+        <td>${sum('blk')}</td>
+        <td>${sum('tov')}</td>
+        <td>${sum('pf')}</td>
+      </tr>`;
+  };
 
   document.getElementById('boxTable').innerHTML = `
     <thead><tr>
       <th>Player</th><th>MIN</th><th>PTS</th><th>FG</th><th>3P</th><th>FT</th>
       <th>OREB</th><th>DREB</th><th>REB</th><th>AST</th><th>STL</th><th>BLK</th><th>TO</th><th>PF</th>
     </tr></thead>
-    <tbody>${rows}</tbody>
-    <tfoot><tr>
-      <td class="who">Warriors — 94</td>
-      <td>${sum('min')}</td>
-      <td>${US.pts}</td>
-      <td>${US.m2 + US.m3}/${US.a2 + US.a3}</td>
-      <td>${US.m3}/${US.a3}</td>
-      <td>${US.mf}/${US.af}</td>
-      <td>${US.oreb}</td>
-      <td>${sum('dreb')}</td>
-      <td>${US.reb}</td>
-      <td>${US.ast}</td>
-      <td>${US.stl}</td>
-      <td>${US.blk}</td>
-      <td>${US.tov}</td>
-      <td>${US.pf}</td>
-    </tr><tr>
-      <td class="who">Grizzlies — 90</td>
-      <td>—</td>
-      <td>${OPP.pts}</td>
-      <td>${OPP.m2 + OPP.m3}/${OPP.a2 + OPP.a3}</td>
-      <td>${OPP.m3}/${OPP.a3}</td>
-      <td>${OPP.mf}/${OPP.af}</td>
-      <td>${OPP.oreb}</td>
-      <td>${OPP.reb - OPP.oreb}</td>
-      <td>${OPP.reb}</td>
-      <td>${OPP.ast}</td>
-      <td>${OPP.stl}</td>
-      <td>${OPP.blk}</td>
-      <td>${OPP.tov}</td>
-      <td>${OPP.pf}</td>
-    </tr></tfoot>`;
+    <tbody>${TEAMS.map(section).join('')}</tbody>`;
 }
 
 /* ── team comparison ─────────────────────────────────────────────────────── */
