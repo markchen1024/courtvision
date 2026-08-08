@@ -70,8 +70,17 @@ class Progress:
             "note": note, "started": self.started, "updated": now,
         }
         tmp = self.path.with_suffix(".tmp")
-        tmp.write_text(json.dumps(payload))
-        os.replace(tmp, self.path)
+        # On Windows, os.replace is denied while a reader (the watcher polling)
+        # has the target open. Reporting must never kill the job it reports on:
+        # drop the update and move on. Final states get a few retries instead.
+        for attempt in range(5 if force else 1):
+            try:
+                tmp.write_text(json.dumps(payload))
+                os.replace(tmp, self.path)
+                return
+            except OSError:
+                if force:
+                    time.sleep(0.05)
 
 
 def read_jobs():
