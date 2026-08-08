@@ -474,7 +474,7 @@ footer { border-top: 1px solid var(--line-soft); padding: 52px 0 40px; }
   </p>
 
   <div class="figures">
-    <div><div class="n" id="figCourt">28 × 15</div><div class="k">metre court model, FIBA</div></div>
+    <div><div class="n" id="figCourt">28 × 15</div><div class="k">metre court model</div></div>
     <div><div class="n" id="figHz">6 Hz</div><div class="k">positions sampled per second</div></div>
     <div><div class="n">0</div><div class="k">human clicks in the calibration</div></div>
     <div><div class="n">16</div><div class="k">court landmarks decoded for the solver</div></div>
@@ -991,9 +991,11 @@ function buildTabs(){
 }
 
 /* ── box score ───────────────────────────────────────────────────────────── */
-let BOXCLUB = 0;
-function renderBox(club = BOXCLUB){
-  BOXCLUB = club;
+function renderBox(club){
+  // State lives on the function: renderBox is hoisted and gets called above
+  // this point in the file, where a `let` would still be in its dead zone --
+  // which took every tab down with it, not just this one.
+  club = renderBox.club = club ?? renderBox.club ?? 0;
   const pts = p => 2 * p.m2 + 3 * p.m3 + p.mf;
 
   const section = t => {
