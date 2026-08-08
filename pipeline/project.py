@@ -117,6 +117,117 @@ def jersey_colour(frame, box):
     return patch.reshape(-1, 3).mean(axis=0)
 
 
+# The colours a basketball strip is actually likely to be. The pair that splits
+# the crops most cleanly wins, so nothing has to be configured per fixture.
+SHIRT_WORDS = ["white", "black", "blue", "red", "green", "yellow", "grey", "navy",
+               "orange", "purple", "maroon", "cream"]
+
+
+def clip_zero_shot(cache, video, path, batch=64):
+    """Score every player crop against a colour vocabulary, the way the two
+    published basketball pipelines do it.
+
+    This is the part that was reinvented and should not have been. Fashion-CLIP
+    was already wired in, but only for its embedding, which then went into a
+    k-means of my own -- and that k-means is what collapsed to a 119/21 split on
+    Summer League. The model's own zero-shot head is the method the tutorials
+    use, and the separation measurement says the signal is there to be had:
+    between/within ratio 3.1 on this clip, 2.9 on the community one.
+    """
+    if Path(path).exists():
+        z = np.load(path, allow_pickle=True)
+        if list(z["words"]) == SHIRT_WORDS:
+            return {tuple(k): v for k, v in zip(z["keys"], z["scores"])}
+
+    import torch
+    from transformers import CLIPModel, CLIPProcessor
+    model = CLIPModel.from_pretrained(CLIP_MODEL).eval()
+    proc = CLIPProcessor.from_pretrained(CLIP_MODEL)
+    if torch.cuda.is_available():
+        model = model.cuda()
+
+    prompts = [f"a basketball player wearing a {w} jersey" for w in SHIRT_WORDS]
+    tin = proc(text=prompts, return_tensors="pt", padding=True)
+    if torch.cuda.is_available():
+        tin = {k: v.cuda() for k, v in tin.items()}
+    with torch.no_grad():
+        tf = model.get_text_features(**tin)
+        if not torch.is_tensor(tf):
+            tf = tf.pooler_output
+    tf = torch.nn.functional.normalize(tf, dim=-1)
+
+    cap = cv2.VideoCapture(video)
+    keys, crops, scores = [], [], []
+
+    def flush():
+        if not crops:
+            return
+        inputs = proc(images=crops, return_tensors="pt")
+        if torch.cuda.is_available():
+            inputs = {k: v.cuda() for k, v in inputs.items()}
+        with torch.no_grad():
+            f = model.get_image_features(**inputs)
+        if not torch.is_tensor(f):
+            f = f.pooler_output
+        f = torch.nn.functional.normalize(f, dim=-1)
+        scores.extend((f @ tf.T).cpu().numpy())
+        crops.clear()
+
+    for n, (frame_idx, rows) in enumerate(sorted(cache.items())):
+        players = [(i, r) for i, r in enumerate(rows) if r["name"] == "player"]
+        if not players:
+            continue
+        cap.set(cv2.CAP_PROP_POS_FRAMES, frame_idx)
+        ok, frame = cap.read()
+        if not ok:
+            continue
+        h, w = frame.shape[:2]
+        for i, r in players:
+            x1, y1, x2, y2 = r["box"]
+            cx0, cx1 = int(max(0, x1)), int(min(w, x2))
+            cy0 = int(max(0, y1 + (y2 - y1) * 0.10))
+            cy1 = int(min(h, y1 + (y2 - y1) * 0.55))
+            if cx1 - cx0 < 4 or cy1 - cy0 < 4:
+                continue
+            keys.append((frame_idx, i))
+            crops.append(cv2.cvtColor(frame[cy0:cy1, cx0:cx1], cv2.COLOR_BGR2RGB))
+            if len(crops) >= batch:
+                flush()
+        if (n + 1) % 100 == 0:
+            print(f"  scoring shirts {n + 1}/{len(cache)} frames...")
+    flush()
+    cap.release()
+
+    arr = np.array(scores, np.float32)
+    Path(path).parent.mkdir(parents=True, exist_ok=True)
+    np.savez_compressed(path, keys=np.array(keys, np.int64), scores=arr,
+                        words=np.array(SHIRT_WORDS))
+    print(f"cached {len(arr)} shirt scores to {path}")
+    return {k: v for k, v in zip(keys, arr)}
+
+
+def pick_colour_pair(track_scores):
+    """Which two colour words split these tracks best.
+
+    Every pair is scored on how far apart the two groups sit relative to their
+    own spread, so an evenly-split, confident pair beats one where every track
+    looks equally like both.
+    """
+    best, choice = -1.0, (0, 1)
+    for i in range(len(SHIRT_WORDS)):
+        for j in range(i + 1, len(SHIRT_WORDS)):
+            d = np.array([s[i] - s[j] for s in track_scores.values()])
+            side = d > 0
+            if side.sum() < 2 or (~side).sum() < 2:
+                continue
+            spread = (d[side].std() + d[~side].std()) / 2
+            sep = abs(d[side].mean() - d[~side].mean()) / max(1e-9, spread)
+            balance = min(side.mean(), 1 - side.mean()) / 0.5
+            if sep * balance > best:
+                best, choice = sep * balance, (i, j)
+    return choice, best
+
+
 def clip_embeddings(cache, video, path, batch=64):
     """One 512-d vector per player box. Cached: it is a second pass over the video."""
     import numpy as _np
@@ -184,12 +295,26 @@ def clip_embeddings(cache, video, path, batch=64):
 
 
 def two_means(x, iters=40, seed=0):
-    """Two clusters, no sklearn. Seeded from the two most distant samples so the
-    result does not depend on a random draw across runs."""
+    """Two clusters, no sklearn.
+
+    Seeded along the first principal component at the 10th and 90th percentiles,
+    not at the two most distant samples. Distant-pair seeding is what the obvious
+    implementation does and it fails the moment one shirt patch is an outlier --
+    a referee taken for a player, someone in deep shadow -- because both seeds
+    land on outliers and every real point falls into whichever is marginally
+    nearer. Measured on the Summer League clip that produced a 119/21 split where
+    it should be even, and no frame at all with five a side.
+    """
     x = np.asarray(x, np.float64)
-    d = np.linalg.norm(x[:, None, :] - x[None, :, :], axis=-1)
-    i, j = np.unravel_index(np.argmax(d), d.shape)
-    c = x[[i, j]].copy()
+    if len(x) < 2:
+        return np.zeros(len(x), int), x
+    centred = x - x.mean(axis=0)
+    # First principal component: the direction the shirts differ along.
+    _, _, vt = np.linalg.svd(centred, full_matrices=False)
+    t = centred @ vt[0]
+    lo, hi = np.percentile(t, 10), np.percentile(t, 90)
+    c = np.stack([x[np.argmin(np.abs(t - lo))], x[np.argmin(np.abs(t - hi))]])
+
     lab = np.zeros(len(x), int)
     for _ in range(iters):
         lab = np.argmin(np.linalg.norm(x[:, None, :] - c[None, :, :], axis=-1), axis=1)
@@ -268,9 +393,9 @@ def main():
     ap.add_argument("--margin", type=float, default=MARGIN,
                     help="metres outside the lines still counted as on court")
     ap.add_argument("--gate", type=float, default=GATE_M, help="association gate, metres")
-    ap.add_argument("--team", choices=["colour", "clip"], default="colour",
-                    help="shirt description used to split the two sides; clip is "
-                         "available but measured no better here")
+    ap.add_argument("--team", choices=["zero-shot", "colour", "clip"], default="zero-shot",
+                    help="how the two sides are separated: the model's own zero-shot "
+                         "head, or clustering a colour statistic")
     ap.add_argument("--embeddings", default="out/embeddings.npz")
     ap.add_argument("--min-samples", type=int, default=8,
                     help="drop tracks seen fewer times than this")
@@ -355,7 +480,9 @@ def main():
         print(f"cached raw detections to {cache_path}")
 
     embeddings = {}
-    if args.team == "clip":
+    if args.team == "zero-shot":
+        embeddings = clip_zero_shot(cache, args.video, args.embeddings)
+    elif args.team == "clip":
         embeddings = clip_embeddings(cache, args.video, args.embeddings)
 
     tracker = CourtTracker(gate=args.gate, max_misses=args.max_misses)
@@ -386,7 +513,7 @@ def main():
                 dropped_off_court += 1
                 continue
             pts.append((float(cx), float(cy)))
-            if args.team == "clip":
+            if args.team in ("clip", "zero-shot"):
                 cols.append(embeddings.get((r["frame"], di)))
             else:
                 cols.append(None if det["colour"] is None else np.array(det["colour"]))
@@ -406,26 +533,30 @@ def main():
     for f in frames_out:
         f["positions"] = [p for p in f["positions"] if p["id"] in live]
 
-    # Team from shirt colour. Two teams, so two clusters; which is "home" is
-    # arbitrary and the viewer only uses it to pick a colour.
-    # colour: chroma only, dropping L. Lightness carries 90% of the variance in
-    # these torso patches and almost all of it is illumination and whether we are
-    # seeing the front or the back of a shirt, so clustering on it files a
-    # shadowed white jersey with the blue team.
-    # clip: the whole embedding, re-normalised after averaging over the track.
-    def describe(vs):
-        m = np.mean(vs, axis=0)
-        if args.team == "clip":
-            n = np.linalg.norm(m)
-            return m / n if n > 0 else m
-        return m[1:]
-
-    palette = {tid: describe(tracker.palette[tid])
-               for tid in live if tracker.palette.get(tid)}
+    # Which side each track is on. Which one is "home" is arbitrary; the viewer
+    # only uses it to pick a colour.
     teams = {}
-    if len(palette) >= 2:
-        ids = sorted(palette)
-        lab, _ = two_means([palette[i] for i in ids])
+    palette = {tid: np.mean(tracker.palette[tid], axis=0)
+               for tid in live if tracker.palette.get(tid)}
+
+    if args.team == "zero-shot" and palette:
+        # Ask the model which colour the shirt is, rather than clustering a
+        # colour statistic of my own. Every track carries its mean score against
+        # the colour vocabulary; the pair of words that splits them best decides
+        # the two sides, so nothing is configured per fixture.
+        (i, j), quality = pick_colour_pair(palette)
+        for tid, s in palette.items():
+            teams[tid] = "home" if s[i] > s[j] else "away"
+        print(f"teams: {SHIRT_WORDS[i]} vs {SHIRT_WORDS[j]} "
+              f"(separation {quality:.2f}), chosen from {len(SHIRT_WORDS)} colours")
+    elif palette:
+        # colour: chroma only, dropping L, which is mostly illumination and
+        # whether a shirt is seen front or back.
+        desc = {tid: (v / np.linalg.norm(v) if args.team == "clip" and np.linalg.norm(v)
+                      else (v if args.team == "clip" else v[1:]))
+                for tid, v in palette.items()}
+        ids = sorted(desc)
+        lab, _ = two_means([desc[i] for i in ids])
         teams = {i: ("home" if k == 0 else "away") for i, k in zip(ids, lab)}
 
     players = [{"id": tid, "team": teams.get(tid, "home"), "number": f"T{tid}"}
