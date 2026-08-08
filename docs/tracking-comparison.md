@@ -46,15 +46,25 @@ downstream code can see the seam. SAM2 keeps the same id on a different
 human, which poisons per-player stats with no signal that anything
 happened. For a stats pipeline that is strictly worse.
 
+**Replicated with the stack's default model.** The tiny-model run above
+was a substitution and could have taken the blame, so the experiment was
+rerun with `sam2.1_b` — the script's and the Roboflow pipeline's default —
+on a 10s window (58–68s, same cut). Same verdict, jersey-verified: tid 0
+starts on blue #1 and ends on white #23. During the close-up it correctly
+tracks nothing, and it reattaches most ids after the cut — to the wrong
+players. Review footage: `out/review_sam2_10s.mp4` /
+`out/review_sam2_30s.mp4` (rendered by `pipeline/render_tracks.py`).
+
 Also measured, for the record:
 
-- `sam2.1_b` at 1080p overflows the 10GB card (9.97/10.24GB), spills to
-  system RAM, crawls at 0.3–0.4 fps, and (before the `stream=True` fix)
-  buffered every result invisibly until the end. 2.5h of GPU produced
-  nothing.
-- `sam2.1_t` fits (4.3GB) and runs at 0.91 fps — the 30s clip took 13.7
-  minutes, the full 178s clip would take ~82. Tolerable offline, but only
-  if the output were right.
+- SAM2's VRAM grows with clip length (it banks memory features per
+  frame). `sam2.1_b` on the 178s clip overflows the 10GB card
+  (9.97/10.24GB), spills to system RAM, and crawls at 0.3–0.4 fps; the
+  same model on a 250-frame clip fits in 4.5GB and runs 0.88 fps.
+  Before the `stream=True` fix it also buffered every result invisibly
+  until the end — 2.5h of GPU produced nothing.
+- `sam2.1_t` fits in 4.3GB at any tested length and runs 0.91 fps — the
+  30s clip took 13.7 minutes.
 
 ## Decision
 
