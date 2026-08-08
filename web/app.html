@@ -95,6 +95,23 @@ td.pts { color: var(--foreground); font-weight: 500; }
 .feed::-webkit-scrollbar { width: 8px; }
 .feed::-webkit-scrollbar-thumb { background: var(--line); border-radius: 4px; }
 
+/* ── Source picker ───────────────────────────────────────────────────────── */
+.sources { display: flex; gap: 8px; padding: 10px 16px 0; }
+.sources button {
+  border: 1px solid var(--line); background: transparent; color: var(--subtle);
+  border-radius: 999px; padding: 5px 12px; cursor: pointer;
+  font: 500 11px/1 var(--font-mono); letter-spacing: .06em;
+  transition: color .15s var(--ease), border-color .15s var(--ease);
+}
+.sources button:hover { color: var(--muted); border-color: var(--line-soft); }
+.sources button.on { color: var(--signal); border-color: var(--signal-line); }
+
+/* Says what the numbers are worth, next to the numbers. */
+.caveat {
+  margin: 0; padding: 8px 16px 0;
+  font: 400 11px/1.5 var(--font-mono); color: var(--subtle);
+}
+
 footer { padding: 0 32px 32px; max-width: var(--shell); margin: 0 auto; }
 footer p { margin: 0; font: 400 12px/1.6 var(--font-mono); color: var(--subtle); }
 </style>
@@ -121,24 +138,26 @@ footer p { margin: 0; font: 400 12px/1.6 var(--font-mono); color: var(--subtle);
   <div class="row-top">
     <section class="panel">
       <div class="head"><span class="label">Footage</span><span class="right" id="srcNote"></span></div>
+      <div class="sources" id="sourcePicker"></div>
       <div class="stage">
         <video id="game" muted playsinline loop controls preload="auto"></video>
         <div class="placeholder" id="placeholder">
           <div class="big">No footage loaded</div>
-          <div class="label">drop a clip at web/media/game.mp4</div>
+          <div class="label">see the README for how to produce one</div>
         </div>
       </div>
     </section>
 
     <section class="panel">
       <div class="head"><span class="label">Court</span><span class="right" id="shotNote">0 shots</span></div>
+      <p class="caveat">positions accurate to about 20cm · labels are track ids, not jersey numbers</p>
       <canvas id="court" width="1160" height="660"></canvas>
     </section>
   </div>
 
   <div class="row-bottom">
     <section class="panel">
-      <div class="head"><span class="label">Box score</span><span class="right">generated, not typed</span></div>
+      <div class="head"><span class="label">Box score</span><span class="right" id="boxNote">events tagged by hand</span></div>
       <div class="body">
         <table>
           <thead><tr><th>Player</th><th>PTS</th><th>FG</th><th>3P</th><th>REB</th><th>AST</th><th>TO</th></tr></thead>
@@ -159,43 +178,85 @@ footer p { margin: 0; font: 400 12px/1.6 var(--font-mono); color: var(--subtle);
 <script src="assets/court.js"></script>
 <script>
 const TEAM = { home: '#c8f031', away: '#3bc9a8' };
-const VIDEO_SRC = 'media/game.mp4';
+
+/* Two clips, because the interesting thing is the difference between them.
+   The first calibrates itself; on the second the same code cannot, and that
+   gap is the whole point rather than an embarrassment to hide. */
+const SOURCES = [
+  { id:'nba',  label:'NBA Summer League', video:'media/nba.mp4',  data:'data/nba.json',
+    note:'court solved per frame by a keypoint model — no human input' },
+  { id:'bigv', label:'Big V community',   video:'media/game.mp4', data:'data/sample.json',
+    note:'same code, court calibrated by hand — the model finds nothing here' },
+];
 
 let DATA = null;
+let SOURCE = SOURCES[0];
 let video = null;
 let clockStart = null;   // silent fallback when there is no footage
 
 init();
 
 async function init(){
+  buildSourcePicker();
+  await load(SOURCES[0]);
+}
+
+async function load(src){
+  SOURCE = src;
+  DATA = null;
   try {
-    const res = await fetch('data/sample.json');
+    const res = await fetch(src.data);
     if (!res.ok) throw new Error(res.status);
     DATA = await res.json();
   } catch {
-    status('no data — run: python pipeline/make_sample_data.py');
+    status(`no data for ${src.label} — see the README for the pipeline commands`);
     return;
   }
-  status(`${DATA.source} tracking · ${DATA.frames.length} frames · ${DATA.events.length} events · court ${DATA.court.length_m}×${DATA.court.width_m}m`);
+  const gaps = DATA.frames.length && DATA.video.duration
+    ? Math.max(0, Math.round(DATA.video.duration * (DATA.video.hz || 5)) - DATA.frames.length)
+    : 0;
+  status(`${DATA.source} · ${DATA.frames.length} tracked frames`
+    + (gaps ? `, ${gaps} with no court in view` : '')
+    + ` · ${DATA.events.length} events · ${src.note}`);
   mountVideo();
   drawCourt(0);
   render(0);
   requestAnimationFrame(tick);
 }
 
+function buildSourcePicker(){
+  const host = document.getElementById('sourcePicker');
+  if (!host) return;
+  host.innerHTML = SOURCES.map((s, i) =>
+    `<button data-src="${s.id}" class="${i === 0 ? 'on' : ''}">${s.label}</button>`).join('');
+  host.addEventListener('click', ev => {
+    const b = ev.target.closest('button');
+    if (!b) return;
+    [...host.children].forEach(c => c.classList.toggle('on', c === b));
+    load(SOURCES.find(s => s.id === b.dataset.src));
+  });
+}
+
 /* Play the clip straight away. If there is no file, fall back to an internal
    clock without showing any chrome — the demo always has something moving. */
 function mountVideo(){
   const el = document.getElementById('game');
-  el.addEventListener('loadeddata', () => {
-    video = el;
-    clockStart = null;
-    document.getElementById('placeholder').style.display = 'none';
-    document.getElementById('srcNote').textContent = VIDEO_SRC;
-    el.play().catch(() => {});
-  });
-  el.addEventListener('error', startClock);
-  el.src = VIDEO_SRC;
+  // Switching clips re-enters this, so the handlers go on once rather than
+  // stacking up another copy on every switch.
+  if (!el.dataset.wired) {
+    el.dataset.wired = '1';
+    el.addEventListener('loadeddata', () => {
+      video = el;
+      clockStart = null;
+      document.getElementById('placeholder').style.display = 'none';
+      document.getElementById('srcNote').textContent = SOURCE.video;
+      el.play().catch(() => {});
+    });
+    el.addEventListener('error', startClock);
+  }
+  video = null;
+  clockStart = null;
+  el.src = SOURCE.video;
   // Some browsers never fire error for a missing file behind a static server.
   // Wait for the transfer to actually be idle before deciding it is missing —
   // a big clip on a cold cache is slow, not absent.
@@ -253,7 +314,7 @@ function render(t){
   document.getElementById('scoreAway').textContent = away;
   document.getElementById('shotNote').textContent = `${shots.length} shot${shots.length === 1 ? '' : 's'}`;
 
-  const rows = [...per.values()].sort((a,b) => b.pts - a.pts || b.reb - a.reb || a.p.number - b.p.number);
+  const rows = [...per.values()].sort((a,b) => b.pts - a.pts || b.reb - a.reb || a.p.id - b.p.id);
   document.getElementById('rows').innerHTML = rows.map(s => `
     <tr>
       <td class="name"><span class="jersey" style="background:${TEAM[s.p.team]}">${s.p.number}</span>${s.p.team === 'home' ? 'Home' : 'Away'}</td>
@@ -314,7 +375,13 @@ function drawCourt(t){
   }
 
   const frame = frameAt(t);
-  if (!frame) return;
+  if (!frame) {
+    ctx.fillStyle = 'rgba(200,215,225,.55)';
+    ctx.font = "500 13px 'JetBrains Mono', ui-monospace, monospace";
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText('no court in view — replay or close-up', cw / 2, ch / 2);
+    return;
+  }
   for (const pos of frame.positions) {
     const p = DATA.players.find(x => x.id === pos.id);
     ctx.beginPath();
@@ -324,13 +391,30 @@ function drawCourt(t){
     ctx.fillStyle = '#08090c';
     ctx.font = "500 11px 'JetBrains Mono', ui-monospace, monospace";
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    ctx.fillText(p.number, X(pos.x), Y(pos.y) + 0.5);
+    // A track id. Reading the actual number off a shirt is OCR, which is not
+    // attempted here, so this must not be dressed up to look like one.
+    ctx.fillText(String(p.number).replace(/^T/, ''), X(pos.x), Y(pos.y) + 0.5);
   }
 }
 
+/* Look the frame up by time, not by index. Broadcast footage drops out -- a
+   replay, a bench shot, a moment with too little floor in view -- so the tracked
+   frames are not a uniform grid. Indexing by t*hz assumes they are, and the
+   court would drift steadily out of step with the video, which is the one thing
+   this view exists to show. Returns null when the nearest tracked frame is too
+   far away, so the court can say so rather than draw a stale position. */
 function frameAt(t){
-  const hz = DATA.video.hz || 5;
-  return DATA.frames[Math.max(0, Math.min(Math.round(t * hz), DATA.frames.length - 1))];
+  const f = DATA.frames;
+  if (!f.length) return null;
+  let lo = 0, hi = f.length - 1;
+  while (lo < hi) {
+    const mid = (lo + hi) >> 1;
+    if (f[mid].t < t) lo = mid + 1; else hi = mid;
+  }
+  const near = [f[lo], f[Math.max(0, lo - 1)]]
+    .reduce((a, b) => Math.abs(a.t - t) <= Math.abs(b.t - t) ? a : b);
+  const step = 1 / (DATA.video.hz || 5);
+  return Math.abs(near.t - t) <= step * 1.5 ? near : null;
 }
 function fmt(t){
   const m = Math.floor(t / 60), s = Math.floor(t % 60);
