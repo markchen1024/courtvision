@@ -40,6 +40,15 @@ confident player boxes on frame 0:
   correctly output nothing (frame 215: zero boxes) — it fails by
   *reattaching wrong*, not by hallucinating.
 
+**It also just misses people** (review finding, from watching
+`review_sam2_*.mp4`): coverage is structurally capped by the wrapper's
+first-frame-only prompting — whoever isn't a confident detection on frame
+0 (a sub, a bench player standing up, the 10th man at 0.32 conf) never
+gets an id — and objects lost to a close-up or occlusion only partially
+reacquire (3 of 9 right after the cut, 8 of 9 by the end). A
+detection-per-frame pipeline cannot miss a visible player for long;
+prompt-based tracking can miss them forever.
+
 **The real finding: SAM2 changes the failure mode from loud to silent.**
 ByteTrack's failure is visible in the data — a new id appears, and
 downstream code can see the seam. SAM2 keeps the same id on a different
