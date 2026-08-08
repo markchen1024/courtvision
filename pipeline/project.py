@@ -21,7 +21,7 @@ Two things fall out of working in court metres rather than pixels:
                              motion already divided out, and players move
                              smoothly and slowly across it.
 
-    python pipeline/project.py --calibration out/calibration/fused_clean.json
+    python pipeline/project.py --auto-calibration out/auto_calibration.json         --video web/media/nba.mp4
 
 No jersey numbers: that is OCR, which is the part Superstat has spent two years
 on, so tracks are labelled T1, T2 ... and nothing here pretends otherwise. No
@@ -258,7 +258,8 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--video", default="web/media/game.mp4")
     ap.add_argument("--registration", default="out/registration/registration.json")
-    ap.add_argument("--calibration", required=True)
+    ap.add_argument("--calibration", help="a single calibrated frame, used with --registration")
+    ap.add_argument("--auto-calibration", help="per-frame homographies from auto_calibrate.py")
     ap.add_argument("--threshold", type=float, default=0.35)
     ap.add_argument("--cache", default="out/detections.json")
     ap.add_argument("--redetect", action="store_true", help="ignore the detection cache")
@@ -276,21 +277,45 @@ def main():
     ap.add_argument("--out", default="web/data/sample.json")
     args = ap.parse_args()
 
-    cal = json.loads(Path(args.calibration).read_text())
-    if cal.get("H_court_to_image") is None:
-        raise SystemExit(f"{args.calibration} is a partial calibration with no homography")
-    H_court_to_ref = np.array(cal["H_court_to_image"], np.float64)
-    print(f"calibration: frame {cal['frame']}, {len(cal['points'])} points, "
-          f"rms {cal['reprojection_rms_px']:.2f}px, coverage {cal['coverage_m2']:.0f}m2")
+    # Two ways to know where the court is in a frame, and the pipeline downstream
+    # of here does not care which. Hand-calibrate one frame and carry it with
+    # feature matching, or solve every frame independently from a keypoint model.
+    # The second is simpler and needs no human; it only became possible once a
+    # model was accurate enough on the footage and its keypoint numbering had
+    # been decoded.
+    if bool(args.calibration) == bool(args.auto_calibration):
+        raise SystemExit("pass exactly one of --calibration or --auto-calibration")
 
-    reg = json.loads(Path(args.registration).read_text())
-    if reg["reference_frame"] != cal["frame"]:
-        raise SystemExit(f"registration hubs on frame {reg['reference_frame']} but the "
-                         f"calibration is for frame {cal['frame']}")
-    usable = [r for r in reg["frames"] if "H_ref_to_frame" in r]
-    fps = 30.0
-    hz = fps / reg["every"]
-    print(f"registration: {len(usable)} frames at {hz:.1f}Hz, hub frame {reg['reference_frame']}")
+    if args.auto_calibration:
+        auto = json.loads(Path(args.auto_calibration).read_text())
+        if auto["video"] != args.video:
+            raise SystemExit(f"{args.auto_calibration} was solved for {auto['video']}")
+        usable = [{"frame": r["frame"], "H_court_to_image": r["H_court_to_image"]}
+                  for r in auto["frames"] if r.get("solved") and not r.get("suspect")]
+        fps = auto["fps"]
+        hz = fps / auto["every"]
+        skipped = len(auto["frames"]) - len(usable)
+        print(f"auto calibration: {len(usable)} frames solved at {hz:.1f}Hz "
+              f"({skipped} frames have no court in view and are left out)")
+    else:
+        cal = json.loads(Path(args.calibration).read_text())
+        if cal.get("H_court_to_image") is None:
+            raise SystemExit(f"{args.calibration} is a partial calibration with no homography")
+        H_court_to_ref = np.array(cal["H_court_to_image"], np.float64)
+        print(f"calibration: frame {cal['frame']}, {len(cal['points'])} points, "
+              f"rms {cal['reprojection_rms_px']:.2f}px, coverage {cal['coverage_m2']:.0f}m2")
+
+        reg = json.loads(Path(args.registration).read_text())
+        if reg["reference_frame"] != cal["frame"]:
+            raise SystemExit(f"registration hubs on frame {reg['reference_frame']} but the "
+                             f"calibration is for frame {cal['frame']}")
+        usable = [{"frame": r["frame"],
+                   "H_court_to_image": (np.array(r["H_ref_to_frame"], np.float64)
+                                        @ H_court_to_ref).tolist()}
+                  for r in reg["frames"] if "H_ref_to_frame" in r]
+        fps = 30.0
+        hz = fps / reg["every"]
+        print(f"registration: {len(usable)} frames at {hz:.1f}Hz, hub frame {reg['reference_frame']}")
 
     cache_path = Path(args.cache)
     cache = None
@@ -337,7 +362,7 @@ def main():
     frames_out, kept, dropped_off_court, dropped_class, dropped_score = [], 0, 0, 0, 0
 
     for r in usable:
-        H_court_to_frame = np.array(r["H_ref_to_frame"], np.float64) @ H_court_to_ref
+        H_court_to_frame = np.array(r["H_court_to_image"], np.float64)
         try:
             H_frame_to_court = np.linalg.inv(H_court_to_frame)
         except np.linalg.LinAlgError:
