@@ -397,6 +397,8 @@ def main():
                     help="how the two sides are separated: the model's own zero-shot "
                          "head, or clustering a colour statistic")
     ap.add_argument("--embeddings", default="out/embeddings.npz")
+    ap.add_argument("--tracks", help="external track ids (track_bytetrack.py output); "
+                    "replaces the court-space tracker")
     ap.add_argument("--min-samples", type=int, default=8,
                     help="drop tracks seen fewer times than this")
     ap.add_argument("--out", default="web/data/sample.json")
@@ -485,8 +487,41 @@ def main():
     elif args.team == "clip":
         embeddings = clip_embeddings(cache, args.video, args.embeddings)
 
+    # Identities come from one of two places: the court-space tracker written
+    # here, or an external tracker's output (ByteTrack, the tutorial's choice).
+    # The external file runs on a denser grid, so this pass adopts its ids by
+    # IoU-matching each cached box against the tracked boxes at the nearest
+    # tracked frame -- association happens there, only the naming happens here.
+    ext_tracks, ext_every = None, 1
+    if args.tracks:
+        ext = json.loads(Path(args.tracks).read_text())
+        if ext["video"] != args.video:
+            raise SystemExit(f"{args.tracks} was tracked on {ext['video']}")
+        ext_tracks = {int(k): v for k, v in ext["frames"].items()}
+        ext_every = ext["every"]
+        print(f"identities: {ext.get('tracker', 'external')} over {len(ext_tracks)} frames")
+
+    def adopt_ids(frame_idx, boxes):
+        near = frame_idx - (frame_idx % ext_every)
+        rows = ext_tracks.get(near) or ext_tracks.get(near + ext_every) or []
+        out = []
+        for (x1, y1, x2, y2) in boxes:
+            best_tid, best_iou = None, 0.4   # below this the boxes are not the same person
+            for t in rows:
+                a1, b1, a2, b2 = t["box"]
+                iw = max(0.0, min(x2, a2) - max(x1, a1))
+                ih = max(0.0, min(y2, b2) - max(y1, b1))
+                inter = iw * ih
+                union = (x2 - x1) * (y2 - y1) + (a2 - a1) * (b2 - b1) - inter
+                if union > 0 and inter / union > best_iou:
+                    best_tid, best_iou = t["tid"], inter / union
+            out.append(best_tid)
+        return out
+
     tracker = CourtTracker(gate=args.gate, max_misses=args.max_misses)
+    ext_palette = {}
     frames_out, kept, dropped_off_court, dropped_class, dropped_score = [], 0, 0, 0, 0
+    dropped_unmatched = 0
 
     for r in usable:
         H_court_to_frame = np.array(r["H_court_to_image"], np.float64)
@@ -495,7 +530,7 @@ def main():
         except np.linalg.LinAlgError:
             continue
 
-        pts, cols = [], []
+        pts, cols, boxes = [], [], []
         for di, det in enumerate(cache.get(r["frame"], [])):
             if det["name"] != "player":
                 dropped_class += 1
@@ -513,13 +548,24 @@ def main():
                 dropped_off_court += 1
                 continue
             pts.append((float(cx), float(cy)))
+            boxes.append((x1, y1, x2, y2))
             if args.team in ("clip", "zero-shot"):
                 cols.append(embeddings.get((r["frame"], di)))
             else:
                 cols.append(None if det["colour"] is None else np.array(det["colour"]))
             kept += 1
 
-        assigned = tracker.step(pts, cols)
+        if ext_tracks is not None:
+            assigned = []
+            for tid, (px, py), col in zip(adopt_ids(r["frame"], boxes), pts, cols):
+                if tid is None:
+                    dropped_unmatched += 1   # no tracked box agrees this person exists
+                    continue
+                assigned.append((tid, px, py))
+                if col is not None:
+                    ext_palette.setdefault(tid, []).append(col)
+        else:
+            assigned = tracker.step(pts, cols)
         frames_out.append({
             "t": round(r["frame"] / fps, 2),
             "positions": [{"id": tid, "x": round(x, 2), "y": round(y, 2)} for tid, x, y in assigned],
@@ -536,8 +582,9 @@ def main():
     # Which side each track is on. Which one is "home" is arbitrary; the viewer
     # only uses it to pick a colour.
     teams = {}
-    palette = {tid: np.mean(tracker.palette[tid], axis=0)
-               for tid in live if tracker.palette.get(tid)}
+    shirt_store = ext_palette if ext_tracks is not None else tracker.palette
+    palette = {tid: np.mean(shirt_store[tid], axis=0)
+               for tid in live if shirt_store.get(tid)}
 
     if args.team == "zero-shot" and palette:
         # Ask the model which colour the shirt is, rather than clustering a
@@ -582,6 +629,8 @@ def main():
     print(f"  dropped {dropped_class} non-player detections (referee, ball)")
     print(f"  dropped {dropped_score} player boxes below the {args.threshold} score threshold")
     print(f"  dropped {dropped_off_court} detections whose feet landed off the court")
+    if dropped_unmatched:
+        print(f"  dropped {dropped_unmatched} detections no tracked box agreed existed")
     lifetimes = np.array([counts[t] for t in live])
     print(f"  identity holds {np.median(lifetimes) / hz:.1f}s before a track breaks or switches")
     print(f"\nthe {args.margin:.1f}m margin is absorbing calibration error, not sideline scramble:")
