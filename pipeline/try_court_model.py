@@ -28,7 +28,8 @@ import numpy as np
 import requests
 
 from config import secret
-from register import build_static_mask, make_detector, register_pair, scale_matrix
+from register import (GOOD_OVERLAP, MIN_INLIERS, build_static_mask, make_detector,
+                      overlap_fraction, register_pair, scale_matrix)
 
 PROJECT = "basketball-court-detection-2"
 ENDPOINT = "https://detect.roboflow.com"
@@ -129,28 +130,37 @@ def main():
             for f, im in images.items()}
     corners = np.float32([[0, 0], [W, 0], [W, H_px], [0, H_px]]).reshape(-1, 1, 2)
 
-    print(f"\n{'pair':>14} {'shared':>7} {'ORB err':>9} {'disagreement':>14}")
+    print(f"\n{'pair':>14} {'shared':>7} {'ORB err':>9} {'overlap':>8} {'disagreement':>14}")
     gaps = []
     for a, b in itertools.combinations(sorted(images), 2):
         shared = sorted(set(found[a]) & set(found[b]))
         H_orb, inl, err = register_pair(det, norm, grey[a], grey[b], mask_w)
         if H_orb is None:
             continue
+        # The baseline is only a ruler between frames that actually see the same
+        # thing. Reprojection error and inlier count both look healthy on a pair
+        # sharing no view at all -- overlap is the check that does not, and
+        # leaving it out is the same mistake this script exists to catch.
+        ov = overlap_fraction(H_orb, grey[a].shape)
+        if inl < MIN_INLIERS or ov < GOOD_OVERLAP:
+            print(f"  {a}->{b:5d} {len(shared):>7} {err:8.2f}px {ov * 100:7.0f}% "
+                  f"{'no baseline':>14}")
+            continue
         H_orb = Sinv @ H_orb @ S
         if len(shared) < 4:
-            print(f"  {a}->{b:5d} {len(shared):>7} {err:8.2f}px {'too few':>14}")
+            print(f"  {a}->{b:5d} {len(shared):>7} {err:8.2f}px {ov * 100:7.0f}% {'too few':>14}")
             continue
         H_kp, _ = cv2.findHomography(
             np.float32([found[a][k] for k in shared]).reshape(-1, 1, 2),
             np.float32([found[b][k] for k in shared]).reshape(-1, 1, 2), cv2.RANSAC, 5.0)
         if H_kp is None:
-            print(f"  {a}->{b:5d} {len(shared):>7} {err:8.2f}px {'no fit':>14}")
+            print(f"  {a}->{b:5d} {len(shared):>7} {err:8.2f}px {ov * 100:7.0f}% {'no fit':>14}")
             continue
         gap = float(np.linalg.norm(
             cv2.perspectiveTransform(corners, H_kp).reshape(-1, 2)
             - cv2.perspectiveTransform(corners, H_orb).reshape(-1, 2), axis=1).mean())
         gaps.append(gap)
-        print(f"  {a}->{b:5d} {len(shared):>7} {err:8.2f}px {gap:12.1f}px")
+        print(f"  {a}->{b:5d} {len(shared):>7} {err:8.2f}px {ov * 100:7.0f}% {gap:12.1f}px")
 
     if gaps:
         best = min(gaps)
