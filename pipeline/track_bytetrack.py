@@ -29,6 +29,7 @@ import cv2
 import numpy as np
 
 from project import CACHE_THRESHOLD, detect, load_detector
+from progress import Progress
 
 
 def dense_detections(video, cache_path, every):
@@ -50,6 +51,7 @@ def dense_detections(video, cache_path, every):
     proc, model = load_detector()
     out = {}
     idx = 0
+    prog = Progress("dense-detect", total=total // every)
     while True:
         ok, frame = cap.read()
         if not ok:
@@ -59,6 +61,7 @@ def dense_detections(video, cache_path, every):
                     for name, score, box in detect(proc, model, frame, CACHE_THRESHOLD)
                     if name == "player"]
             out[idx] = rows
+            prog.step(note=f"frame {idx}")
             if len(out) % 200 == 0:
                 print(f"  {len(out)}/{total // every} frames...")
         idx += 1

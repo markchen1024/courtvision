@@ -43,6 +43,7 @@ import numpy as np
 import requests
 
 from config import secret
+from progress import Progress
 
 ENDPOINT = "https://detect.roboflow.com"
 PROJECT = "basketball-court-detection-2"
@@ -66,6 +67,7 @@ def fetch_keypoints(cache_path, video, version, every, limit, api_key, box_conf,
     total = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
     targets = list(range(0, total, every))[:limit]
     print(f"querying {PROJECT}/{version} for {len(targets)} frames...")
+    prog = Progress("keypoints", total=len(targets))
 
     out = {}
     for n, idx in enumerate(targets):
@@ -87,6 +89,7 @@ def fetch_keypoints(cache_path, video, version, every, limit, api_key, box_conf,
                      "x": k["x"], "y": k["y"], "conf": k.get("confidence", 0)}
                     for k in preds[0]["keypoints"] if k.get("confidence", 0) >= kp_conf]
         out[idx] = rows
+        prog.step(note=f"frame {idx}")
         if (n + 1) % 50 == 0:
             print(f"  {n + 1}/{len(targets)} frames...")
 
@@ -96,6 +99,7 @@ def fetch_keypoints(cache_path, video, version, every, limit, api_key, box_conf,
         "video": video, "version": version, "every": every,
         "frames": {str(k): v for k, v in out.items()},
     }))
+    prog.done()
     print(f"cached to {cache_path}")
     return out
 

@@ -23,6 +23,8 @@ from pathlib import Path
 
 import numpy as np
 
+from progress import Progress
+
 
 def main():
     ap = argparse.ArgumentParser()
@@ -52,6 +54,8 @@ def main():
 
     tracks = {}
     n = 0
+    prog = Progress("sam2", total=None)
+    partial = Path(args.out).with_suffix(".partial.json")
     for r in predictor(source=args.video, bboxes=boxes):
         rows = []
         if r.boxes is not None and len(r.boxes):
@@ -64,8 +68,12 @@ def main():
                 rows.append({"tid": tid, "box": [float(v) for v in b]})
         tracks[n] = rows
         n += 1
+        prog.step(note=f"frame {n}")
         if n % 500 == 0:
-            print(f"  {n} frames...")
+            print(f"  {n} frames...", flush=True)
+            # A multi-hour run with no checkpoint is a bet nothing crashes.
+            partial.write_text(json.dumps({"frames_done": n,
+                "frames": {str(k): v for k, v in tracks.items()}}))
 
     fps = dense.get("fps", 25.0)
     lifetimes = {}

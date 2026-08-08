@@ -36,6 +36,7 @@ import cv2
 import numpy as np
 
 from calibrate import COURT_LENGTH, COURT_WIDTH
+from progress import Progress
 
 DETECTOR = "koppolusameer/rfdetr-basketball-player-ball-referee-detection"
 
@@ -173,7 +174,9 @@ def clip_zero_shot(cache, video, path, batch=64):
         scores.extend((f @ tf.T).cpu().numpy())
         crops.clear()
 
+    prog = Progress("shirts", total=len(cache))
     for n, (frame_idx, rows) in enumerate(sorted(cache.items())):
+        prog.step(note=f"frame {frame_idx}")
         players = [(i, r) for i, r in enumerate(rows) if r["name"] == "player"]
         if not players:
             continue
@@ -460,6 +463,7 @@ def main():
         print(f"loading {DETECTOR}")
         proc, model = load_detector()
         cache = {}
+        prog = Progress("detect", total=len(usable))
         for n, r in enumerate(usable):
             cap.set(cv2.CAP_PROP_POS_FRAMES, r["frame"])
             ok, frame = cap.read()
@@ -471,10 +475,12 @@ def main():
                 rows.append({"name": name, "score": score, "box": box,
                              "colour": None if colour is None else colour.tolist()})
             cache[r["frame"]] = rows
+            prog.step(note=f"frame {r['frame']}")
             if (n + 1) % 50 == 0:
                 print(f"  detecting {n + 1}/{len(usable)} frames...")
         cap.release()
         cache_path.parent.mkdir(parents=True, exist_ok=True)
+        prog.done()
         cache_path.write_text(json.dumps({
             "video": args.video, "threshold": CACHE_THRESHOLD, "frames_hash": len(usable),
             "detections": {str(k): v for k, v in cache.items()},
