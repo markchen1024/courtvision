@@ -183,8 +183,10 @@ const TEAM = { home: '#c8f031', away: '#3bc9a8' };
    The first calibrates itself; on the second the same code cannot, and that
    gap is the whole point rather than an embarrassment to hide. */
 const SOURCES = [
-  { id:'nba',  label:'NBA Summer League', video:'media/nba.mp4',  data:'data/nba.json',
-    note:'court solved per frame by a keypoint model — no human input' },
+  { id:'nba',  label:'NBA Summer League final', video:'media/nba.mp4',  data:'data/nba.json',
+    note:'court solved per frame by a keypoint model — no human input',
+    game:{ home:'Grizzlies', away:'Warriors',
+           title:'GSW 94–90 MEM · Las Vegas · 19 Jul 2026' } },
   { id:'bigv', label:'Big V community',   video:'media/game.mp4', data:'data/sample.json',
     note:'same code, court calibrated by hand — the model finds nothing here' },
 ];
@@ -215,7 +217,11 @@ async function load(src){
   const gaps = DATA.frames.length && DATA.video.duration
     ? Math.max(0, Math.round(DATA.video.duration * (DATA.video.hz || 5)) - DATA.frames.length)
     : 0;
-  status(`${DATA.source} · ${DATA.frames.length} tracked frames`
+  // Which cluster is which club comes from the shirt colours, so it is a label
+  // on the colour split, not an identification of anybody.
+  document.querySelector('.scoreboard .home .label').textContent = src.game?.home ?? 'Home';
+  document.querySelector('.scoreboard .away .label').textContent = src.game?.away ?? 'Away';
+  status((src.game ? src.game.title + ' · ' : '') + `${DATA.source} · ${DATA.frames.length} tracked frames`
     + (gaps ? `, ${gaps} with no court in view` : '')
     + ` · ${DATA.events.length} events · ${src.note}`);
   mountVideo();
@@ -317,7 +323,7 @@ function render(t){
   const rows = [...per.values()].sort((a,b) => b.pts - a.pts || b.reb - a.reb || a.p.id - b.p.id);
   document.getElementById('rows').innerHTML = rows.map(s => `
     <tr>
-      <td class="name"><span class="jersey" style="background:${TEAM[s.p.team]}">${s.p.number}</span>${s.p.team === 'home' ? 'Home' : 'Away'}</td>
+      <td class="name"><span class="jersey" style="background:${TEAM[s.p.team]}">${s.p.number}</span>${s.p.team === 'home' ? (SOURCE.game?.home ?? 'Home') : (SOURCE.game?.away ?? 'Away')}</td>
       <td class="pts" data-numeric>${s.pts}</td>
       <td data-numeric>${s.fgm}/${s.fga}</td>
       <td data-numeric>${s.tpm}/${s.tpa}</td>

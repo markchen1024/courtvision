@@ -386,13 +386,13 @@ footer { border-top: 1px solid var(--line-soft); padding: 52px 0 40px; }
     <a class="btn primary lg" href="app.html">Open the demo <span class="arrow">→</span></a>
     <a class="btn lg" href="#method">See how it works</a>
   </div>
-  <p class="fine">No account. One community-league clip, already processed.</p>
+  <p class="fine">No account. Three minutes of the 2026 Summer League final, already processed.</p>
 
   <!-- The product shot is the product. -->
   <div class="frame" id="product">
     <div class="chrome">
       <span class="dots"><i></i><i></i><i></i></span>
-      <span class="url">courtvision.io/app — half 1 · community league</span>
+      <span class="url">courtvision.io/app — GSW @ MEM · 2026 Summer League final</span>
     </div>
     <div class="panes">
       <div class="pane">
@@ -401,7 +401,7 @@ footer { border-top: 1px solid var(--line-soft); padding: 52px 0 40px; }
           <video id="film" muted loop playsinline autoplay preload="metadata"></video>
           <div class="fallback" id="filmFallback" hidden>
             <div class="big">Clip not loaded</div>
-            <div class="label">drop one at web/media/game.mp4</div>
+            <div class="label">drop one at web/media/nba.mp4</div>
           </div>
         </div>
       </div>
@@ -451,16 +451,16 @@ footer { border-top: 1px solid var(--line-soft); padding: 52px 0 40px; }
   </div>
 
   <p class="tabnote">
-    Sample game, illustrative numbers. Positions and shot locations are the kind of thing
-    the geometry measures; the event labels behind them are hand-tagged — see
+    Positions and shot locations are measured by the pipeline; the event labels behind
+    them are hand-tagged — see
     <a href="#limits">Limits</a>.
   </p>
 
   <div class="figures">
     <div><div class="n" id="figCourt">28 × 15</div><div class="k">metre court model, FIBA</div></div>
     <div><div class="n" id="figHz">6 Hz</div><div class="k">positions sampled per second</div></div>
-    <div><div class="n">1</div><div class="k">frame calibrated by hand</div></div>
-    <div><div class="n">0</div><div class="k">keypoints clicked per frame</div></div>
+    <div><div class="n">0</div><div class="k">human clicks in the calibration</div></div>
+    <div><div class="n">16</div><div class="k">court landmarks decoded for the solver</div></div>
   </div>
 </div></header>
 
@@ -488,22 +488,23 @@ footer { border-top: 1px solid var(--line-soft); padding: 52px 0 40px; }
     <div class="cell">
       <span class="mark">D</span>
       <h3>Detection &amp; tracking</h3>
-      <p>RF-DETR for players, Deep-EIoU for identity. Pedestrian trackers fall apart on
-      sport — near-identical kits, erratic motion, constant occlusion — so we do not use
-      one.</p>
+      <p>RF-DETR for players. Identity is associated <em>after</em> the homography, in
+      court space, where the camera's motion is already divided out. Raced against
+      ByteTrack on the same detections: 12.2 s median identity against 7.0 s.</p>
     </div>
     <div class="cell">
       <span class="mark">C</span>
-      <h3>Camera motion, solved once</h3>
-      <p>A camera that pans about its own centre relates any two of its frames by a pure
-      homography. Calibrate one reference frame, register the rest to it by feature
-      matching, compose. No per-frame line detection.</p>
+      <h3>Camera motion, solved per frame</h3>
+      <p>A keypoint model reads the court markings in every frame, so every frame gets its
+      own homography and broadcast cuts stop mattering. Where the model fails, the
+      fallback is one hand-calibrated frame carried by feature matching.</p>
     </div>
     <div class="cell">
       <span class="mark">T</span>
       <h3>Teams without labelling</h3>
-      <p>Appearance embeddings clustered into two kits. Nobody types in a roster, and it
-      does not care what colours the strips are this season.</p>
+      <p>A vision-language model scores every shirt against colour words, and the pair
+      that splits the players best decides the sides. Nobody types in a roster — on this
+      clip it picked the two kits unprompted.</p>
     </div>
     <div class="cell">
       <span class="mark">S</span>
@@ -579,10 +580,10 @@ footer { border-top: 1px solid var(--line-soft); padding: 52px 0 40px; }
       why one is automated here and the other is not.</p>
     </div>
     <div class="row">
-      <h3>One camera, one tripod</h3>
-      <p>The single-calibration trick depends on the camera rotating about its own centre.
-      Carry the camera down the sideline and the frame-to-frame relationship stops being a
-      homography, and the whole chain has to be rebuilt.</p>
+      <h3>The court model knows professional floors</h3>
+      <p>The per-frame solver works because the keypoint model recognises this kind of
+      court. On a community gym it finds almost nothing — measured, not assumed — and the
+      hand-calibrated fallback path takes over.</p>
     </div>
   </div>
 </div></section>
@@ -642,8 +643,9 @@ footer { border-top: 1px solid var(--line-soft); padding: 52px 0 40px; }
 
 <section class="closer"><div class="shell">
   <h2>Point it at your film.</h2>
-  <p>The demo runs on a community-league clip with a phone-grade camera — not a broadcast
-  feed with six angles and a graphics team.</p>
+  <p>The demo runs on a broadcast clip because that is where today's court models work.
+  Community footage — phone camera, strange floor, no graphics team — is the harder half,
+  and the repo measures exactly where it breaks.</p>
   <a class="btn primary lg" href="app.html">Open the demo <span class="arrow">→</span></a>
 </div></section>
 
@@ -697,7 +699,7 @@ footer { border-top: 1px solid var(--line-soft); padding: 52px 0 40px; }
 <script src="assets/court.js"></script>
 <script>
 const TEAM = { home: '#c8f031', away: '#3bc9a8' };
-const CLIP = 'media/game.mp4';
+const CLIP = 'media/nba.mp4';
 const TRAIL = 7;            // ghost frames behind each player
 
 let DATA = null;
@@ -709,7 +711,7 @@ init();
 
 async function init(){
   try {
-    const res = await fetch('data/sample.json');
+    const res = await fetch('data/nba.json');
     if (!res.ok) throw new Error(res.status);
     DATA = await res.json();
   } catch {
