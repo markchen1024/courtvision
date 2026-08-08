@@ -164,6 +164,50 @@ def wobble(prev_H, H, next_H, pts=COURT_BOX):
     return float(np.linalg.norm(b - (a + c) / 2, axis=1).mean())
 
 
+def bridge_gaps(solved, every, max_span):
+    """Fill short runs of unsolved frames by interpolating the court's corners.
+
+    75 gaps in 891 sampled frames is what a broadcast looks like -- a replay, a
+    bench shot, a moment where too little floor is in view. Left alone they make
+    the top-down view blink, and they break every track across them: of 140
+    tracks, 80 were born at a gap rather than because the tracker lost anyone.
+
+    Interpolating the four court corners and re-solving is well behaved where
+    averaging homography matrices is not, and it is defensible only because the
+    camera has already been measured to move smoothly -- wobble a median of 4px.
+
+    Only short gaps, and every filled frame is marked. A frame where the model
+    saw no court has no court position, and inventing one across a ten-second
+    replay would be exactly the quiet fabrication this pipeline exists to avoid.
+    """
+    idx = {r["frame"]: i for i, r in enumerate(solved)}
+    anchors = [r for r in solved if r.get("solved")]
+    filled = 0
+    for a, b in zip(anchors, anchors[1:]):
+        span = (b["frame"] - a["frame"]) // every - 1
+        if span < 1 or span > max_span:
+            continue
+        ca = court_corners(np.array(a["H_court_to_image"], np.float64))
+        cb = court_corners(np.array(b["H_court_to_image"], np.float64))
+        if ca is None or cb is None:
+            continue
+        for k in range(1, span + 1):
+            frame = a["frame"] + k * every
+            i = idx.get(frame)
+            if i is None or solved[i].get("solved"):
+                continue
+            t = k / (span + 1)
+            corners = (1 - t) * ca + t * cb
+            H, _ = cv2.findHomography(COURT_BOX.reshape(-1, 2), corners.astype(np.float32))
+            if H is None:
+                continue
+            solved[i].update({"solved": True, "interpolated": True,
+                              "H_court_to_image": H.tolist(),
+                              "reason": f"bridged a {span}-sample gap"})
+            filled += 1
+    return filled
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--video", default="web/media/nba.mp4")
@@ -175,6 +219,8 @@ def main():
     ap.add_argument("--kp-conf", type=float, default=0.5)
     ap.add_argument("--max-jump", type=float, default=0.0,
                     help="pixels of departure from smooth motion to flag (default 30)")
+    ap.add_argument("--max-bridge", type=int, default=3,
+                    help="samples of unsolved frames to interpolate across; 0 disables")
     ap.add_argument("--cache", default="out/court_keypoints.json")
     ap.add_argument("--out", default="out/auto_calibration.json")
     args = ap.parse_args()
@@ -204,6 +250,11 @@ def main():
                        "rms_px": round(rms, 2), "coverage_m2": round(coverage, 1),
                        "points": n, "court_points": used})
 
+    if args.max_bridge:
+        filled = bridge_gaps(solved, args.every, args.max_bridge)
+        print(f"\nbridged {filled} frames across gaps of up to {args.max_bridge} "
+              f"samples ({args.max_bridge * args.every / fps:.1f}s), marked as interpolated")
+
     # Temporal check last, since it needs both neighbours to exist first.
     jumps = []
     for i, r in enumerate(solved):
@@ -220,14 +271,21 @@ def main():
         jumps.append(w)
 
     ok = [r for r in solved if r["solved"]]
+    # Interpolated frames were never fitted to anything, so they have no rms or
+    # coverage and must not be averaged in with the frames that were.
+    fitted = [r for r in ok if not r.get("interpolated")]
+    bridged = [r for r in ok if r.get("interpolated")]
     print(f"\n{len(ok)}/{len(solved)} frames solved ({100 * len(ok) / max(1, len(solved)):.0f}%)")
     for why, n in sorted(failures.items(), key=lambda kv: -kv[1]):
         print(f"  {n:4d} failed: {why}")
 
-    if ok:
-        rms = np.array([r["rms_px"] for r in ok])
-        cov = np.array([r["coverage_m2"] for r in ok])
-        pts = np.array([r["points"] for r in ok])
+    if bridged:
+        print(f"  of those, {len(fitted)} solved from keypoints and {len(bridged)} "
+              f"interpolated across short gaps")
+    if fitted:
+        rms = np.array([r["rms_px"] for r in fitted])
+        cov = np.array([r["coverage_m2"] for r in fitted])
+        pts = np.array([r["points"] for r in fitted])
         print(f"\n  points per frame  median {np.median(pts):.0f}  min {pts.min()}  max {pts.max()}")
         print(f"  fit rms           median {np.median(rms):.1f}px  p90 {np.percentile(rms, 90):.1f}px")
         print(f"  coverage          median {np.median(cov):.0f}m2  min {cov.min():.0f}m2")
