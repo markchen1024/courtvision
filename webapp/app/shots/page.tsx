@@ -14,6 +14,11 @@
    where its detail is illustrative. */
 
 import { ZonedShotchart } from '@pietrus/shotchart.d3.ts';
+// The library extracts its styles to a css file it expects the consumer to
+// import -- nothing in its bundle pulls this in, and without it the SVG text
+// renders at the default 16 viewBox units on a ~50-unit-wide court: every
+// label becomes a wall of hundred-pixel glyphs over the whole chart.
+import '@pietrus/shotchart.d3.ts/dist/esm/index.css';
 import { useRef, useState } from 'react';
 
 type Bucket = { bucket: string; fgm: number; fga: number; percentile: number };
