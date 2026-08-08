@@ -157,7 +157,7 @@ footer p { margin: 0; font: 400 12px/1.6 var(--font-mono); color: var(--subtle);
 
   <div class="row-bottom">
     <section class="panel">
-      <div class="head"><span class="label">Box score</span><span class="right" id="boxNote">events tagged by hand</span></div>
+      <div class="head"><span class="label">Box score</span><span class="right" id="boxNote">events hand-tagged · names are placeholders</span></div>
       <div class="body">
         <table>
           <thead><tr><th>Player</th><th>PTS</th><th>FG</th><th>3P</th><th>REB</th><th>AST</th><th>TO</th></tr></thead>
@@ -323,7 +323,7 @@ function render(t){
   const rows = [...per.values()].sort((a,b) => b.pts - a.pts || b.reb - a.reb || a.p.id - b.p.id);
   document.getElementById('rows').innerHTML = rows.map(s => `
     <tr>
-      <td class="name"><span class="jersey" style="background:${TEAM[s.p.team]}">${s.p.number}</span>${s.p.team === 'home' ? (SOURCE.game?.home ?? 'Home') : (SOURCE.game?.away ?? 'Away')}</td>
+      <td class="name"><span class="jersey" style="background:${TEAM[s.p.team]}">${s.p.number}</span>${s.p.name ?? (s.p.team === 'home' ? (SOURCE.game?.home ?? 'Home') : (SOURCE.game?.away ?? 'Away'))}</td>
       <td class="pts" data-numeric>${s.pts}</td>
       <td data-numeric>${s.fgm}/${s.fga}</td>
       <td data-numeric>${s.tpm}/${s.tpa}</td>
@@ -337,12 +337,13 @@ function render(t){
   feed.innerHTML = recent.length ? recent.map(e => {
     const p = DATA.players.find(x => x.id === e.player);
     const made = e.type === 'shot_made';
+    const who = p.name ?? ('#' + p.number);
     const txt = {
-      shot_made:   `#${p.number} scored <span class="pt">+${e.points}</span>`,
-      shot_missed: `#${p.number} missed ${e.points}`,
-      rebound:     `#${p.number} rebound`,
-      assist:      `#${p.number} assist`,
-      turnover:    `#${p.number} turnover`,
+      shot_made:   `${who} scored <span class="pt">+${e.points}</span>`,
+      shot_missed: `${who} missed ${e.points}`,
+      rebound:     `${who} rebound`,
+      assist:      `${who} assist`,
+      turnover:    `${who} turnover`,
     }[e.type] || e.type;
     return `<div class="ev ${made ? 'made' : ''}">
       <span class="t">${fmt(e.t)}</span>

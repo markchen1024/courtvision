@@ -451,8 +451,9 @@ footer { border-top: 1px solid var(--line-soft); padding: 52px 0 40px; }
   </div>
 
   <p class="tabnote">
-    Positions and shot locations are measured by the pipeline; the event labels behind
-    them are hand-tagged — see
+    Positions and shot locations are measured by the pipeline. The box score is the
+    official ESPN box for this game, standing in until tracked stats are labelled; the
+    event labels are hand-tagged — see
     <a href="#limits">Limits</a>.
   </p>
 
@@ -862,21 +863,22 @@ function fmt(t){
    with its own shot chart is a page nobody looks at twice.
    ═══════════════════════════════════════════════════════════════════════════ */
 const ROSTER = [
-  // n=jersey, m2/a2=two-point, m3/a3=three-point, mf/af=free throws
-  { n:  4, name: 'A. Whitfield', min: 34, m2: 6, a2: 11, m3: 2, a3: 5, mf: 2, af: 2, oreb: 1, dreb: 4, ast: 5, stl: 2, blk: 0, tov: 3, pf: 3, pm:  12 },
-  { n:  7, name: 'J. Karras',    min: 32, m2: 4, a2:  7, m3: 1, a3: 4, mf: 3, af: 4, oreb: 0, dreb: 3, ast: 7, stl: 1, blk: 0, tov: 4, pf: 2, pm:   9 },
-  { n: 11, name: 'D. Okafor',    min: 30, m2: 5, a2:  8, m3: 0, a3: 1, mf: 1, af: 2, oreb: 3, dreb: 6, ast: 1, stl: 0, blk: 2, tov: 2, pf: 4, pm:   6 },
-  { n: 12, name: 'S. Petrov',    min: 28, m2: 3, a2:  6, m3: 3, a3: 7, mf: 0, af: 0, oreb: 0, dreb: 2, ast: 3, stl: 2, blk: 0, tov: 1, pf: 1, pm:  15 },
-  { n: 21, name: 'M. Reyes',     min: 24, m2: 2, a2:  5, m3: 1, a3: 3, mf: 2, af: 2, oreb: 1, dreb: 1, ast: 2, stl: 1, blk: 0, tov: 2, pf: 3, pm:  -4 },
-  { n: 23, name: 'T. Nakamura',  min: 22, m2: 3, a2:  5, m3: 0, a3: 2, mf: 0, af: 1, oreb: 2, dreb: 3, ast: 1, stl: 0, blk: 1, tov: 1, pf: 2, pm:   3 },
-  { n: 30, name: 'L. Brennan',   min: 18, m2: 1, a2:  4, m3: 2, a3: 4, mf: 1, af: 2, oreb: 0, dreb: 2, ast: 2, stl: 1, blk: 0, tov: 2, pf: 1, pm:  -6 },
-  { n: 33, name: 'C. Aitken',    min: 12, m2: 2, a2:  3, m3: 0, a3: 1, mf: 0, af: 0, oreb: 1, dreb: 1, ast: 0, stl: 0, blk: 1, tov: 1, pf: 2, pm:   0 },
+  // Golden State's official ESPN box for this game, standing in until tracked
+  // stats are labelled. n=jersey, m2/a2 two-point, m3/a3 three-point, mf/af FT.
+  { n:  1, name: 'Y. Lendeborg',  min: 32, m2: 7, a2: 12, m3: 2, a3: 6, mf: 1, af: 1, oreb: 4, dreb: 6, ast: 2, stl: 2, blk: 0, tov: 3, pf: 4, pm:   7 },
+  { n: 36, name: 'D. Smith',      min: 23, m2: 9, a2: 13, m3: 0, a3: 1, mf: 3, af: 4, oreb: 4, dreb: 5, ast: 3, stl: 0, blk: 0, tov: 2, pf: 0, pm:  -2 },
+  { n: 18, name: 'L. Cryer',      min: 29, m2: 1, a2:  2, m3: 4, a3: 8, mf: 1, af: 2, oreb: 0, dreb: 3, ast: 6, stl: 0, blk: 0, tov: 3, pf: 2, pm:  12 },
+  { n:  3, name: 'W. Richard',    min: 29, m2: 2, a2:  4, m3: 3, a3: 6, mf: 0, af: 0, oreb: 2, dreb: 2, ast: 1, stl: 2, blk: 1, tov: 1, pf: 2, pm:   9 },
+  { n: 33, name: 'M. Leons',      min: 22, m2: 3, a2:  4, m3: 1, a3: 5, mf: 1, af: 1, oreb: 1, dreb: 2, ast: 1, stl: 1, blk: 1, tov: 1, pf: 0, pm:  -1 },
+  { n: 45, name: 'G. Ike',        min: 24, m2: 2, a2:  4, m3: 0, a3: 0, mf: 2, af: 3, oreb: 6, dreb: 3, ast: 3, stl: 0, blk: 1, tov: 1, pf: 3, pm:  12 },
+  { n: 25, name: 'L. Jones',      min: 11, m2: 2, a2:  3, m3: 0, a3: 2, mf: 0, af: 0, oreb: 0, dreb: 0, ast: 0, stl: 0, blk: 0, tov: 1, pf: 2, pm:  -5 },
+  { n: 55, name: 'C. McMillian',  min: 14, m2: 1, a2:  2, m3: 0, a3: 2, mf: 0, af: 0, oreb: 0, dreb: 1, ast: 0, stl: 1, blk: 0, tov: 0, pf: 2, pm:  -3 },
+  { n: 47, name: 'L. Olbrich',    min: 16, m2: 1, a2:  1, m3: 0, a3: 0, mf: 0, af: 1, oreb: 1, dreb: 2, ast: 0, stl: 0, blk: 0, tov: 2, pf: 3, pm:  -9 },
 ];
 
-// The other side. Only totals — you never get a full box score for the opponent
-// from one camera behind your own bench.
-const OPP = { pts: 81, m2: 23, a2: 48, m3: 8, a3: 30, mf: 11, af: 17,
-              oreb: 9, reb: 27, ast: 14, stl: 6, blk: 2, tov: 19, pf: 20 };
+// Memphis, totals only for now — the detail rows will come from tracked stats.
+const OPP = { pts: 90, m2: 20, a2: 39, m3: 14, a3: 37, mf: 4, af: 8,
+              oreb: 13, reb: 33, ast: 22, stl: 6, blk: 1, tov: 10, pf: 17 };
 
 // Splits of the roster's field goals by where they were taken. m/a here sum
 // back to the two- and three-point totals above.
