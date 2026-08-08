@@ -235,13 +235,15 @@ h1 em { font-style: normal; color: var(--signal); }
   border: 1px solid var(--line-strong); border-radius: 4px;
   font: 500 10.5px/1 var(--font-mono); color: var(--subtle);
 }
-/* Two clubs in one table: each gets a header band and a tinted chip. */
-.stat tr.teamhead td {
-  padding: 12px 8px 6px; text-align: left;
-  font: 500 11px/1 var(--font-mono); letter-spacing: .14em; text-transform: uppercase;
+/* One club at a time, picked by the pills; the tint says which. */
+.clubs { display: flex; gap: 8px; padding: 2px 0 12px; }
+.clubs button {
+  border: 1px solid var(--line); background: transparent; color: var(--subtle);
+  border-radius: 999px; padding: 6px 14px; cursor: pointer;
+  font: 500 11px/1 var(--font-mono); letter-spacing: .08em;
 }
-.stat tr.teamhead.gsw td { color: var(--signal); }
-.stat tr.teamhead.mem td { color: var(--teal); }
+.clubs button.on.gsw { color: var(--signal); border-color: var(--signal-line); }
+.clubs button.on.mem { color: var(--teal); border-color: var(--teal); }
 .stat .num.gsw { border-color: var(--signal-line); color: var(--signal); }
 .stat .num.mem { border-color: var(--teal); color: var(--teal); }
 .stat tr.totals td { border-top: 1px solid var(--line); color: var(--foreground); font-weight: 500; }
@@ -430,6 +432,10 @@ footer { border-top: 1px solid var(--line-soft); padding: 52px 0 40px; }
     </div>
 
     <div class="tabpanel" role="tabpanel" id="p-box" aria-labelledby="tab-box">
+      <div class="clubs" role="tablist" aria-label="Club">
+        <button role="tab" aria-selected="true" class="on gsw" data-club="0">Warriors — 94</button>
+        <button role="tab" aria-selected="false" class="mem" data-club="1">Grizzlies — 90</button>
+      </div>
       <div class="scroll-x"><table class="stat" id="boxTable"></table></div>
     </div>
 
@@ -944,6 +950,14 @@ const US = {
 
 buildTabs();
 renderBox();
+document.querySelectorAll('.clubs button').forEach(b => b.addEventListener('click', () => {
+  document.querySelectorAll('.clubs button').forEach(x => {
+    const on = x === b;
+    x.classList.toggle('on', on);
+    x.setAttribute('aria-selected', on);
+  });
+  renderBox(+b.dataset.club);
+}));
 renderCompare();
 renderZones();
 renderClips();
@@ -977,7 +991,9 @@ function buildTabs(){
 }
 
 /* ── box score ───────────────────────────────────────────────────────────── */
-function renderBox(){
+let BOXCLUB = 0;
+function renderBox(club = BOXCLUB){
+  BOXCLUB = club;
   const pts = p => 2 * p.m2 + 3 * p.m3 + p.mf;
 
   const section = t => {
@@ -1006,7 +1022,6 @@ function renderBox(){
     // Totals from the rows above, so the table always agrees with itself --
     // ESPN's own totals row did not (4-8 FT under a score that needs eight made).
     return `
-      <tr class="teamhead ${t.tone}"><td colspan="14">${t.club} — ${t.score}</td></tr>
       ${rows}
       <tr class="totals">
         <td class="who">Totals</td>
@@ -1031,7 +1046,7 @@ function renderBox(){
       <th>Player</th><th>MIN</th><th>PTS</th><th>FG</th><th>3P</th><th>FT</th>
       <th>OREB</th><th>DREB</th><th>REB</th><th>AST</th><th>STL</th><th>BLK</th><th>TO</th><th>PF</th>
     </tr></thead>
-    <tbody>${TEAMS.map(section).join('')}</tbody>`;
+    <tbody>${section(TEAMS[club])}</tbody>`;
 }
 
 /* ── team comparison ─────────────────────────────────────────────────────── */
