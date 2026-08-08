@@ -91,6 +91,7 @@ def main():
             lifetimes[t["tid"]] = (min(a, idx), max(b, idx))
     spans = np.array([(b - a) / fps for a, b in lifetimes.values()]) if lifetimes else np.array([0.0])
 
+    prog.done(note=f"{n} frames, {len(lifetimes)} objects")
     Path(args.out).parent.mkdir(parents=True, exist_ok=True)
     Path(args.out).write_text(json.dumps({
         "video": args.video, "every": 1, "fps": fps,
