@@ -1161,12 +1161,19 @@ function zoneAt(x, y){
   return 'mid';
 }
 
-/* Red for cold, teal for hot, anchored at the game's own average. */
+/* Three-stop ramp, red through neutral to teal, anchored at the game's own
+   average. Extremes get more opacity as well as more hue, because on a dark
+   ground a flat alpha wash reads as one colour with a vague gradient -- which
+   it did, and that is what this replaces. */
 function zoneTint(m, a){
   const avg = ZONES.reduce((t, z) => t + z.m, 0) / ZONES.reduce((t, z) => t + z.a, 0);
   const t = Math.max(0, Math.min(1, ((a ? m / a : 0) - avg + .18) / .36));
-  const lerp = (u, v) => Math.round(u + (v - u) * t);
-  return `rgba(${lerp(240, 59)}, ${lerp(113, 201)}, ${lerp(107, 168)}, .34)`;
+  const stop = (u, v) => Math.round(u + (v - u) * (t < .5 ? t * 2 : (t - .5) * 2));
+  const rgb = t < .5
+    ? [stop(228, 138), stop(86, 133), stop(74, 120)]     // red -> neutral
+    : [stop(138, 47), stop(133, 191), stop(120, 158)];   // neutral -> teal
+  const alpha = .28 + .38 * Math.abs(t - .5) * 2;
+  return `rgba(${rgb[0]}, ${rgb[1]}, ${rgb[2]}, ${alpha.toFixed(2)})`;
 }
 
 function drawShots(view){
@@ -1181,28 +1188,53 @@ function drawShots(view){
 
   if (view === 'zones') {
     const stats = Object.fromEntries(ZONES.map(z => [z.key, z]));
-    const step = 0.15;   // metres per cell; rasterising beats path algebra here
-    const cw = Math.ceil(g.X(step) - g.X(0)) + 1, ch = Math.ceil(g.Y(0) - g.Y(step)) + 1;
-    for (let x = 0; x < 28; x += step) {
-      for (let y = 0; y < 15; y += step) {
-        const z = stats[zoneAt(x + step / 2, y + step / 2)];
-        if (!z) continue;
-        ctx.fillStyle = zoneTint(z.m, z.a);
-        ctx.fillRect(g.X(x), g.Y(y + step), cw, ch);
+    // Classify once into a grid, then draw fills and, in a second pass, a
+    // stroke wherever two neighbouring cells disagree -- that line is the zone
+    // boundary, and it is what makes the regions read as regions.
+    const step = 0.1;
+    const cols = Math.round(28 / step), rows = Math.round(15 / step);
+    const zone = [];
+    for (let i = 0; i < cols; i++) {
+      zone.push([]);
+      for (let j = 0; j < rows; j++) {
+        zone[i].push(zoneAt((i + .5) * step, (j + .5) * step));
       }
     }
+    const px = x => g.X(x * step), py = y => g.Y(y * step);
+    const cw = px(1) - px(0) + 1, ch = py(0) - py(1) + 1;
+    for (let i = 0; i < cols; i++) {
+      for (let j = 0; j < rows; j++) {
+        const z = stats[zone[i][j]];
+        if (!z) continue;
+        ctx.fillStyle = zoneTint(z.m, z.a);
+        ctx.fillRect(px(i), py(j + 1), cw, ch);
+      }
+    }
+    ctx.strokeStyle = 'rgba(8, 9, 12, .85)';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    for (let i = 0; i < cols; i++) {
+      for (let j = 0; j < rows; j++) {
+        if (i + 1 < cols && zone[i][j] !== zone[i + 1][j]) {
+          ctx.moveTo(px(i + 1), py(j)); ctx.lineTo(px(i + 1), py(j + 1));
+        }
+        if (j + 1 < rows && zone[i][j] !== zone[i][j + 1]) {
+          ctx.moveTo(px(i), py(j + 1)); ctx.lineTo(px(i + 1), py(j + 1));
+        }
+      }
+    }
+    ctx.stroke();
     Court.lines(ctx, g, { w, h });
     // Labels on the left half; the numbers are game aggregates, so the right
     // half is its mirror and one set of labels is enough.
     const spots = { ra: [1.5, 7.5], paint: [4.2, 7.5], mid: [7.4, 7.5],
-                    atb: [10.6, 7.5], c3: [1.8, 0.9] };
+                    atb: [10.6, 7.5], c3: [2.0, 1.6] };
     for (const z of ZONES) {
       const [zx, zy] = spots[z.key];
       const X = g.X(zx), Y = g.Y(zy);
       ctx.textAlign = 'center';
-      ctx.fillStyle = '#0b0c10'; ctx.globalAlpha = .65;
-      const wpx = 44, hpx = 30;
-      ctx.fillRect(X - wpx / 2, Y - hpx / 2, wpx, hpx);
+      ctx.fillStyle = '#0b0c10'; ctx.globalAlpha = .72;
+      ctx.fillRect(X - 24, Y - 15, 48, 30);
       ctx.globalAlpha = 1; ctx.fillStyle = '#e8e6df';
       ctx.font = "600 12px 'JetBrains Mono', ui-monospace, monospace";
       ctx.fillText(pc1(z.m, z.a), X, Y - 2);
