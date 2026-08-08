@@ -404,6 +404,8 @@ def main():
                     "replaces the court-space tracker")
     ap.add_argument("--min-samples", type=int, default=8,
                     help="drop tracks seen fewer times than this")
+    ap.add_argument("--boxes-out", help="also write per-frame (tid, box) rows; "
+                    "identify.py and render_tracks.py consume this")
     ap.add_argument("--out", default="web/data/sample.json")
     args = ap.parse_args()
 
@@ -528,6 +530,7 @@ def main():
     ext_palette = {}
     frames_out, kept, dropped_off_court, dropped_class, dropped_score = [], 0, 0, 0, 0
     dropped_unmatched = 0
+    box_frames = {}
 
     for r in usable:
         H_court_to_frame = np.array(r["H_court_to_image"], np.float64)
@@ -562,20 +565,25 @@ def main():
             kept += 1
 
         if ext_tracks is not None:
-            assigned = []
-            for tid, (px, py), col in zip(adopt_ids(r["frame"], boxes), pts, cols):
+            assigned, assigned_boxes = [], []
+            for tid, (px, py), col, bx in zip(adopt_ids(r["frame"], boxes), pts, cols, boxes):
                 if tid is None:
                     dropped_unmatched += 1   # no tracked box agrees this person exists
                     continue
                 assigned.append((tid, px, py))
+                assigned_boxes.append(bx)
                 if col is not None:
                     ext_palette.setdefault(tid, []).append(col)
         else:
             assigned = tracker.step(pts, cols)
+            assigned_boxes = boxes   # step() returns one row per point, same order
         frames_out.append({
             "t": round(r["frame"] / fps, 2),
             "positions": [{"id": tid, "x": round(x, 2), "y": round(y, 2)} for tid, x, y in assigned],
         })
+        box_frames[r["frame"]] = [
+            {"tid": tid, "box": [round(float(v), 1) for v in bx]}
+            for (tid, _, _), bx in zip(assigned, assigned_boxes)]
 
     counts = {}
     for f in frames_out:
@@ -584,6 +592,17 @@ def main():
     live = {tid for tid, c in counts.items() if c >= args.min_samples}
     for f in frames_out:
         f["positions"] = [p for p in f["positions"] if p["id"] in live]
+
+    if args.boxes_out:
+        grid = sorted(box_frames)
+        every = int(np.median(np.diff(grid))) if len(grid) > 1 else 1
+        Path(args.boxes_out).parent.mkdir(parents=True, exist_ok=True)
+        Path(args.boxes_out).write_text(json.dumps({
+            "video": args.video, "fps": fps, "every": every,
+            "frames": {str(k): [t for t in v if t["tid"] in live]
+                       for k, v in box_frames.items()},
+        }))
+        print(f"wrote track boxes to {args.boxes_out}")
 
     # Which side each track is on. Which one is "home" is arbitrary; the viewer
     # only uses it to pick a colour.
