@@ -76,7 +76,7 @@ class Progress:
 
 def _fmt_eta(seconds):
     if seconds is None or seconds != seconds or seconds < 0:
-        return "—"
+        return "-"
     if seconds < 90:
         return f"{seconds:.0f}s"
     if seconds < 5400:
@@ -130,7 +130,7 @@ def main():
         rows = snapshot()
         if args.watch:
             os.system("cls" if os.name == "nt" else "clear")
-        print(time.strftime("%H:%M:%S"), "· out/progress/")
+        print(time.strftime("%H:%M:%S"), "- out/progress/")
         if rows:
             print("\n".join(rows))
         else:
