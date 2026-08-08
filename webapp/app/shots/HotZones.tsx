@@ -23,21 +23,28 @@ const THREE_R = 7.24;
 const CORNER_LAT = 7.5 - 0.914; // lateral offset of the corner three line
 const CORNER_DEPTH = BASKET.d + Math.sqrt(THREE_R ** 2 - CORNER_LAT ** 2);
 
+const KW = 2.45;  // key half-width
+const FD = 5.79;  // free-throw line depth
+
 function zoneAt(x: number, depth: number): string | null {
   if (depth > DEPTH) return null;
   const lat = x - BASKET.x;
+  const la = Math.abs(lat);
   const fwd = depth - BASKET.d;
   const d = Math.hypot(lat, fwd);
-  const deg = Math.abs((Math.atan2(Math.abs(lat), fwd) * 180) / Math.PI);
+  const deg = Math.abs((Math.atan2(la, fwd) * 180) / Math.PI);
   const side = lat < 0 ? 'L' : 'R';
 
-  const corner = Math.abs(lat) > CORNER_LAT && depth < CORNER_DEPTH;
-  if (corner) return side + '-C3';
+  // 2K's boundaries follow the court's own lines: the key rectangle is a zone,
+  // baseline mid-range is cut by the key edge and the corner-three line, and
+  // only the outer sectors divide radially.
+  if (la > CORNER_LAT && depth < CORNER_DEPTH) return side + '-C3';
+  if (d > THREE_R) return deg <= 30 ? 'TOP3' : side + '-W3';
   if (d <= 1.4) return 'RIM';
-  if (d <= 4.0) return deg <= 35 ? 'M-FL' : side + '-FL';
-  if (d > THREE_R) return deg <= 30 ? 'M-ATB' : side + '-ATB';
-  if (deg <= 35) return 'M-MR';
-  return deg <= 75 ? side + 'W-MR' : side + 'B-MR';
+  if (la <= KW && depth <= FD) return 'PAINT';
+  if (la <= KW && depth <= FD + 1.9) return 'FT';
+  if (la > KW && depth <= CORNER_DEPTH) return side + '-MB';
+  return deg <= 40 ? 'TOPMID' : side + '-WING';
 }
 
 function tint(fgm: number, fga: number, avg: number): string {
@@ -53,20 +60,19 @@ function tint(fgm: number, fga: number, avg: number): string {
 }
 
 const LABELS: Record<string, [number, number]> = {
-  RIM: [7.5, 1.7],
-  'M-FL': [7.5, 4.3],
-  'L-FL': [5.1, 3.1],
-  'R-FL': [9.9, 3.1],
-  'M-MR': [7.5, 7.3],
-  'LW-MR': [4.0, 5.9],
-  'RW-MR': [11.0, 5.9],
-  'LB-MR': [2.4, 2.2],
-  'RB-MR': [12.6, 2.2],
+  RIM: [7.5, 1.6],
+  PAINT: [7.5, 4.2],
+  FT: [7.5, 6.6],
+  'L-MB': [4.3, 2.2],
+  'R-MB': [10.7, 2.2],
+  'L-WING': [3.6, 5.6],
+  'R-WING': [11.4, 5.6],
+  TOPMID: [7.5, 8.2],
   'L-C3': [0.8, 2.3],
   'R-C3': [14.2, 2.3],
-  'M-ATB': [7.5, 9.7],
-  'L-ATB': [2.3, 8.0],
-  'R-ATB': [12.7, 8.0],
+  'L-W3': [1.9, 7.6],
+  'R-W3': [13.1, 7.6],
+  TOP3: [7.5, 10.2],
 };
 
 export default function HotZones({ data }: { data: readonly ZoneStat[] }) {

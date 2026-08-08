@@ -27,21 +27,21 @@ const CLUBS = {
   gsw: {
     label: 'Warriors — 94',
     data: [
-      z('RIM', 14, 19),
-      z('M-FL', 4, 7), z('L-FL', 2, 3), z('R-FL', 2, 3),
-      z('M-MR', 2, 4), z('LW-MR', 1, 2), z('RW-MR', 1, 2), z('LB-MR', 1, 2), z('RB-MR', 1, 2),
+      z('RIM', 14, 19), z('PAINT', 4, 7), z('FT', 2, 4),
+      z('L-MB', 2, 3), z('R-MB', 2, 3),
+      z('L-WING', 1, 2), z('R-WING', 1, 2), z('TOPMID', 2, 4),
       z('L-C3', 2, 5), z('R-C3', 2, 4),
-      z('M-ATB', 2, 7), z('L-ATB', 2, 7), z('R-ATB', 2, 7),
+      z('L-W3', 2, 7), z('R-W3', 2, 7), z('TOP3', 2, 7),
     ],
   },
   mem: {
     label: 'Grizzlies — 90',
     data: [
-      z('RIM', 9, 14),
-      z('M-FL', 2, 4), z('L-FL', 2, 4), z('R-FL', 2, 4),
-      z('M-MR', 1, 3), z('LW-MR', 1, 3), z('RW-MR', 1, 3), z('LB-MR', 1, 2), z('RB-MR', 1, 2),
+      z('RIM', 9, 14), z('PAINT', 3, 6), z('FT', 2, 4),
+      z('L-MB', 1, 3), z('R-MB', 1, 3),
+      z('L-WING', 1, 3), z('R-WING', 1, 2), z('TOPMID', 2, 4),
       z('L-C3', 3, 5), z('R-C3', 2, 5),
-      z('M-ATB', 3, 9), z('L-ATB', 3, 9), z('R-ATB', 3, 9),
+      z('L-W3', 3, 9), z('R-W3', 3, 9), z('TOP3', 3, 9),
     ],
   },
 } as const;
