@@ -1,25 +1,20 @@
 'use client';
 
-/* The zone chart the static page approximated with five rasterised blocks,
-   rendered properly by the library built for it: @pietrus/shotchart.d3.ts,
-   whose ZonedShotchart draws the standard fourteen-zone halfcourt.
+/* Fourteen-zone hot chart in the NBA 2K shapes -- annular sectors around the
+   basket -- for the two clubs of the Summer League final.
 
-   The library ships React 18 as a plain dependency, which nests a second copy
-   of React and dies with an invalid-hook crash the moment it renders. The npm
-   overrides in package.json pin the whole tree to one React -- that pin is
-   load-bearing; remove it and this page breaks.
+   The ready-made chart tried first (@pietrus/shotchart.d3.ts) hardcodes its
+   own zone shapes in createSectionedZones with no way to swap them, so the
+   shapes are drawn by our own component using the grid-classifier machinery
+   proven on the static page. Its zone vocabulary is kept, so the data would
+   drop straight back into the library if its shapes ever became wanted.
 
    Zone detail is a placeholder split, but each club's buckets sum to its real
    FG and 3P totals from the ESPN box, so the chart's totals are true even
    where its detail is illustrative. */
 
-import { ZonedShotchart } from '@pietrus/shotchart.d3.ts';
-// The library extracts its styles to a css file it expects the consumer to
-// import -- nothing in its bundle pulls this in, and without it the SVG text
-// renders at the default 16 viewBox units on a ~50-unit-wide court: every
-// label becomes a wall of hundred-pixel glyphs over the whole chart.
-import '@pietrus/shotchart.d3.ts/dist/esm/index.css';
-import { useRef, useState } from 'react';
+import HotZones from './HotZones';
+import { useState } from 'react';
 
 type Bucket = { bucket: string; fgm: number; fga: number; percentile: number };
 
@@ -53,7 +48,6 @@ const CLUBS = {
 
 export default function ShotsPage() {
   const [club, setClub] = useState<keyof typeof CLUBS>('gsw');
-  const svgRef = useRef<SVGSVGElement>(null);
   return (
     <main className="mx-auto max-w-3xl p-8">
       <h1 className="text-xl font-semibold mb-1">Zone efficiency</h1>
@@ -74,17 +68,7 @@ export default function ShotsPage() {
           </button>
         ))}
       </div>
-      {/* Keyed remount: the component redraws into an SVG it owns by id, and
-          swapping data in place leaves stale zones behind. */}
-      <ZonedShotchart
-        key={club}
-        id={club === 'gsw' ? 1 : 2}
-        courtType="NBA"
-        theme="B/O"
-        backgroundTheme="Dark"
-        svgRef={svgRef as never}
-        data={CLUBS[club].data as unknown as never}
-      />
+      <HotZones data={CLUBS[club].data} />
     </main>
   );
 }
