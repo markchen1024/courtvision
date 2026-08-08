@@ -30,7 +30,7 @@ export default function Home() {
   </div>
   <div className="actions">
     <a className="btn ghost" href="#">Sign in</a>
-    <a className="btn primary" href="/viewer">Open the demo <span className="arrow">→</span></a>
+    <a className="btn primary" href="#product">Open the demo <span className="arrow">→</span></a>
   </div>
 </div></nav>
 
@@ -43,7 +43,7 @@ export default function Home() {
     the basket. Spacing, shot charts and heat maps all fall out of having real coordinates.
   </p>
   <div className="cta">
-    <a className="btn primary lg" href="/viewer">Open the demo <span className="arrow">→</span></a>
+    <a className="btn primary lg" href="#product">Open the demo <span className="arrow">→</span></a>
     <a className="btn lg" href="#method">See how it works</a>
   </div>
   <p className="fine">No account. Three minutes of the 2026 Summer League final, already processed.</p>
@@ -317,7 +317,7 @@ export default function Home() {
   <p>The demo runs on a broadcast clip because that is where today's court models work.
   Community footage — phone camera, strange floor, no graphics team — is the harder half,
   and the repo measures exactly where it breaks.</p>
-  <a className="btn primary lg" href="/viewer">Open the demo <span className="arrow">→</span></a>
+  <a className="btn primary lg" href="#product">Open the demo <span className="arrow">→</span></a>
 </div></section>
 
 </main>
@@ -334,7 +334,7 @@ export default function Home() {
     <div>
       <h4>Product</h4>
       <ul>
-        <li><a href="/viewer">Open the demo</a></li>
+        <li><a href="#product">Open the demo</a></li>
         <li><a href="#method">Method</a></li>
         <li><a href="#limits">Limits</a></li>
         <li><a href="#pricing">Pricing</a></li>
