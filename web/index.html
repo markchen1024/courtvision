@@ -237,6 +237,7 @@ h1 em { font-style: normal; color: var(--signal); }
 }
 /* One club at a time, picked by the pills; the tint says which. */
 .clubs { display: flex; gap: 8px; padding: 2px 0 12px; }
+.pillrow { display: flex; gap: 24px; align-items: center; }
 .clubs button {
   border: 1px solid var(--line); background: transparent; color: var(--subtle);
   border-radius: 999px; padding: 6px 14px; cursor: pointer;
@@ -444,9 +445,15 @@ footer { border-top: 1px solid var(--line-soft); padding: 52px 0 40px; }
     </div>
 
     <div class="tabpanel" role="tabpanel" id="p-shots" aria-labelledby="tab-shots" hidden>
-      <div class="clubs" role="tablist" aria-label="Shot view">
-        <button role="tab" aria-selected="true" class="on gsw" data-view="zones">Zones</button>
-        <button role="tab" aria-selected="false" class="gsw" data-view="shots">Shot map</button>
+      <div class="pillrow">
+        <div class="clubs" role="tablist" aria-label="Shot view">
+          <button role="tab" aria-selected="true" class="on gsw" data-view="zones">Zones</button>
+          <button role="tab" aria-selected="false" class="gsw" data-view="shots">Shot map</button>
+        </div>
+        <div class="clubs" role="tablist" aria-label="Club">
+          <button role="tab" aria-selected="true" class="on gsw" data-shotclub="gsw">Warriors</button>
+          <button role="tab" aria-selected="false" class="mem" data-shotclub="mem">Grizzlies</button>
+        </div>
       </div>
       <div class="shots">
         <div>
@@ -915,13 +922,27 @@ const OPP = { pts: 90, m2: 20, a2: 39, m3: 14, a3: 37, mf: 4, af: 8,
 
 // Splits of the roster's field goals by where they were taken. m/a here sum
 // back to the two- and three-point totals above.
-const ZONES = [
-  { key: 'ra',    name: 'Restricted area',   m: 12, a: 18 },
-  { key: 'paint', name: 'Paint (non-RA)',    m:  8, a: 16 },
-  { key: 'mid',   name: 'Mid-range',         m:  6, a: 15 },
-  { key: 'c3',    name: 'Corner 3',          m:  4, a:  9 },
-  { key: 'atb',   name: 'Above the break 3', m:  5, a: 18 },
-];
+const ZONESBY = {
+  // Placeholder zone splits, but each club's column sums to its real FG and 3P
+  // totals from the box score -- GSW 38/74 with 10/30 from three, MEM 34/76
+  // with 14/37 -- so the totals row of this chart is true even while the
+  // per-zone split is illustrative.
+  gsw: [
+    { key: 'ra',    name: 'Restricted area',   m: 14, a: 19 },
+    { key: 'paint', name: 'Paint (non-RA)',    m:  8, a: 13 },
+    { key: 'mid',   name: 'Mid-range',         m:  6, a: 12 },
+    { key: 'c3',    name: 'Corner 3',          m:  4, a:  9 },
+    { key: 'atb',   name: 'Above the break 3', m:  6, a: 21 },
+  ],
+  mem: [
+    { key: 'ra',    name: 'Restricted area',   m:  9, a: 14 },
+    { key: 'paint', name: 'Paint (non-RA)',    m:  6, a: 12 },
+    { key: 'mid',   name: 'Mid-range',         m:  5, a: 13 },
+    { key: 'c3',    name: 'Corner 3',          m:  5, a: 10 },
+    { key: 'atb',   name: 'Above the break 3', m:  9, a: 27 },
+  ],
+};
+const zonesFor = () => ZONESBY[drawShots.club ?? 'gsw'];
 
 const CLIPS = [
   // The twelve hand-tagged events from the processed stretch, at clip time.
@@ -965,6 +986,11 @@ for (const host of document.querySelectorAll('.clubs')) {
     }
     if (b.dataset.club !== undefined) renderBox(+b.dataset.club);
     if (b.dataset.view !== undefined) drawShots(b.dataset.view);
+    if (b.dataset.shotclub !== undefined) {
+      drawShots.club = b.dataset.shotclub;
+      renderZones();
+      drawShots();
+    }
   });
 }
 renderCompare();
@@ -1104,7 +1130,7 @@ function lcg(seed){
 function shotPoints(){
   const rnd = lcg(20260807);
   const out = [];
-  for (const z of ZONES) {
+  for (const z of zonesFor()) {
     for (let i = 0; i < z.a; i++) {
       // Teams swap ends at half, so the attempts land at both baskets.
       const p = place(z.key, i % 2 === 0, rnd);
@@ -1169,7 +1195,8 @@ function zoneAt(x, y){
    ground a flat alpha wash reads as one colour with a vague gradient -- which
    it did, and that is what this replaces. */
 function zoneTint(m, a){
-  const avg = ZONES.reduce((t, z) => t + z.m, 0) / ZONES.reduce((t, z) => t + z.a, 0);
+  const zs = zonesFor();
+  const avg = zs.reduce((t, z) => t + z.m, 0) / zs.reduce((t, z) => t + z.a, 0);
   const t = Math.max(0, Math.min(1, ((a ? m / a : 0) - avg + .18) / .36));
   const stop = (u, v) => Math.round(u + (v - u) * (t < .5 ? t * 2 : (t - .5) * 2));
   const rgb = t < .5
@@ -1190,7 +1217,11 @@ function drawShots(view){
   ctx.clearRect(0, 0, w, h);
 
   if (view === 'zones') {
-    const stats = Object.fromEntries(ZONES.map(z => [z.key, z]));
+    // Court first: Court.lines fills the canvas with its background, so any
+    // tint laid down before it is painted over -- which is exactly how the
+    // first version shipped labels floating on a bare court.
+    Court.lines(ctx, g, { w, h });
+    const stats = Object.fromEntries(zonesFor().map(z => [z.key, z]));
     // Classify once into a grid, then draw fills and, in a second pass, a
     // stroke wherever two neighbouring cells disagree -- that line is the zone
     // boundary, and it is what makes the regions read as regions.
@@ -1232,12 +1263,11 @@ function drawShots(view){
       }
     }
     ctx.stroke();
-    Court.lines(ctx, g, { w, h });
     // Labels on the left half; the numbers are game aggregates, so the right
     // half is its mirror and one set of labels is enough.
     const spots = { ra: [1.5, 7.5], paint: [4.2, 7.5], mid: [7.4, 7.5],
                     atb: [9.9, 7.5], c3: [2.3, 0.46] };
-    for (const z of ZONES) {
+    for (const z of zonesFor()) {
       const [zx, zy] = spots[z.key];
       const X = g.X(zx), Y = g.Y(zy);
       ctx.textAlign = 'center';
@@ -1261,12 +1291,12 @@ function drawShots(view){
     }
   }
 
-  const m = ZONES.reduce((t, z) => t + z.m, 0), a = ZONES.reduce((t, z) => t + z.a, 0);
+  const m = zonesFor().reduce((t, z) => t + z.m, 0), a = zonesFor().reduce((t, z) => t + z.a, 0);
   document.getElementById('shotTotal').textContent = `${m}/${a} · ${pc1(m, a)}`;
 }
 
 function renderZones(){
-  document.getElementById('zones').innerHTML = ZONES.map(z => `
+  document.getElementById('zones').innerHTML = zonesFor().map(z => `
     <div class="zone">
       <div class="top">
         <span class="nm">${z.name}</span>
