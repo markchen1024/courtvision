@@ -444,6 +444,10 @@ footer { border-top: 1px solid var(--line-soft); padding: 52px 0 40px; }
     </div>
 
     <div class="tabpanel" role="tabpanel" id="p-shots" aria-labelledby="tab-shots" hidden>
+      <div class="clubs" role="tablist" aria-label="Shot view">
+        <button role="tab" aria-selected="true" class="on gsw" data-view="zones">Zones</button>
+        <button role="tab" aria-selected="false" class="gsw" data-view="shots">Shot map</button>
+      </div>
       <div class="shots">
         <div>
           <canvas id="shotChart"></canvas>
@@ -950,14 +954,19 @@ const US = {
 
 buildTabs();
 renderBox();
-document.querySelectorAll('.clubs button').forEach(b => b.addEventListener('click', () => {
-  document.querySelectorAll('.clubs button').forEach(x => {
-    const on = x === b;
-    x.classList.toggle('on', on);
-    x.setAttribute('aria-selected', on);
+for (const host of document.querySelectorAll('.clubs')) {
+  host.addEventListener('click', ev => {
+    const b = ev.target.closest('button');
+    if (!b) return;
+    for (const x of host.querySelectorAll('button')) {
+      const on = x === b;
+      x.classList.toggle('on', on);
+      x.setAttribute('aria-selected', on);
+    }
+    if (b.dataset.club !== undefined) renderBox(+b.dataset.club);
+    if (b.dataset.view !== undefined) drawShots(b.dataset.view);
   });
-  renderBox(+b.dataset.club);
-}));
+}
 renderCompare();
 renderZones();
 renderClips();
@@ -1135,7 +1144,33 @@ function place(zone, left, rnd){
   return at(6.95 + rnd() * 1.45, -50 + rnd() * 100);   // above the break
 }
 
-function drawShots(){
+/* Which zone a floor point belongs to. Same rules as the event tagger, corner
+   threes included -- the arc is 7.24m but the corners are straight segments
+   0.914m off each sideline, and a single radius would tint every corner three
+   as mid-range. */
+function zoneAt(x, y){
+  const bx = x < 14 ? 1.6 : 26.4;
+  const dx = Math.abs(x - bx), dist = Math.hypot(x - bx, y - 7.5);
+  const tangent = Math.sqrt(7.24 ** 2 - (7.5 - 0.914) ** 2);   // where arc meets straight
+  const inCorner = dx < tangent && (x < 14 ? x >= 0 : x <= 28);
+  const three = inCorner ? (y < 0.914 || y > 14.086) : dist > 7.24;
+  if (dist <= 1.6) return 'ra';
+  const fromBase = x < 14 ? x : 28 - x;
+  if (fromBase <= 5.79 && Math.abs(y - 7.5) <= 2.45) return 'paint';
+  if (three) return (y < 0.914 || y > 14.086) && inCorner ? 'c3' : 'atb';
+  return 'mid';
+}
+
+/* Red for cold, teal for hot, anchored at the game's own average. */
+function zoneTint(m, a){
+  const avg = ZONES.reduce((t, z) => t + z.m, 0) / ZONES.reduce((t, z) => t + z.a, 0);
+  const t = Math.max(0, Math.min(1, ((a ? m / a : 0) - avg + .18) / .36));
+  const lerp = (u, v) => Math.round(u + (v - u) * t);
+  return `rgba(${lerp(240, 59)}, ${lerp(113, 201)}, ${lerp(107, 168)}, .34)`;
+}
+
+function drawShots(view){
+  view = drawShots.view = view ?? drawShots.view ?? 'zones';
   const cv = document.getElementById('shotChart');
   const surface = Court.fit(cv);
   if (!surface) return;
@@ -1143,14 +1178,47 @@ function drawShots(){
   const g = Court.geometry(w, h, 28, 15, 12);
 
   ctx.clearRect(0, 0, w, h);
-  Court.lines(ctx, g, { w, h });
 
-  for (const s of shotPoints()) {
-    ctx.beginPath();
-    ctx.arc(g.X(s.x), g.Y(s.y), 4.5, 0, Math.PI * 2);
-    if (s.made) { ctx.fillStyle = '#c8f031'; ctx.globalAlpha = .92; ctx.fill(); }
-    else { ctx.strokeStyle = '#c8f031'; ctx.globalAlpha = .55; ctx.lineWidth = 1.5; ctx.stroke(); }
-    ctx.globalAlpha = 1;
+  if (view === 'zones') {
+    const stats = Object.fromEntries(ZONES.map(z => [z.key, z]));
+    const step = 0.15;   // metres per cell; rasterising beats path algebra here
+    const cw = Math.ceil(g.X(step) - g.X(0)) + 1, ch = Math.ceil(g.Y(0) - g.Y(step)) + 1;
+    for (let x = 0; x < 28; x += step) {
+      for (let y = 0; y < 15; y += step) {
+        const z = stats[zoneAt(x + step / 2, y + step / 2)];
+        if (!z) continue;
+        ctx.fillStyle = zoneTint(z.m, z.a);
+        ctx.fillRect(g.X(x), g.Y(y + step), cw, ch);
+      }
+    }
+    Court.lines(ctx, g, { w, h });
+    // Labels on the left half; the numbers are game aggregates, so the right
+    // half is its mirror and one set of labels is enough.
+    const spots = { ra: [1.5, 7.5], paint: [4.2, 7.5], mid: [7.4, 7.5],
+                    atb: [10.6, 7.5], c3: [1.8, 0.9] };
+    for (const z of ZONES) {
+      const [zx, zy] = spots[z.key];
+      const X = g.X(zx), Y = g.Y(zy);
+      ctx.textAlign = 'center';
+      ctx.fillStyle = '#0b0c10'; ctx.globalAlpha = .65;
+      const wpx = 44, hpx = 30;
+      ctx.fillRect(X - wpx / 2, Y - hpx / 2, wpx, hpx);
+      ctx.globalAlpha = 1; ctx.fillStyle = '#e8e6df';
+      ctx.font = "600 12px 'JetBrains Mono', ui-monospace, monospace";
+      ctx.fillText(pc1(z.m, z.a), X, Y - 2);
+      ctx.fillStyle = '#9a978d';
+      ctx.font = "400 9px 'JetBrains Mono', ui-monospace, monospace";
+      ctx.fillText(`${z.m}-${z.a}`, X, Y + 10);
+    }
+  } else {
+    Court.lines(ctx, g, { w, h });
+    for (const sh of shotPoints()) {
+      ctx.beginPath();
+      ctx.arc(g.X(sh.x), g.Y(sh.y), 4.5, 0, Math.PI * 2);
+      if (sh.made) { ctx.fillStyle = '#c8f031'; ctx.globalAlpha = .92; ctx.fill(); }
+      else { ctx.strokeStyle = '#c8f031'; ctx.globalAlpha = .55; ctx.lineWidth = 1.5; ctx.stroke(); }
+      ctx.globalAlpha = 1;
+    }
   }
 
   const m = ZONES.reduce((t, z) => t + z.m, 0), a = ZONES.reduce((t, z) => t + z.a, 0);
