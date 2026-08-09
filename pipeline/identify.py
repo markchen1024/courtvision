@@ -17,8 +17,14 @@ who frame 0 shows). Everything else is theirs:
               on at IoS >= 0.9 (the notebook matches against masks, not
               boxes -- in a crowded paint a box overlaps everyone nearby,
               a silhouette does not; --match box restores the loose version)
-  validation  ConsecutiveValueTracker: sampled every 5 frames, a number is
-              confirmed after 3 identical consecutive reads
+  validation  majority vote over all of a track's reads (>=2 votes and a
+              clear winner). This DEVIATES from the notebook's 3-identical-
+              consecutive rule, approved 2026-08-10 on evidence: fragment
+              tracks structurally fail the consecutive test -- track 12 read
+              ['22','22','45'] and confirmed nothing. --confirm consecutive3
+              restores the notebook's rule. Number regions are taken at
+              conf 0.2 (notebook: 0.4) -- measured +40-50% more sightings on
+              Summer League kits, misreads absorbed by the vote.
   teams       sports.TeamClassifier (SigLIP + UMAP + K-means) fit on torso
               crops (boxes scaled to 0.4) sampled about once a second
 
@@ -77,6 +83,12 @@ def main():
     ap.add_argument("--team-stride", type=int, default=6,
                     help="team crops every Nth OCR sample (6 at 5Hz is ~1.2s, "
                          "the notebook's stride-30 at 25fps)")
+    ap.add_argument("--confirm", choices=["majority", "consecutive3"],
+                    default="majority",
+                    help="how a track's number is confirmed; consecutive3 is "
+                         "the notebook's original rule")
+    ap.add_argument("--number-conf", type=float, default=0.2,
+                    help="confidence floor for number regions (notebook: 0.4)")
     ap.add_argument("--match", choices=["mask", "box"], default="mask",
                     help="attach numbers to players via SAM2 silhouettes "
                          "(the notebook's way; costs ~0.3s per OCR frame) "
@@ -115,6 +127,7 @@ def main():
         from ultralytics import SAM
         sam_model = SAM("sam2.1_b.pt")
     validator = ConsecutiveValueTracker(n_consecutive=N_CONSECUTIVE)
+    number_votes = defaultdict(Counter)
     team_crops, team_crop_tids = [], []
     reads = 0
 
@@ -132,10 +145,12 @@ def main():
             continue
         h, w = frame.shape[:2]
 
-        result = det_model.infer(frame, confidence=DETECTION_CONFIDENCE,
+        result = det_model.infer(frame,
+                                 confidence=min(DETECTION_CONFIDENCE, args.number_conf),
                                  iou_threshold=DETECTION_IOU)[0]
         det = sv.Detections.from_inference(result)
-        numbers = det[det.data["class_name"] == "number"]
+        numbers = det[(det.data["class_name"] == "number")
+                      & (det.confidence >= args.number_conf)]
 
         # each number region goes to the player it sits on: the silhouette
         # when masks are on (a box overlaps every neighbour in a crowded
@@ -177,7 +192,11 @@ def main():
                 values.append(reading)
                 reads += 1
         if tids:
-            validator.update(tracker_ids=tids, values=values)
+            if args.confirm == "majority":
+                for tid, v in zip(tids, values):
+                    number_votes[tid][v] += 1
+            else:
+                validator.update(tracker_ids=tids, values=values)
 
         if n % args.team_stride == 0:
             boxes = np.array([t["box"] for t in rows], np.float32)
@@ -189,8 +208,17 @@ def main():
         prog.step(note=f"frame {frame_idx}, {reads} reads")
     cap.release()
 
-    confirmed = {tid: v for tid in all_tids
-                 if (v := validator.get_validated(tid)) is not None}
+    if args.confirm == "majority":
+        confirmed = {}
+        for tid, votes in number_votes.items():
+            top = votes.most_common(2)
+            # at least two votes, and a strict winner -- a lone read or a tie
+            # stays unconfirmed rather than guessed
+            if top[0][1] >= 2 and (len(top) == 1 or top[0][1] > top[1][1]):
+                confirmed[tid] = top[0][0]
+    else:
+        confirmed = {tid: v for tid in all_tids
+                     if (v := validator.get_validated(tid)) is not None}
     print(f"{reads} OCR reads -> {len(confirmed)} tracks with a confirmed number")
 
     print(f"fitting team classifier on {len(team_crops)} crops...")
@@ -270,8 +298,13 @@ def apply_identities(identities, viewer_path):
         side_of = {a: "home", b: "away"} if straight >= crossed else \
                   {a: "away", b: "home"}
 
-    changed, resided = 0, 0
+    changed, resided, kept_human = 0, 0, 0
     for p in doc["players"]:
+        # A human decision outranks any model rerun, permanently. Without this
+        # guard a reapply would silently undo review-UI corrections.
+        if p.get("identity") in ("human", "ignored"):
+            kept_human += 1
+            continue
         ident = identities.get(p["id"])
         if not ident or not ident["number"]:
             continue
@@ -290,7 +323,8 @@ def apply_identities(identities, viewer_path):
         changed += 1
     Path(viewer_path).write_text(json.dumps(doc), encoding="utf-8")
     print(f"applied {changed} identities to {viewer_path}"
-          + (f", moved {resided} tracks to the club's side" if resided else ""))
+          + (f", moved {resided} tracks to the club's side" if resided else "")
+          + (f", left {kept_human} human decisions untouched" if kept_human else ""))
 
 
 if __name__ == "__main__":
