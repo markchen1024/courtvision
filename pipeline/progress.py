@@ -147,6 +147,16 @@ PAGE = """<!doctype html>
          font: 14px/1.5 ui-monospace, Consolas, monospace; }
   h1 { font-size: 1rem; font-weight: 600; color: #8a9ba8; margin: 0 0 1.25rem; }
   h1 small { font-weight: 400; }
+  .stage { margin-bottom: 1.4rem; }
+  .stage-head { display: flex; align-items: baseline; gap: .7rem;
+                padding-bottom: .45rem; margin-bottom: .6rem;
+                border-bottom: 1px solid #2f343c; }
+  .stage-no { font-size: .72rem; color: #10161a; background: #8a9ba8;
+              border-radius: 4px; padding: .1rem .45rem; font-weight: 700; }
+  .stage-head.active .stage-no { background: #3dcc91; }
+  .stage-name { font-weight: 700; letter-spacing: .02em; }
+  .stage-sum { margin-left: auto; font-size: .78rem; color: #5f6b7c; }
+  .stage-idle { color: #444f5a; font-size: .8rem; padding: .15rem 0 .1rem; }
   .job { background: #182026; border: 1px solid #2f343c; border-radius: 6px;
          padding: 1rem 1.25rem; margin-bottom: .75rem; }
   .top { display: flex; gap: .75rem; align-items: baseline; flex-wrap: wrap; }
@@ -171,40 +181,73 @@ PAGE = """<!doctype html>
 <h1>pipeline progress <small id="clock"></small></h1>
 <div id="jobs"><div class="empty">(no jobs have reported)</div></div>
 <script>
+// The pipeline's shape, in run order. Job files map onto these stages;
+// anything unrecognised lands in "other" rather than vanishing.
+const STAGES = [
+  ["Calibration",          ["keypoints"]],
+  ["Detection & tracking", ["detect", "dense-detect", "sam2", "sam3"]],
+  ["Identity",             ["identify", "shirts", "resnet-ocr"]],
+  ["Events",               ["shot-events"]],
+  ["Render",               ["render", "final-render"]],
+];
+
 const eta = s => s == null || s < 0 ? "-"
   : s < 90 ? Math.round(s) + "s"
   : s < 5400 ? Math.round(s / 60) + "m"
   : (s / 3600).toFixed(1) + "h";
+
+function jobCard(d) {
+  const quiet = d.state === "running" && d.silent > 90;
+  const cls = quiet ? "quiet" : d.state;
+  const label = quiet ? "quiet " + eta(d.silent) : d.state;
+  const pct = d.total ? d.done / d.total * 100 : null;
+  const nums = d.total
+    ? `${pct.toFixed(0)}% · ${d.done}/${d.total} · ${d.rate.toFixed(1)}/s · eta ${eta(d.eta)}`
+    : `${d.done} done · ${d.rate.toFixed(1)}/s · running ${eta(d.elapsed)}`;
+  const fill = d.state === "failed" ? "#ff7373" : quiet ? "#ffc940"
+             : d.state === "done" ? "#48aff0" : "#3dcc91";
+  return `<div class="job">
+    <div class="top"><span class="name">${d.job}</span>
+      <span class="chip ${cls}">${label}</span>
+      <span class="nums">${nums}</span></div>
+    <div class="track"><div class="fill${pct == null && d.state === "running" ? " indet" : ""}"
+      style="width:${pct == null ? 100 : Math.max(pct, 1.5)}%;background:${fill}"></div></div>
+    <div class="note">${d.note || ""}</div>
+  </div>`;
+}
+
+function stageSection(no, name, jobs) {
+  const running = jobs.filter(j => j.state === "running").length;
+  const done = jobs.filter(j => j.state === "done").length;
+  const sum = jobs.length
+    ? [running && running + " running", done && done + " done",
+       (jobs.length - running - done) && (jobs.length - running - done) + " failed"]
+        .filter(Boolean).join(" · ")
+    : "";
+  const body = jobs.length ? jobs.map(jobCard).join("")
+                           : '<div class="stage-idle">idle</div>';
+  return `<div class="stage">
+    <div class="stage-head${running ? " active" : ""}">
+      <span class="stage-no">${no}</span>
+      <span class="stage-name">${name}</span>
+      <span class="stage-sum">${sum}</span></div>
+    ${body}</div>`;
+}
 
 async function tick() {
   try {
     const jobs = await (await fetch("/jobs", {cache: "no-store"})).json();
     document.getElementById("clock").textContent =
       "· " + new Date().toLocaleTimeString();
-    const box = document.getElementById("jobs");
-    if (!jobs.length) {
-      box.innerHTML = '<div class="empty">(no jobs have reported)</div>';
-      return;
-    }
-    box.innerHTML = jobs.map(d => {
-      const quiet = d.state === "running" && d.silent > 90;
-      const cls = quiet ? "quiet" : d.state;
-      const label = quiet ? "quiet " + eta(d.silent) : d.state;
-      const pct = d.total ? d.done / d.total * 100 : null;
-      const nums = d.total
-        ? `${pct.toFixed(0)}% · ${d.done}/${d.total} · ${d.rate.toFixed(1)}/s · eta ${eta(d.eta)}`
-        : `${d.done} done · ${d.rate.toFixed(1)}/s · running ${eta(d.elapsed)}`;
-      const fill = d.state === "failed" ? "#ff7373" : quiet ? "#ffc940"
-                 : d.state === "done" ? "#48aff0" : "#3dcc91";
-      return `<div class="job">
-        <div class="top"><span class="name">${d.job}</span>
-          <span class="chip ${cls}">${label}</span>
-          <span class="nums">${nums}</span></div>
-        <div class="track"><div class="fill${pct == null && d.state === "running" ? " indet" : ""}"
-          style="width:${pct == null ? 100 : Math.max(pct, 1.5)}%;background:${fill}"></div></div>
-        <div class="note">${d.note || ""}</div>
-      </div>`;
-    }).join("");
+    const claimed = new Set();
+    const sections = STAGES.map(([name, names], i) => {
+      const mine = jobs.filter(j => names.includes(j.job));
+      mine.forEach(j => claimed.add(j.job));
+      return stageSection(i + 1, name, mine);
+    });
+    const rest = jobs.filter(j => !claimed.has(j.job));
+    if (rest.length) sections.push(stageSection("·", "Other", rest));
+    document.getElementById("jobs").innerHTML = sections.join("");
   } catch (e) { /* server restarting; keep polling */ }
 }
 tick();
