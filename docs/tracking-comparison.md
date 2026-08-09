@@ -128,6 +128,19 @@ Two unrelated methods hitting the same ceiling says the bottleneck is
 track purity, not the classifier. Improving teams means improving
 tracking (or cropping smarter), not swapping embedding models.
 
+The same conclusion arrived from a second direction: re-reading the
+notebook showed it matches number regions to SAM2 *silhouettes*, not
+boxes, so identify.py was made faithful (--match mask) and A/B'd on the
+full clip. Box vs mask: 60 vs 60 confirmed numbers, 48 vs 48 named, 9
+unique players both, misreads 4 vs 3, cross-club conflicts 8 vs 9,
+cluster-owner agreement 82% vs 80% — statistically identical. The number
+attachments were not the error source; tracks that switch players
+mid-life are. Every accuracy signal in this document now points at the
+same place: **track purity is the ceiling.** The levers that could move
+it: better calibration (finer keypoints → tighter association gate),
+appearance-based track splitting, or a ready-made tracker on court
+coordinates (the untried Norfair experiment).
+
 ## The tutorial's shot events vs the hand tags
 
 The tutorial's event route needs no training: the same detector
