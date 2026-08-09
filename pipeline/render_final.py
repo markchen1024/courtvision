@@ -27,8 +27,9 @@ import numpy as np
 from progress import Progress
 
 FONT = "out/fonts/Staatliches-Regular.ttf"   # the notebook's typeface
-CLUB_ORDER = ["warriors", "grizzlies", None]
-CLUB_HEX = ["#FFC72C", "#5D76A9", "#9AA0A6"]  # GSW gold, MEM beale blue, grey
+CLUB_COLOURS = {"warriors": "#FFC72C", "grizzlies": "#5D76A9",
+                "knicks": "#F58426", "celtics": "#007A33"}
+UNKNOWN_HEX = "#9AA0A6"
 
 
 def main():
@@ -49,7 +50,10 @@ def main():
     idn = json.loads(Path(args.identities).read_text())["identities"]
     idn = {int(k): v for k, v in idn.items()}
 
-    palette = sv.ColorPalette.from_hex(CLUB_HEX)
+    clubs_present = sorted({v.get("club") for v in idn.values() if v.get("club")})
+    club_order = clubs_present + [None]
+    club_hex = [CLUB_COLOURS.get(c, UNKNOWN_HEX) for c in clubs_present] + [UNKNOWN_HEX]
+    palette = sv.ColorPalette.from_hex(club_hex)
     mask_annotator = sv.MaskAnnotator(
         color=palette, opacity=0.5, color_lookup=sv.ColorLookup.INDEX)
     label_annotator = sv.RichLabelAnnotator(
@@ -94,7 +98,7 @@ def main():
             masks = (res.masks.data.cpu().numpy() > 0.5) \
                 if res.masks is not None else None
             clubs = np.array(
-                [CLUB_ORDER.index((idn.get(r["tid"]) or {}).get("club"))
+                [club_order.index((idn.get(r["tid"]) or {}).get("club"))
                  for r in rows])
             det = sv.Detections(
                 xyxy=boxes,
