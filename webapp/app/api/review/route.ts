@@ -14,16 +14,18 @@ const AUDIT = path.join(ROOT, 'corrections_nba.json');
 
 type Body = {
   trackId: number;
-  action: 'assign' | 'ignore';
+  action: 'assign' | 'ignore' | 'unassign';
   number?: string;
   name?: string;
   team?: 'home' | 'away';
+  // for unassign: what the track falls back to (its OCR number, if any)
+  ocrNumber?: string | null;
 };
 
 export async function POST(req: Request) {
   const body = (await req.json()) as Body;
   if (typeof body.trackId !== 'number' ||
-      !['assign', 'ignore'].includes(body.action)) {
+      !['assign', 'ignore', 'unassign'].includes(body.action)) {
     return Response.json({ error: 'bad request' }, { status: 400 });
   }
   if (body.action === 'assign' && !body.number) {
@@ -42,6 +44,11 @@ export async function POST(req: Request) {
     else delete player.name;
     if (body.team) player.team = body.team;
     player.identity = 'human';
+  } else if (body.action === 'unassign') {
+    // conflict resolution strips a wrong name; the track rejoins the queue
+    delete player.name;
+    player.number = body.ocrNumber ? String(body.ocrNumber) : `T${player.id}`;
+    delete player.identity;
   } else {
     player.identity = 'ignored';
   }
@@ -52,7 +59,10 @@ export async function POST(req: Request) {
     const track = manifest.tracks.find(
       (t: { id: number }) => t.id === body.trackId);
     if (track) {
-      track.status = body.action === 'ignore' ? 'ignored' : 'human';
+      track.status = body.action === 'ignore' ? 'ignored'
+        : body.action === 'unassign'
+          ? (track.ocr?.number ? 'number-only' : 'anonymous')
+          : 'human';
       track.number = player.number;
       track.name = player.name ?? null;
       track.team = player.team;

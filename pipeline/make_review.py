@@ -51,15 +51,17 @@ def main():
     ap.add_argument("--video", default="web/media/nba.mp4")
     ap.add_argument("--out", default="web/data/review")
     ap.add_argument("--mirror", default="webapp/public/data/review")
+    ap.add_argument("--no-crops", action="store_true",
+                    help="rebuild the manifest only; keep existing crop files")
     args = ap.parse_args()
 
-    doc = json.loads(Path(args.data).read_text())
+    doc = json.loads(Path(args.data).read_text(encoding='utf-8'))
     idn = {int(k): v for k, v in
-           json.loads(Path(args.identities).read_text())["identities"].items()}
+           json.loads(Path(args.identities).read_text(encoding='utf-8'))["identities"].items()}
     frames = {int(k): v for k, v in
-              json.loads(Path(args.boxes).read_text())["frames"].items()}
-    rosters = json.loads(Path(args.rosters).read_text())
-    fps = json.loads(Path(args.boxes).read_text()).get("fps", 25.0)
+              json.loads(Path(args.boxes).read_text(encoding='utf-8'))["frames"].items()}
+    rosters = json.loads(Path(args.rosters).read_text(encoding='utf-8'))
+    fps = json.loads(Path(args.boxes).read_text(encoding='utf-8')).get("fps", 25.0)
 
     by_track = {}
     for f in sorted(frames):
@@ -80,7 +82,10 @@ def main():
         tid = p["id"]
         occ = by_track.get(tid, [])
         crop_files = []
-        if occ:
+        if occ and args.no_crops:
+            crop_files = [f"{tid}_{k}.jpg" for k in range(CROPS_PER_TRACK)
+                          if (crops_dir / f"{tid}_{k}.jpg").exists()]
+        elif occ:
             step = max(1, len(occ) // CROPS_PER_TRACK)
             for k, (f, box) in enumerate(occ[::step][:CROPS_PER_TRACK]):
                 cap.set(cv2.CAP_PROP_POS_FRAMES, f)
@@ -126,6 +131,9 @@ def main():
             "samples": len(occ),
             "span": [round(first, 1) if first is not None else None,
                      round(last, 1) if last is not None else None],
+            # grid frames this track actually occupies -- the UI intersects
+            # these to find same-name-same-frame conflicts live
+            "frames": [f for f, _ in occ],
         })
         prog.step(note=f"track {tid}")
     cap.release()

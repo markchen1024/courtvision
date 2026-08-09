@@ -19,7 +19,31 @@ type Track = {
   crops: string[];
   samples: number;
   span: [number | null, number | null];
+  frames?: number[];
 };
+
+type Conflict = { name: string; a: Track; b: Track; coFrames: number };
+
+// two tracks claiming the same player in the same frames -- at least one is wrong
+function findConflicts(tracks: Track[]): Conflict[] {
+  const byName = new Map<string, Track[]>();
+  for (const t of tracks) {
+    if (t.name && (t.status === 'named' || t.status === 'human')) {
+      byName.set(t.name, [...(byName.get(t.name) ?? []), t]);
+    }
+  }
+  const out: Conflict[] = [];
+  for (const [name, ts] of byName) {
+    for (let i = 0; i < ts.length; i++) {
+      const fa = new Set(ts[i].frames ?? []);
+      for (let j = i + 1; j < ts.length; j++) {
+        const co = (ts[j].frames ?? []).filter(f => fa.has(f)).length;
+        if (co > 0) out.push({ name, a: ts[i], b: ts[j], coFrames: co });
+      }
+    }
+  }
+  return out.sort((x, y) => y.coFrames - x.coFrames);
+}
 
 type RosterRow = { num: number | string; name: string };
 type Manifest = { clubs: Record<string, RosterRow[]>; tracks: Track[] };
@@ -43,6 +67,7 @@ const inTab = (t: Track, tab: TabKey) =>
 export default function Review() {
   const [manifest, setManifest] = useState<Manifest | null>(null);
   const [tab, setTab] = useState<TabKey>('todo');
+  const [showConflicts, setShowConflicts] = useState(false);
   const [selected, setSelected] = useState<number | null>(null);
   const [busy, setBusy] = useState(false);
   const [customNum, setCustomNum] = useState('');
@@ -81,41 +106,84 @@ export default function Review() {
     () => (manifest?.tracks ?? []).filter(t => inTab(t, tab)),
     [manifest, tab]);
   const current = queue.find(t => t.id === selected) ?? queue[0] ?? null;
+  const conflicts = useMemo(
+    () => findConflicts(manifest?.tracks ?? []), [manifest]);
+  // assignment-time guard: would naming `current` as `name` collide live?
+  const wouldConflict = (name: string) => {
+    if (!current) return null;
+    const mine = new Set(current.frames ?? []);
+    for (const t of manifest?.tracks ?? []) {
+      if (t.id !== current.id && t.name === name &&
+          (t.status === 'named' || t.status === 'human') &&
+          (t.frames ?? []).some(f => mine.has(f))) return t;
+    }
+    return null;
+  };
+  const [pendingAssign, setPendingAssign] =
+    useState<{ name: string; body: Record<string, unknown> } | null>(null);
+
+  async function post(trackId: number, body: Record<string, unknown>) {
+    const res = await fetch('/api/review', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ trackId, ...body }),
+    });
+    if (!res.ok) throw new Error(String(res.status));
+    setManifest(m => m && {
+      ...m,
+      tracks: m.tracks.map(t => t.id !== trackId ? t : {
+        ...t,
+        status: body.action === 'ignore' ? 'ignored'
+          : body.action === 'unassign'
+            ? (t.ocr.number ? 'number-only' : 'anonymous')
+            : 'human',
+        number: body.action === 'unassign'
+          ? (t.ocr.number ?? `T${t.id}`)
+          : (body.number as string) ?? t.number,
+        name: body.action === 'assign' ? ((body.name as string) ?? null) : null,
+        team: (body.team as Track['team']) ?? t.team,
+      }),
+    });
+  }
 
   async function decide(body: Record<string, unknown>) {
     if (!current || busy) return;
     setBusy(true);
     try {
-      const res = await fetch('/api/review', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ trackId: current.id, ...body }),
-      });
-      if (!res.ok) throw new Error(String(res.status));
       const idx = queue.indexOf(current);
-      setManifest(m => m && {
-        ...m,
-        tracks: m.tracks.map(t => t.id !== current.id ? t : {
-          ...t,
-          status: body.action === 'ignore' ? 'ignored' : 'human',
-          number: (body.number as string) ?? t.number,
-          name: (body.name as string) ?? null,
-          team: (body.team as Track['team']) ?? t.team,
-        }),
-      });
+      await post(current.id, body);
       const next = queue[idx + 1] ?? queue[idx - 1];
       setSelected(next && next.id !== current.id ? next.id : null);
       setCustomNum('');
       setCustomName('');
+      setPendingAssign(null);
     } finally {
       setBusy(false);
     }
   }
 
-  const assignRoster = (club: string, row: RosterRow) => decide({
-    action: 'assign', number: String(row.num), name: row.name,
-    team: clubTeam[club],
-  });
+  // conflict view: keep one side, strip the other back into the queue
+  async function resolveConflict(c: Conflict, keep: Track) {
+    if (busy) return;
+    setBusy(true);
+    try {
+      const strip = keep.id === c.a.id ? c.b : c.a;
+      await post(strip.id, { action: 'unassign', ocrNumber: strip.ocr.number });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const assignRoster = (club: string, row: RosterRow) => {
+    const clash = wouldConflict(row.name);
+    const body = { action: 'assign', number: String(row.num), name: row.name,
+                   team: clubTeam[club] };
+    if (clash && pendingAssign?.name !== row.name) {
+      setPendingAssign({ name: row.name, body });
+      return;
+    }
+    decide(body);
+  };
 
   if (!manifest) {
     return <div className="rev-shell"><p className="rev-empty">
@@ -134,13 +202,51 @@ export default function Review() {
         <nav className="rev-tabs">
           {TABS.map(t => (
             <button key={t.key} className={tab === t.key ? 'on' : ''}
-              onClick={() => { setTab(t.key); setSelected(null); }}>
+              onClick={() => { setTab(t.key); setSelected(null); setShowConflicts(false); }}>
               {t.label} <b>{counts[t.key]}</b>
             </button>
           ))}
+          <button className={showConflicts ? 'on warn' : 'warn'}
+            onClick={() => setShowConflicts(true)}>
+            Conflicts <b>{conflicts.length}</b>
+          </button>
         </nav>
       </header>
 
+      {showConflicts ? (
+        <div className="rev-conflicts">
+          {conflicts.length === 0 &&
+            <div className="rev-empty">no same-frame identity conflicts — clean</div>}
+          {conflicts.map(c => (
+            <div className="rev-conflict" key={`${c.a.id}-${c.b.id}`}>
+              <div className="rev-conflict-head">
+                <b>{c.name}</b> claimed by two tracks in {c.coFrames} shared frames
+                — pick who really is {c.name}; the other returns to the queue
+              </div>
+              <div className="rev-conflict-sides">
+                {[c.a, c.b].map(t => (
+                  <div className="rev-side" key={t.id}>
+                    <div className="rev-side-crops">
+                      {t.crops.slice(0, 3).map(f => (
+                        <img key={f} src={`/data/review/crops/${f}`} alt="" />
+                      ))}
+                    </div>
+                    <div className="rev-side-meta">
+                      track {t.id} · {t.status} · {t.samples} samples
+                      {t.span[0] != null && t.span[1] != null &&
+                        ` · ${mmss(t.span[0])}–${mmss(t.span[1])}`}
+                      {t.ocr.number && ` · OCR #${t.ocr.number}`}
+                    </div>
+                    <button disabled={busy} onClick={() => resolveConflict(c, t)}>
+                      This is {c.name}
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : (
       <div className="rev-cols">
         <aside className="rev-queue">
           {queue.length === 0 && <div className="rev-empty">nothing here</div>}
@@ -196,6 +302,20 @@ export default function Review() {
               </section>
             ))}
 
+            {pendingAssign && (
+              <div className="rev-warn">
+                <b>{pendingAssign.name}</b> is already assigned to another track
+                in the same frames — one of them must be wrong.
+                <button disabled={busy}
+                  onClick={() => decide(pendingAssign.body)}>
+                  Assign anyway
+                </button>
+                <button className="ghost" onClick={() => setPendingAssign(null)}>
+                  Cancel
+                </button>
+              </div>
+            )}
+
             <div className="rev-custom">
               <input placeholder="#" inputMode="numeric" value={customNum}
                 onChange={e => setCustomNum(e.target.value.replace(/\D/g, ''))} />
@@ -215,6 +335,7 @@ export default function Review() {
           </>}
         </main>
       </div>
+      )}
     </div>
   );
 }
