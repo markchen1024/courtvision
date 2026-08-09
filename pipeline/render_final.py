@@ -91,7 +91,8 @@ def main():
         if not ok:
             break
         if f in frames:
-            rows = frames[f]
+            rows = [r for r in frames[f]
+                    if not (idn.get(r["tid"]) or {}).get("ignored")]
         if rows:
             boxes = np.array([r["box"] for r in rows], np.float32)
             res = sam(frame, bboxes=boxes.tolist(), verbose=False)[0]
