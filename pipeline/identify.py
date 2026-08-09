@@ -63,8 +63,12 @@ def main():
     ap.add_argument("--rosters", default="web/data/rosters_nba.json")
     ap.add_argument("--out", default="out/identities_nba.json")
     ap.add_argument("--apply", help="viewer JSON whose players get the real names")
+    ap.add_argument("--stride", type=int, default=1,
+                    help="OCR every Nth grid frame. The sidecar grid is already "
+                         "every 5th frame, so 1 matches the notebook's cadence; "
+                         "an every-frame tracker output (SAM2) needs 5")
     ap.add_argument("--team-stride", type=int, default=6,
-                    help="team crops every Nth grid sample (6 at 5Hz is ~1.2s, "
+                    help="team crops every Nth OCR sample (6 at 5Hz is ~1.2s, "
                          "the notebook's stride-30 at 25fps)")
     ap.add_argument("--apply-only", action="store_true",
                     help="skip the 13-minute OCR pass and apply an existing --out")
@@ -89,7 +93,7 @@ def main():
     if sidecar["video"] != args.video:
         raise SystemExit(f"{args.boxes} belongs to {sidecar['video']}")
     frames = {int(k): v for k, v in sidecar["frames"].items()}
-    grid = sorted(frames)
+    grid = sorted(frames)[::args.stride]
     all_tids = sorted({t["tid"] for rows in frames.values() for t in rows})
     print(f"{len(grid)} frames on the grid, {len(all_tids)} tracks")
 

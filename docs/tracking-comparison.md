@@ -75,6 +75,40 @@ Also measured, for the record:
 - `sam2.1_t` fits in 4.3GB at any tested length and runs 0.91 fps — the
   30s clip took 13.7 minutes.
 
+## Identity head-to-head: the tutorial's tracker vs ours, same everything else
+
+The jersey-OCR pipeline (identify.py) was run twice on the same 30s window
+(55–85s, hard cut at 64.4s) with the same detector, OCR model, voting
+policy, and roster — the only variable is the tracker underneath. The
+SAM2 side uses `sam2.1_l`, matching the notebook's hiera-large (via
+ultralytics' predictor rather than the notebook's
+segment-anything-2-real-time fork, which needs a CUDA source build).
+
+| same window, same OCR | SAM2 large (tutorial) | court-space (ours) |
+|---|---|---|
+| tracks in window | 9 (only frame-0 prompts exist) | 41 fragments |
+| players boxed at t=20s | 5 | 11 |
+| OCR reads fed to voting | 146 | 220 |
+| tracks with a confirmed number | 5 | 10 |
+| full names resolved | 3 rows, **2 unique players** (two SAM2 slots converged on the same #45) | 7 rows, **6 unique players** |
+| tracker runtime | 21 min, 5.4GB VRAM | comes free with the projection pass |
+
+Same-instant frames (`out/review_id_sam2_30s.mp4` vs
+`out/review_id_court_30s.mp4`, t=20s): the court-space side names Boozer,
+Prosper, Richard, Coward, Cryer and Ike on the correct jerseys; the SAM2
+side names Ike and Coward, misses half the players on screen, and its two
+other numbered tracks are a 33→35 misread and a #0 not in the roster.
+Both sides share the OCR failure modes (33→35 happens on both); the gap
+is coverage: more tracked boxes means more OCR chances, and fragments
+that break at the cut vote independently instead of letting one
+identity ride across a player swap.
+
+Worth saying plainly: fragmentation, the court-space tracker's weakness
+in the tracking comparison above, is mostly harmless here — the numbers
+stitch fragments back to the same player. Continuity, SAM2's apparent
+strength, is exactly what hurts: a track that silently changes player
+mid-life carries its confirmed number onto the wrong human.
+
 ## Decision
 
 The demo ships the court-space tracker. Cuts stay track boundaries on
