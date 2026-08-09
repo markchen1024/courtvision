@@ -49,9 +49,15 @@ export default function Review() {
   const [customName, setCustomName] = useState('');
 
   useEffect(() => {
-    fetch('/data/review/manifest.json', { cache: 'no-store' })
-      .then(r => r.json()).then(setManifest)
-      .catch(() => setManifest(null));
+    const load = () =>
+      fetch('/data/review/manifest.json', { cache: 'no-store' })
+        .then(r => r.json()).then(setManifest)
+        .catch(() => setManifest(null));
+    load();
+    // The queue is rebuilt by pipeline reruns while a tab sits open; refetch
+    // whenever the reviewer comes back to it so they never work a stale list.
+    window.addEventListener('focus', load);
+    return () => window.removeEventListener('focus', load);
   }, []);
 
   // Which side of the court each club plays for, learned from the tracks the
