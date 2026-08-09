@@ -13,7 +13,10 @@ who frame 0 shows). Everything else is theirs:
               referees, jersey-number regions, rim, ball
   OCR         basketball-jersey-numbers-ocr/3 -- their fine-tuned SmolVLM2,
               prompted "Read the number."
-  matching    a number box belongs to a player box at IoS >= 0.9
+  matching    a number region belongs to the player whose SAM2 mask it sits
+              on at IoS >= 0.9 (the notebook matches against masks, not
+              boxes -- in a crowded paint a box overlaps everyone nearby,
+              a silhouette does not; --match box restores the loose version)
   validation  ConsecutiveValueTracker: sampled every 5 frames, a number is
               confirmed after 3 identical consecutive reads
   teams       sports.TeamClassifier (SigLIP + UMAP + K-means) fit on torso
@@ -74,6 +77,10 @@ def main():
     ap.add_argument("--team-stride", type=int, default=6,
                     help="team crops every Nth OCR sample (6 at 5Hz is ~1.2s, "
                          "the notebook's stride-30 at 25fps)")
+    ap.add_argument("--match", choices=["mask", "box"], default="mask",
+                    help="attach numbers to players via SAM2 silhouettes "
+                         "(the notebook's way; costs ~0.3s per OCR frame) "
+                         "or plain box overlap")
     ap.add_argument("--apply-only", action="store_true",
                     help="skip the 13-minute OCR pass and apply an existing --out")
     args = ap.parse_args()
@@ -103,6 +110,10 @@ def main():
 
     det_model = get_model(model_id=DETECTION_MODEL_ID)
     ocr = get_model(model_id=OCR_MODEL_ID)
+    sam_model = None
+    if args.match == "mask":
+        from ultralytics import SAM
+        sam_model = SAM("sam2.1_b.pt")
     validator = ConsecutiveValueTracker(n_consecutive=N_CONSECUTIVE)
     team_crops, team_crop_tids = [], []
     reads = 0
@@ -126,14 +137,33 @@ def main():
         det = sv.Detections.from_inference(result)
         numbers = det[det.data["class_name"] == "number"]
 
-        # each number region goes to the track box it sits inside
+        # each number region goes to the player it sits on: the silhouette
+        # when masks are on (a box overlaps every neighbour in a crowded
+        # paint, a silhouette does not), the box otherwise
         tids, values = [], []
+        track_masks = None
+        if sam_model is not None and len(numbers):
+            res = sam_model(frame, bboxes=[t["box"] for t in rows],
+                            verbose=False)[0]
+            if res.masks is not None:
+                m = res.masks.data.cpu().numpy() > 0.5
+                if len(m) == len(rows):
+                    track_masks = m
         for nb in numbers.xyxy:
             best_tid, best = None, IOS_THRESHOLD
-            for t in rows:
-                s = ios(nb, t["box"])
-                if s >= best:
-                    best_tid, best = t["tid"], s
+            if track_masks is not None:
+                nx1, ny1 = max(0, int(nb[0])), max(0, int(nb[1]))
+                nx2, ny2 = min(w, int(nb[2])), min(h, int(nb[3]))
+                area = max(1, (nx2 - nx1) * (ny2 - ny1))
+                for t, m in zip(rows, track_masks):
+                    s = m[ny1:ny2, nx1:nx2].sum() / area
+                    if s >= best:
+                        best_tid, best = t["tid"], s
+            else:
+                for t in rows:
+                    s = ios(nb, t["box"])
+                    if s >= best:
+                        best_tid, best = t["tid"], s
             if best_tid is None:
                 continue
             x1, y1, x2, y2 = sv.clip_boxes(
