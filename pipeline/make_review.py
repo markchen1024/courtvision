@@ -96,9 +96,15 @@ def main():
                 mx, my = (x2 - x1) * 0.15, (y2 - y1) * 0.08
                 cx1, cy1 = max(0, int(x1 - mx)), max(0, int(y1 - my))
                 cx2, cy2 = min(w_img, int(x2 + mx)), min(h_img, int(y2 + my))
-                crop = frame[cy1:cy2, cx1:cx2]
+                crop = frame[cy1:cy2, cx1:cx2].copy()
                 if crop.size == 0:
                     continue
+                # outline the track's own subject -- crowded crops otherwise
+                # leave the reviewer guessing which person is meant
+                bx1, by1 = int(x1 - cx1), int(y1 - cy1)
+                bx2, by2 = int(x2 - cx1), int(y2 - cy1)
+                th = max(2, crop.shape[0] // 90)
+                cv2.rectangle(crop, (bx1, by1), (bx2, by2), (49, 240, 200), th)
                 scale = CROP_HEIGHT / crop.shape[0]
                 crop = cv2.resize(crop, (int(crop.shape[1] * scale), CROP_HEIGHT))
                 name = f"{tid}_{k}.jpg"
@@ -139,8 +145,9 @@ def main():
     cap.release()
 
     clubs = {c: rosters[c] for c in rosters if isinstance(rosters[c], list)}
+    import time
     (out / "manifest.json").write_text(json.dumps({
-        "video": args.video, "data": args.data,
+        "video": args.video, "data": args.data, "builtAt": int(time.time()),
         "clubs": clubs,
         "tracks": tracks,
     }), encoding="utf-8")

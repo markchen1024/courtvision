@@ -46,7 +46,7 @@ function findConflicts(tracks: Track[]): Conflict[] {
 }
 
 type RosterRow = { num: number | string; name: string };
-type Manifest = { clubs: Record<string, RosterRow[]>; tracks: Track[] };
+type Manifest = { clubs: Record<string, RosterRow[]>; tracks: Track[]; builtAt?: number };
 
 const TABS = [
   { key: 'todo', label: 'To review' },
@@ -228,7 +228,7 @@ export default function Review() {
                   <div className="rev-side" key={t.id}>
                     <div className="rev-side-crops">
                       {t.crops.slice(0, 3).map(f => (
-                        <img key={f} src={`/data/review/crops/${f}`} alt="" />
+                        <img key={f} src={`/data/review/crops/${f}?v=${manifest?.builtAt ?? 0}`} alt="" />
                       ))}
                     </div>
                     <div className="rev-side-meta">
@@ -255,7 +255,7 @@ export default function Review() {
               className={`rev-item ${current?.id === t.id ? 'on' : ''}`}
               onClick={() => setSelected(t.id)}>
               {t.crops[0]
-                ? <img src={`/data/review/crops/${t.crops[0]}`} alt="" />
+                ? <img src={`/data/review/crops/${t.crops[0]}?v=${manifest?.builtAt ?? 0}`} alt="" />
                 : <span className="rev-noimg" />}
               <span className="rev-item-main">
                 <span className="rev-item-name">
@@ -274,7 +274,7 @@ export default function Review() {
           {!current ? <div className="rev-empty">select a track</div> : <>
             <div className="rev-crops">
               {current.crops.map(c => (
-                <img key={c} src={`/data/review/crops/${c}`} alt="" />
+                <img key={c} src={`/data/review/crops/${c}?v=${manifest.builtAt ?? 0}`} alt="" />
               ))}
             </div>
             <div className="rev-evidence">
