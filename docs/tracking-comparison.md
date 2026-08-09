@@ -109,6 +109,25 @@ stitch fragments back to the same player. Continuity, SAM2's apparent
 strength, is exactly what hurts: a track that silently changes player
 mid-life carries its confirmed number onto the wrong human.
 
+## Team clustering, verified
+
+The tutorial's SigLIP + UMAP + K-means (packaged as sports.TeamClassifier)
+runs inside identify.py. Verified against jersey-number ground truth — the
+44 tracks whose confirmed number exists in exactly one club's roster:
+
+- **TeamClassifier: 36/44 = 82%** track-level accuracy; per-track crop
+  votes have median purity 75%, and only 27% of tracks are unanimous.
+- Our previous method (Fashion-CLIP zero-shot colour words) on the same
+  ground truth: **35/44 = 80%**. A tie.
+- The per-cluster crop grid (`img/team_clusters.jpg`, tutorial-style
+  eyeball check) shows why: the blue/white split is right, but crowded
+  boxes crop the wrong torso and tracks that switch players mid-life
+  poison their own vote.
+
+Two unrelated methods hitting the same ceiling says the bottleneck is
+track purity, not the classifier. Improving teams means improving
+tracking (or cropping smarter), not swapping embedding models.
+
 ## The tutorial's shot events vs the hand tags
 
 The tutorial's event route needs no training: the same detector
