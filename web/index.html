@@ -99,6 +99,13 @@ h1 em { font-style: normal; color: var(--signal); }
   padding: 9px 14px; border-bottom: 1px solid var(--line-soft);
 }
 .frame .cap .right { margin-left: auto; font: 400 11.5px/1 var(--font-mono); color: var(--subtle); }
+.viewtoggle { display: inline-flex; gap: 4px; }
+.viewtoggle button {
+  font: 500 10.5px/1 var(--font-mono); letter-spacing: .04em; text-transform: uppercase;
+  color: var(--subtle); background: none; border: 1px solid var(--line-soft);
+  border-radius: 999px; padding: 4px 9px; cursor: pointer;
+}
+.viewtoggle button.on { color: var(--signal); border-color: var(--signal-line); }
 .frame .stage { position: relative; background: #000; aspect-ratio: 16/9; }
 .frame .stage video { width: 100%; height: 100%; display: block; object-fit: cover; }
 
@@ -409,7 +416,12 @@ footer { border-top: 1px solid var(--line-soft); padding: 52px 0 40px; }
     </div>
     <div class="panes">
       <div class="pane">
-        <div class="cap"><span class="label">Footage</span><span class="right" id="capClock">00:00</span></div>
+        <div class="cap"><span class="label">Footage</span>
+          <span class="viewtoggle" role="tablist" aria-label="Footage view">
+            <button role="tab" aria-selected="true" class="on" data-view="ai">AI view</button>
+            <button role="tab" aria-selected="false" data-view="raw">Broadcast</button>
+          </span>
+          <span class="right" id="capClock">00:00</span></div>
         <div class="stage">
           <video id="film" muted loop playsinline autoplay preload="metadata"></video>
           <div class="fallback" id="filmFallback" hidden>
@@ -474,7 +486,9 @@ footer { border-top: 1px solid var(--line-soft); padding: 52px 0 40px; }
   </div>
 
   <p class="tabnote">
-    Positions and shot locations are measured by the pipeline. The box score is the
+    Positions and shot locations are measured by the pipeline, and the names in the
+    AI view are read off the jerseys — number OCR plus team clustering, with
+    unresolved tracks left anonymous rather than guessed. The box score is the
     official ESPN box for this game, standing in until tracked stats are labelled; the
     event labels are hand-tagged — see
     <a href="#limits">Limits</a>.
@@ -723,7 +737,11 @@ footer { border-top: 1px solid var(--line-soft); padding: 52px 0 40px; }
 <script src="assets/court.js"></script>
 <script>
 const TEAM = { home: '#c8f031', away: '#3bc9a8' };
-const CLIP = 'media/nba.mp4';
+// Two renders of the same 178s timeline, so switching sources never breaks the
+// court sync: the AI view carries club-tinted silhouettes and jersey-OCR name
+// chips burned in by pipeline/render_final.py.
+const VIEWS = { ai: 'media/nba_ai.mp4', raw: 'media/nba.mp4' };
+const CLIP = VIEWS.ai;
 const TRAIL = 7;            // ghost frames behind each player
 
 let DATA = null;
@@ -786,6 +804,24 @@ function mountFilm(){
     tooltips: { controls: false, seek: true },
     markers: DATA ? { enabled: true, points: [{ time: DATA.video.duration, label: 'tracking ends' }] } : undefined,
   });
+
+  // AI view <-> broadcast. Same 178s timeline in both files, so the swap only
+  // has to carry the clock across; the court canvas never notices.
+  for (const b of document.querySelectorAll('.viewtoggle button')) {
+    b.addEventListener('click', () => {
+      if (b.classList.contains('on')) return;
+      for (const o of document.querySelectorAll('.viewtoggle button')) {
+        o.classList.toggle('on', o === b);
+        o.setAttribute('aria-selected', String(o === b));
+      }
+      const t = el.currentTime, playing = !el.paused;
+      el.src = VIEWS[b.dataset.view];
+      el.addEventListener('loadedmetadata', () => {
+        el.currentTime = t;
+        if (playing) el.play();
+      }, { once: true });
+    });
+  }
 
   // Some static servers never fire `error` for a file that isn't there.
   setTimeout(() => {

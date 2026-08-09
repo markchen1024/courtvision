@@ -34,7 +34,11 @@ export function initHome() {
     const Plyr = window.Plyr;
 
     const TEAM = { home: '#c8f031', away: '#3bc9a8' };
-    const CLIP = '/media/nba.mp4';
+    // Two renders of the same 178s timeline, so switching sources never breaks
+    // the court sync: the AI view carries club-tinted silhouettes and
+    // jersey-OCR name chips burned in by pipeline/render_final.py.
+    const VIEWS = { ai: '/media/nba_ai.mp4', raw: '/media/nba.mp4' };
+    const CLIP = VIEWS.ai;
     const TRAIL = 7;            // ghost frames behind each player
 
     let DATA = null;
@@ -97,6 +101,24 @@ export function initHome() {
         tooltips: { controls: false, seek: true },
         markers: DATA ? { enabled: true, points: [{ time: DATA.video.duration, label: 'tracking ends' }] } : undefined,
       });
+
+      // AI view <-> broadcast. Same 178s timeline in both files, so the swap
+      // only has to carry the clock across; the court canvas never notices.
+      for (const b of document.querySelectorAll('.viewtoggle button')) {
+        b.addEventListener('click', () => {
+          if (b.classList.contains('on')) return;
+          for (const o of document.querySelectorAll('.viewtoggle button')) {
+            o.classList.toggle('on', o === b);
+            o.setAttribute('aria-selected', String(o === b));
+          }
+          const t = el.currentTime, playing = !el.paused;
+          el.src = VIEWS[b.dataset.view];
+          el.addEventListener('loadedmetadata', () => {
+            el.currentTime = t;
+            if (playing) el.play();
+          }, { once: true });
+        });
+      }
 
       // Some static servers never fire `error` for a file that isn't there.
       setTimeout(() => {

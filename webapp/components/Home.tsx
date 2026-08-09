@@ -56,7 +56,12 @@ export default function Home() {
     </div>
     <div className="panes">
       <div className="pane">
-        <div className="cap"><span className="label">Footage</span><span className="right" id="capClock">00:00</span></div>
+        <div className="cap"><span className="label">Footage</span>
+          <span className="viewtoggle" role="tablist" aria-label="Footage view">
+            <button role="tab" aria-selected="true" className="on" data-view="ai">AI view</button>
+            <button role="tab" aria-selected="false" data-view="raw">Broadcast</button>
+          </span>
+          <span className="right" id="capClock">00:00</span></div>
         <div className="stage">
           <video id="film" muted loop playsInline autoPlay preload="metadata"></video>
           <div className="fallback" id="filmFallback" hidden>
@@ -121,7 +126,9 @@ export default function Home() {
   </div>
 
   <p className="tabnote">
-    Positions and shot locations are measured by the pipeline. The box score is the
+    Positions and shot locations are measured by the pipeline, and the names in the
+    AI view are read off the jerseys — number OCR plus team clustering, with
+    unresolved tracks left anonymous rather than guessed. The box score is the
     official ESPN box for this game, standing in until tracked stats are labelled; the
     event labels are hand-tagged — see
     <a href="#limits">Limits</a>.
