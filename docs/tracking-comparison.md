@@ -197,10 +197,47 @@ out/map_sam2_30s.mp4 vs out/map_court_30s.mp4 (stacked:
 out/compare_maps_30s.mp4, boxes side: out/compare_trackers_30s.mp4).
 SAM2's structural miss shows up directly as a sparser map.
 
-## Decision
+## SAM3 concept tracking, measured (2026-08-09)
 
-The demo ships the court-space tracker. Cuts stay track boundaries on
-purpose: a visible seam is honest, an invisible identity swap is not.
-SAM2 stays in the repo as a measured experiment (`pipeline/track_sam2.py`,
-evidence frames in `img/`) — it is the "here's where it fell apart" part
-of the story, with numbers.
+SAM3 (Meta, gated weights; used for player tracking by arXiv 2607.21267)
+replaces box prompts with a text concept and keeps admitting new
+instances mid-video — on paper, both of SAM2's structural limits. Run on
+the same 18s ESPN segment with the paper's exact prompt ("basketball
+player on the court"), via ultralytics' SAM3VideoSemanticPredictor:
+
+| same 18s ESPN segment | SAM2 large (box prompts) | SAM3 (text prompt) |
+|---|---|---|
+| players covered | 9 of 10 (frame-0 miss stays missed) | all 10, incl. mid-video pickups — LJ Cryer gets named where SAM2 never saw him |
+| track ids over 18s | 9, lifetime = whole clip | **117**, median lifetime **0.6s** |
+| unique players named (same OCR/voting) | 6 | 7 |
+| artifacts | one player invisible | the bench masked as one blob despite the spatial qualifier |
+| speed / VRAM | 0.75 fps, 5.4GB | 0.25 fps, 9.1GB of 10.24 |
+
+Reading: SAM3's recall claim is real and its identity persistence is
+not — with these defaults it behaves like a segmenting detector, not a
+tracker, and the jersey-number voting is what stitches its 117 fragments
+back into 7 named players. Fragment churn is what our number-voting
+already absorbs, so SAM3's coverage may still win on longer footage —
+but at 3x SAM2's cost and the VRAM ceiling, it is an experiment, not the
+default. Script: pipeline/track_sam3.py; side-by-side:
+out/compare_sam2_sam3_espn.mp4.
+
+## Decision (revised 2026-08-09, by the user, with new evidence)
+
+The regime decides the tracker. On the tutorial's own single-shot clip,
+the fully notebook-faithful chain — their detector prompting sam2.1_large,
+their OCR, their annotators — scores **10 tracks, 10 full names, 0
+unresolved**, with per-frame boxes eliminating the stale-chip artifacts
+the 5Hz court-space render suffered (out/tut_final_sam2.mp4 vs
+out/tut_final.mp4). The one visible error is a duplicated big-man
+identity, the same two-slots-one-player mode measured before.
+
+So: **SAM2 is the tracker for single-shot segments** — the tutorial
+regime, where every earlier objection (cuts, VRAM growth, frame-0-only
+prompts) is void by construction. Everything measured above about
+broadcast footage with cuts still stands; the full-game path implied by
+the blog's own caveat ("a component that monitors detections and
+re-prompts") is shot segmentation: split at cut boundaries, run SAM2 per
+segment with fresh prompts, stitch identities across segments by jersey
+number. Court-space association remains in the repo as the measured
+alternative and the source of the court-coordinate viewer data.
