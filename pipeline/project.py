@@ -23,9 +23,9 @@ Two things fall out of working in court metres rather than pixels:
 
     python pipeline/project.py --auto-calibration out/auto_calibration.json         --video web/media/nba.mp4
 
-No jersey numbers: that is OCR, which is the part Superstat has spent two years
-on, so tracks are labelled T1, T2 ... and nothing here pretends otherwise. No
-events either -- those get tagged by hand.
+Tracks leave here labelled T1, T2 ...; identify.py then names them with jersey
+OCR where it can. Events are tagged by hand. The tracker below is our own code,
+not the tutorial's SAM2 -- see CourtTracker's docstring for that deviation.
 """
 
 import argparse
@@ -330,7 +330,18 @@ def two_means(x, iters=40, seed=0):
 class CourtTracker:
     """Greedy nearest-neighbour association in metres, with a constant-velocity
     prediction. Crude, but the hard part of tracking -- the camera moving under
-    the targets -- has already been removed by the homography."""
+    the targets -- has already been removed by the homography.
+
+    HAND-WRITTEN, and a deviation to be upfront about: the tutorial this
+    pipeline follows (blog.roboflow.com/identify-basketball-players) tracks
+    with SAM2, and this class is not a ready-made component. The measured
+    head-to-head is in docs/tracking-comparison.md -- on broadcast footage
+    with cuts, associating in court coordinates named 6 players where SAM2
+    named 2. One caveat that comparison does not settle: the win comes from
+    the coordinate space, not necessarily from these 50 lines. A ready-made
+    tracker fed the same court coordinates (Norfair takes custom points and
+    distances natively) has not been tried, and would be the honest
+    replacement if it matches."""
 
     def __init__(self, gate=GATE_M, max_misses=MAX_MISSES):
         self.tracks = {}

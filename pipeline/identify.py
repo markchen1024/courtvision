@@ -1,9 +1,13 @@
 """Name the tracks: jersey OCR plus team clustering, the Roboflow way.
 
 This follows blog.roboflow.com/identify-basketball-players component for
-component, on top of our own court-space tracks instead of SAM2 (measured:
-SAM2 swaps identities silently across broadcast cuts and can only track who
-frame 0 shows; docs/tracking-comparison.md). Everything else is theirs:
+component, WITH ONE SUBSTITUTION to be upfront about: the tutorial's tracker
+is SAM2; the tracks here come from CourtTracker in project.py, which is our
+own hand-written code, not a ready-made component. Both were run through
+this same pipeline on the same window and the comparison lives in
+docs/tracking-comparison.md (court-space named 6 players to SAM2's 2 --
+SAM2 swaps identities silently across broadcast cuts and can only track
+who frame 0 shows). Everything else is theirs:
 
   detection   basketball-player-detection-3-ycjdo/4 -- one model for players,
               referees, jersey-number regions, rim, ball
