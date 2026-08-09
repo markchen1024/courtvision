@@ -31,6 +31,10 @@ const TABS = [
 ] as const;
 type TabKey = (typeof TABS)[number]['key'];
 
+// 82.6 -> "1:22.6", matching what a video player's timeline shows
+const mmss = (s: number) =>
+  `${Math.floor(s / 60)}:${(s % 60).toFixed(1).padStart(4, '0')}`;
+
 const inTab = (t: Track, tab: TabKey) =>
   tab === 'todo' ? t.status === 'number-only' || t.status === 'anonymous'
   : tab === 'done' ? t.status === 'human' || t.status === 'ignored'
@@ -166,7 +170,8 @@ export default function Review() {
               <span>OCR read <b>{current.ocr.number ? `#${current.ocr.number}` : '—'}</b></span>
               <span>cluster <b>{current.ocr.club ?? '—'}</b></span>
               <span>{current.samples} samples
-                {current.span[0] != null && ` · ${current.span[0]}s–${current.span[1]}s`}</span>
+                {current.span[0] != null && current.span[1] != null &&
+                  ` · ${mmss(current.span[0])}–${mmss(current.span[1])} (${current.span[0]}s)`}</span>
             </div>
 
             {Object.entries(manifest.clubs).map(([club, roster]) => (
