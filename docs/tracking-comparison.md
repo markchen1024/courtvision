@@ -109,6 +109,38 @@ stitch fragments back to the same player. Continuity, SAM2's apparent
 strength, is exactly what hurts: a track that silently changes player
 mid-life carries its confirmed number onto the wrong human.
 
+## The tutorial's shot events vs the hand tags
+
+The tutorial's event route needs no training: the same detector
+classifies shot poses (player-jump-shot, player-layup-dunk) and the
+made-basket moment (ball-in-basket), and sports.basketball's
+ShotEventTracker debounces those flags into events. Run over the full
+178s clip (`pipeline/shot_events.py`, out/shot_events_auto.json) and
+scored against the 12 hand-tagged events:
+
+- **Attempt detection is real**: 5 of the 8 hand-tagged shots inside the
+  tagged region are found within ±2s, plus one genuine attempt at 25s the
+  hand pass skipped (its rebound was tagged — a rebound implies the miss).
+  The 72.4s miss → 75.1s putback pair is reproduced exactly.
+- **Made/missed is not to be trusted from this angle**: 3 of 5 matched
+  outcomes correct. Two made baskets (6.2s, 36.2s) are called MISSED —
+  ball-in-basket needs the ball visibly in the hoop, which a distant
+  side broadcast angle rarely shows. The failure is systematic
+  (biased toward MISSED), not random.
+
+So the honest split stands, now with numbers: attempt candidates could be
+auto-proposed, outcomes still need the hand pass (or a rim-focused
+camera). The viewer keeps its hand-tagged events.
+
+## Tutorial-style top-down maps, both trackers
+
+`pipeline/render_map.py` renders the notebook's final visual — club-
+coloured dots on a drawn NBA court — from any tracks file, through our
+per-frame homographies, so both trackers go through identical code:
+out/map_sam2_30s.mp4 vs out/map_court_30s.mp4 (stacked:
+out/compare_maps_30s.mp4, boxes side: out/compare_trackers_30s.mp4).
+SAM2's structural miss shows up directly as a sparser map.
+
 ## Decision
 
 The demo ships the court-space tracker. Cuts stay track boundaries on
