@@ -140,56 +140,109 @@ def snapshot():
 PAGE = """<!doctype html>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>courtvision — pipeline progress</title>
+<title>courtvision — pipeline</title>
 <style>
-  :root { color-scheme: dark; }
-  body { margin: 0; padding: 2rem; background: #10161a; color: #f5f8fa;
-         font: 14px/1.5 ui-monospace, Consolas, monospace; }
-  h1 { font-size: 1rem; font-weight: 600; color: #8a9ba8; margin: 0 0 1.25rem; }
-  h1 small { font-weight: 400; }
-  .stage { margin-bottom: 1.4rem; }
-  .stage-head { display: flex; align-items: baseline; gap: .7rem;
-                padding-bottom: .45rem; margin-bottom: .6rem;
-                border-bottom: 1px solid #2f343c; }
-  .stage-no { font-size: .72rem; color: #10161a; background: #8a9ba8;
-              border-radius: 4px; padding: .1rem .45rem; font-weight: 700; }
-  .stage-head.active .stage-no { background: #3dcc91; }
-  .stage-name { font-weight: 700; letter-spacing: .02em; }
-  .stage-sum { margin-left: auto; font-size: .78rem; color: #5f6b7c; }
-  .stage-idle { color: #444f5a; font-size: .8rem; padding: .15rem 0 .1rem; }
-  .job { background: #182026; border: 1px solid #2f343c; border-radius: 6px;
-         padding: 1rem 1.25rem; margin-bottom: .75rem; }
-  .top { display: flex; gap: .75rem; align-items: baseline; flex-wrap: wrap; }
-  .name { font-size: 1.05rem; font-weight: 700; }
-  .chip { font-size: .72rem; padding: .1rem .5rem; border-radius: 999px;
-          text-transform: uppercase; letter-spacing: .05em; }
-  .running { background: #0f4a37; color: #3dcc91; }
-  .done    { background: #1d3a5c; color: #48aff0; }
-  .failed  { background: #5c2020; color: #ff7373; }
-  .quiet   { background: #5c4813; color: #ffc940; }
-  .nums { margin-left: auto; color: #8a9ba8; }
-  .track { height: 10px; background: #0d1216; border-radius: 999px;
-           margin: .65rem 0 .35rem; overflow: hidden; }
-  .fill { height: 100%; background: #3dcc91; border-radius: 999px;
-          transition: width .8s ease; }
-  .fill.indet { width: 30% !important; opacity: .55;
-                animation: slide 1.6s ease-in-out infinite alternate; }
-  @keyframes slide { from { margin-left: 0 } to { margin-left: 70% } }
-  .note { color: #8a9ba8; font-size: .82rem; }
-  .empty { color: #5f6b7c; padding: 3rem 0; text-align: center; }
+  @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=JetBrains+Mono:wght@400;500;700&family=Inter:wght@400;500&display=swap');
+  :root {
+    --void:#08090c; --surface:#0e1015; --raised:#151920; --inset:#050608;
+    --line:#23272f; --line-soft:#161a20; --line-strong:#333a45;
+    --fg:#eef1f5; --muted:#99a2af; --subtle:#6a7383; --inverse:#08090c;
+    --signal:#c8f031; --signal-line:#3e4d12; --teal:#3bc9a8;
+    --amber:#ffc940; --red:#ff7373;
+    --font-display:'Space Grotesk',ui-sans-serif,system-ui,sans-serif;
+    --font-sans:'Inter',ui-sans-serif,system-ui,sans-serif;
+    --font-mono:'JetBrains Mono',ui-monospace,Menlo,monospace;
+  }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--void); color:var(--fg);
+         font:400 14px/1.5 var(--font-sans); }
+  .shell { max-width: 880px; margin: 0 auto; padding: 2.2rem 1.5rem 4rem; }
+
+  .topbar { display:flex; align-items:center; gap:.9rem; margin-bottom:2rem; }
+  .brand { font:700 18px/1 var(--font-display); letter-spacing:-.01em; }
+  .brand i { display:inline-block; width:9px; height:9px; border-radius:999px;
+             background:var(--signal); margin-right:.55rem; }
+  .toplabel { font:500 11px/1 var(--font-mono); letter-spacing:.14em;
+              color:var(--subtle); text-transform:uppercase; padding-top:2px; }
+  .clock { margin-left:auto; font:400 11.5px/1 var(--font-mono); color:var(--subtle); }
+  .ghost { font:500 11px/1 var(--font-mono); letter-spacing:.06em; color:var(--muted);
+           background:none; border:1px solid var(--line); border-radius:999px;
+           padding:.45rem .8rem; cursor:pointer; }
+  .ghost:hover { color:var(--fg); border-color:var(--line-strong); }
+
+  .stage { display:grid; grid-template-columns: 34px 1fr; gap: 0 1.1rem; }
+  .rail { display:flex; flex-direction:column; align-items:center; }
+  .node { width:34px; height:34px; border-radius:999px; flex:none;
+          display:grid; place-items:center; font:700 13px/1 var(--font-mono);
+          background:var(--raised); border:1px solid var(--line);
+          color:var(--subtle); }
+  .stage.active .node { background:var(--signal); border-color:var(--signal);
+                        color:var(--inverse); }
+  .stage.done-all .node { color:var(--teal); border-color:var(--teal); }
+  .railline { width:1px; flex:1; background:var(--line-soft); margin:6px 0; }
+
+  .stagebody { padding-bottom: 1.7rem; min-width:0; }
+  .stagehead { display:flex; align-items:baseline; gap:.8rem; }
+  .stagename { font:700 15px/1.2 var(--font-display); }
+  .stagesum { margin-left:auto; font:400 11px/1 var(--font-mono); color:var(--subtle);
+              white-space:nowrap; }
+  .stagedesc { font:400 12.5px/1.55 var(--font-sans); color:var(--subtle);
+               margin:.25rem 0 .75rem; }
+  .idle { font:400 11.5px/1 var(--font-mono); color:var(--line-strong);
+          border:1px dashed var(--line-soft); border-radius:.5rem;
+          padding:.7rem .9rem; }
+
+  .job { position:relative; background:var(--surface); border:1px solid var(--line-soft);
+         border-radius:.75rem; padding:.9rem 1.1rem .8rem; margin-bottom:.6rem; }
+  .job.dim { opacity:.55; }
+  .jobtop { display:flex; align-items:center; gap:.7rem; }
+  .jobname { font:700 13px/1 var(--font-mono); }
+  .chip { font:500 10px/1 var(--font-mono); letter-spacing:.08em;
+          text-transform:uppercase; border-radius:999px; padding:.3rem .55rem; }
+  .chip.running { background:var(--signal-line); color:var(--signal); }
+  .chip.done    { background:#123830; color:var(--teal); }
+  .chip.failed  { background:#3d1b1b; color:var(--red); }
+  .chip.quiet, .chip.stale { background:#3d3312; color:var(--amber); }
+  .nums { margin-left:auto; font:400 11px/1 var(--font-mono); color:var(--subtle);
+          white-space:nowrap; }
+  .dismiss { flex:none; width:22px; height:22px; border-radius:999px; border:none;
+             background:none; color:var(--subtle); font:400 13px/1 var(--font-mono);
+             cursor:pointer; margin-left:.1rem; }
+  .dismiss:hover { color:var(--fg); background:var(--raised); }
+  .track { height:7px; background:var(--inset); border-radius:999px;
+           margin:.65rem 0 .4rem; overflow:hidden; }
+  .fill { height:100%; border-radius:999px; transition:width .8s ease; }
+  .fill.indet { width:30% !important; opacity:.5;
+                animation:slide 1.6s ease-in-out infinite alternate; }
+  @keyframes slide { from { margin-left:0 } to { margin-left:70% } }
+  .note { font:400 11px/1.4 var(--font-mono); color:var(--subtle); }
+  .empty { color:var(--subtle); }
 </style>
-<h1>pipeline progress <small id="clock"></small></h1>
-<div id="jobs"><div class="empty">(no jobs have reported)</div></div>
+<div class="shell">
+  <div class="topbar">
+    <span class="brand"><i></i>courtvision</span>
+    <span class="toplabel">Pipeline monitor</span>
+    <span class="clock" id="clock"></span>
+    <button class="ghost" onclick="clearFinished()">Clear finished</button>
+  </div>
+  <div id="jobs"><div class="empty">(no jobs have reported)</div></div>
+</div>
 <script>
-// The pipeline's shape, in run order. Job files map onto these stages;
-// anything unrecognised lands in "other" rather than vanishing.
+// The pipeline's shape, in run order, with one honest sentence each.
+// Job files map onto stages; anything unrecognised lands in Other.
 const STAGES = [
-  ["Calibration",          ["keypoints"]],
-  ["Detection & tracking", ["detect", "dense-detect", "sam2", "sam3"]],
-  ["Identity",             ["identify", "shirts", "resnet-ocr"]],
-  ["Events",               ["shot-events"]],
-  ["Render",               ["render", "final-render"]],
+  ["Calibration", "Court landmarks solved into a per-frame homography — pixels become metres.",
+   ["keypoints"]],
+  ["Detection & tracking", "Every player found in every frame, boxes strung into identity tracks.",
+   ["detect", "dense-detect", "sam2", "sam3"]],
+  ["Identity", "Jersey numbers read and voted per track, teams clustered, roster joined — tracks become names.",
+   ["identify", "shirts", "resnet-ocr"]],
+  ["Events", "Shot attempts from pose and rim signals. Outcomes stay hand-tagged, and the UI says so.",
+   ["shot-events"]],
+  ["Render", "Masks, name chips and the top-down court burned into reviewable video.",
+   ["render", "final-render"]],
 ];
+const STALE_S = 1800;   // quiet this long reads as a corpse, not a slow job
 
 const eta = s => s == null || s < 0 ? "-"
   : s < 90 ? Math.round(s) + "s"
@@ -197,56 +250,71 @@ const eta = s => s == null || s < 0 ? "-"
   : (s / 3600).toFixed(1) + "h";
 
 function jobCard(d) {
-  const quiet = d.state === "running" && d.silent > 90;
-  const cls = quiet ? "quiet" : d.state;
-  const label = quiet ? "quiet " + eta(d.silent) : d.state;
+  const stale = d.state === "running" && d.silent > STALE_S;
+  const quiet = !stale && d.state === "running" && d.silent > 90;
+  const cls = stale ? "stale" : quiet ? "quiet" : d.state;
+  const label = stale ? "stale " + eta(d.silent) : quiet ? "quiet " + eta(d.silent) : d.state;
   const pct = d.total ? d.done / d.total * 100 : null;
   const nums = d.total
-    ? `${pct.toFixed(0)}% · ${d.done}/${d.total} · ${d.rate.toFixed(1)}/s · eta ${eta(d.eta)}`
-    : `${d.done} done · ${d.rate.toFixed(1)}/s · running ${eta(d.elapsed)}`;
-  const fill = d.state === "failed" ? "#ff7373" : quiet ? "#ffc940"
-             : d.state === "done" ? "#48aff0" : "#3dcc91";
-  return `<div class="job">
-    <div class="top"><span class="name">${d.job}</span>
+    ? `${pct.toFixed(0)}% · ${d.done}/${d.total} · ${d.rate.toFixed(1)}/s · eta ${stale ? "-" : eta(d.eta)}`
+    : `${d.done} done · ${d.rate.toFixed(1)}/s · ${eta(d.elapsed)}`;
+  const fill = d.state === "failed" ? "var(--red)" : (stale || quiet) ? "var(--amber)"
+             : d.state === "done" ? "var(--teal)" : "var(--signal)";
+  const closable = stale || d.state !== "running";
+  return `<div class="job${stale ? " dim" : ""}">
+    <div class="jobtop"><span class="jobname">${d.job}</span>
       <span class="chip ${cls}">${label}</span>
-      <span class="nums">${nums}</span></div>
-    <div class="track"><div class="fill${pct == null && d.state === "running" ? " indet" : ""}"
+      <span class="nums">${nums}</span>
+      ${closable ? `<button class="dismiss" title="remove this job file" onclick="dismiss('${d.job}')">&times;</button>` : ""}</div>
+    <div class="track"><div class="fill${pct == null && d.state === "running" && !stale ? " indet" : ""}"
       style="width:${pct == null ? 100 : Math.max(pct, 1.5)}%;background:${fill}"></div></div>
     <div class="note">${d.note || ""}</div>
   </div>`;
 }
 
-function stageSection(no, name, jobs) {
-  const running = jobs.filter(j => j.state === "running").length;
+function stageSection(no, name, desc, jobs, last) {
+  const staleN = jobs.filter(j => j.state === "running" && j.silent > STALE_S).length;
+  const running = jobs.filter(j => j.state === "running").length - staleN;
   const done = jobs.filter(j => j.state === "done").length;
-  const sum = jobs.length
-    ? [running && running + " running", done && done + " done",
-       (jobs.length - running - done) && (jobs.length - running - done) + " failed"]
-        .filter(Boolean).join(" · ")
-    : "";
-  const body = jobs.length ? jobs.map(jobCard).join("")
-                           : '<div class="stage-idle">idle</div>';
-  return `<div class="stage">
-    <div class="stage-head${running ? " active" : ""}">
-      <span class="stage-no">${no}</span>
-      <span class="stage-name">${name}</span>
-      <span class="stage-sum">${sum}</span></div>
-    ${body}</div>`;
+  const failed = jobs.length - running - done - staleN;
+  const parts = [];
+  if (running) parts.push(running + " running");
+  if (done) parts.push(done + " done");
+  if (failed > 0) parts.push(failed + " failed");
+  if (staleN) parts.push(staleN + " stale");
+  const cls = running ? " active" : (jobs.length && done === jobs.length ? " done-all" : "");
+  return `<div class="stage${cls}">
+    <div class="rail"><div class="node">${no}</div>${last ? "" : '<div class="railline"></div>'}</div>
+    <div class="stagebody">
+      <div class="stagehead"><span class="stagename">${name}</span>
+        <span class="stagesum">${parts.join(" · ")}</span></div>
+      <div class="stagedesc">${desc}</div>
+      ${jobs.length ? jobs.map(jobCard).join("") : '<div class="idle">idle</div>'}
+    </div></div>`;
+}
+
+async function dismiss(job) {
+  await fetch("/dismiss?job=" + encodeURIComponent(job), { method: "POST" });
+  tick();
+}
+async function clearFinished() {
+  await fetch("/clear-finished", { method: "POST" });
+  tick();
 }
 
 async function tick() {
   try {
     const jobs = await (await fetch("/jobs", {cache: "no-store"})).json();
-    document.getElementById("clock").textContent =
-      "· " + new Date().toLocaleTimeString();
+    document.getElementById("clock").textContent = new Date().toLocaleTimeString();
     const claimed = new Set();
-    const sections = STAGES.map(([name, names], i) => {
+    const sections = STAGES.map(([name, desc, names], i) => {
       const mine = jobs.filter(j => names.includes(j.job));
       mine.forEach(j => claimed.add(j.job));
-      return stageSection(i + 1, name, mine);
+      return stageSection(i + 1, name, desc, mine, i === STAGES.length - 1);
     });
     const rest = jobs.filter(j => !claimed.has(j.job));
-    if (rest.length) sections.push(stageSection("·", "Other", rest));
+    if (rest.length) sections.push(stageSection("+", "Other",
+      "Jobs this page does not recognise yet.", rest, true));
     document.getElementById("jobs").innerHTML = sections.join("");
   } catch (e) { /* server restarting; keep polling */ }
 }
@@ -273,6 +341,27 @@ def serve(port):
             self.send_header("Content-Length", str(len(body)))
             self.end_headers()
             self.wfile.write(body)
+
+        def do_POST(self):
+            from urllib.parse import parse_qs, urlparse
+            u = urlparse(self.path)
+            if u.path == "/dismiss":
+                job = parse_qs(u.query).get("job", [""])[0]
+                # the job name came from a filename we wrote; still, never let
+                # a request walk the filesystem
+                target = (DIR / f"{job}.json").resolve()
+                if job and target.parent == DIR.resolve() and target.exists():
+                    target.unlink()
+            elif u.path == "/clear-finished":
+                for f in DIR.glob("*.json"):
+                    try:
+                        if json.loads(f.read_text())["state"] in ("done", "failed"):
+                            f.unlink()
+                    except (json.JSONDecodeError, OSError, KeyError):
+                        pass
+            self.send_response(204)
+            self.send_header("Content-Length", "0")
+            self.end_headers()
 
         def log_message(self, *args):
             pass
