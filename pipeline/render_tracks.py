@@ -32,12 +32,18 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--video", required=True)
     ap.add_argument("--tracks", required=True)
+    ap.add_argument("--labels", help="JSON with a top-level labels map "
+                    "(tid -> text), e.g. identify.py output; falls back to tid")
     ap.add_argument("--out", required=True)
     args = ap.parse_args()
 
     data = json.loads(Path(args.tracks).read_text())
     frames = {int(k): v for k, v in data["frames"].items()}
     every = int(data.get("every", 1))
+    labels = {}
+    if args.labels:
+        labels = {int(k): v for k, v in
+                  json.loads(Path(args.labels).read_text())["labels"].items()}
 
     cap = cv2.VideoCapture(args.video)
     if not cap.isOpened():
@@ -69,7 +75,7 @@ def main():
             x1, y1, x2, y2 = (int(v) for v in t["box"])
             c = COLORS[t["tid"] % len(COLORS)]
             cv2.rectangle(frame, (x1, y1), (x2, y2), c, 3)
-            label = str(t["tid"])
+            label = labels.get(t["tid"], str(t["tid"]))
             (tw, th), _ = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.9, 2)
             cv2.rectangle(frame, (x1, y1 - th - 10), (x1 + tw + 8, y1), c, -1)
             cv2.putText(frame, label, (x1 + 4, y1 - 6),
