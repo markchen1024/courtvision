@@ -141,6 +141,30 @@ it: better calibration (finer keypoints → tighter association gate),
 appearance-based track splitting, or a ready-made tracker on court
 coordinates (the untried Norfair experiment).
 
+## ResNet-32 vs SmolVLM2: the blog's conclusion reproduces, then inverts
+
+The blog's other number reader — "ResNet-32 ... reached 93% test
+accuracy, outperforming the fine-tuned SmolVLM2" (86%) — publishes the
+dataset and the claim but no training code, so
+`pipeline/train_resnet_ocr.py` fills the recipe in (CIFAR-style
+resnet32 from torch.hub, pretrained CIFAR-100, choices documented in the
+script) and measures both sides on the same held-out test split:
+
+| basketball-jersey-numbers-ocr/3 test set (312 crops) | blog says | measured |
+|---|---|---|
+| ResNet-32 (ours, 60 epochs) | 93% | **94.6%** |
+| SmolVLM2 (their hosted model) | 86% | **82.1%** |
+
+Reproduced — in domain. On *our* footage's number crops (eyeball-read
+ground truth, small n=4 of clear cases) the ranking inverts: SmolVLM2
+reads 3 of 4, ResNet-32 reads 1 of 4. The training data is Celtics/
+Knicks/Magic playoff jerseys; Summer League fonts and colours are out of
+distribution, and the 32x32 CNN degrades where the OCR-pretrained VLM
+holds up. The pipeline therefore keeps SmolVLM2. The blog's conclusion
+is not wrong — it is in-domain, and the fix it implies is fine-tuning
+on crops from the target footage, which is exactly the hand-labelling
+session already planned.
+
 ## The tutorial's shot events vs the hand tags
 
 The tutorial's event route needs no training: the same detector
