@@ -26,6 +26,35 @@ import numpy as np
 from progress import Progress
 
 
+def dedupe(rows, iou_thresh):
+    """Greedy NMS over the prompt boxes, most confident first.
+
+    The detector returned two boxes on one player on frame 0 of the NYK @ DET
+    clip -- 143x275 at (169,357) at 0.93 and 134x259 at (171,353) at 0.51.
+    SAM2 takes prompts by slot, so a duplicate does not merge later: it spends
+    the whole clip tracking one man as two objects, and costs a slot that a
+    player who was never prompted could have used.
+    """
+    kept = []
+    for r in sorted(rows, key=lambda r: -r["conf"]):
+        x1, y1, x2, y2 = r["box"]
+        clash = False
+        for k in kept:
+            a1, b1, a2, b2 = k["box"]
+            ix = max(0.0, min(x2, a2) - max(x1, a1))
+            iy = max(0.0, min(y2, b2) - max(y1, b1))
+            inter = ix * iy
+            union = (x2-x1)*(y2-y1) + (a2-a1)*(b2-b1) - inter
+            if union and inter / union > iou_thresh:
+                clash = True
+                break
+        if not clash:
+            kept.append(r)
+    if len(kept) < len(rows):
+        print(f"prompts: {len(rows)} -> {len(kept)} after de-duplication")
+    return kept
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--video", default="web/media/nba.mp4")
@@ -36,12 +65,18 @@ def main():
                     help="kept low on purpose: a lost object must stay in the output "
                          "so the prompt-order identity mapping cannot shift")
     ap.add_argument("--min-prompt-conf", type=float, default=0.4)
+    ap.add_argument("--prompt-iou", type=float, default=0.5,
+                    help="drop a prompt overlapping a more confident one by "
+                         "more than this: two prompts on one player split him "
+                         "between two slots for the whole clip")
     ap.add_argument("--out", default="out/tracks_sam2.json")
     args = ap.parse_args()
 
     dense = json.loads(Path(args.dense).read_text())
     first = dense["frames"].get("0", [])
-    boxes = [r["box"] for r in first if r["conf"] >= args.min_prompt_conf]
+    kept = dedupe([r for r in first if r["conf"] >= args.min_prompt_conf],
+                  args.prompt_iou)
+    boxes = [r["box"] for r in kept]
     if len(boxes) < 4:
         raise SystemExit(f"only {len(boxes)} confident players on frame 0 to prompt with")
     print(f"prompting SAM2 with {len(boxes)} players from frame 0")
