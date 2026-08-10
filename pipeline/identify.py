@@ -279,7 +279,13 @@ def main():
         num = confirmed.get(tid)
         name = club_names.get(club, {}).get(num) if num else None
         identities[tid] = {"number": num, "club": club, "name": name,
-                           "team_votes": dict(votes.get(tid, {}))}
+                           "team_votes": dict(votes.get(tid, {})),
+                           # Keep what the OCR actually saw. Without it a
+                           # wrong number is a bare assertion: on this
+                           # footage a 3 was read as a 9, and whether that
+                           # was unanimous or a one-vote win is the
+                           # difference between a hard case and a close one.
+                           "number_votes": dict(number_votes.get(tid, {}))}
         if num:
             labels[tid] = f"#{num} {name}" if name else f"#{num}"
     named = sum(1 for v in identities.values() if v["name"])
