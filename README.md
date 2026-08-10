@@ -44,6 +44,13 @@ The models need a GPU-sized environment, kept outside the repo:
 C:/Users/Mark/.venvs/courtvision/Scripts/python.exe pipeline/try_models.py --every 30
 ```
 
+One trap in that environment: `rfdetr[train]` pulls in `opencv-python-headless`,
+which ships the same `cv2` module as `opencv-python` and wins by being installed
+second. Everything keeps working until `calibrate.py` opens a window and OpenCV
+reports that it was built without GUI support. The fix is to uninstall the
+headless build and reinstall `opencv-python` — a superset, so the training
+dependencies are satisfied either way.
+
 The front end itself needs nothing but Python:
 
 ```bash
