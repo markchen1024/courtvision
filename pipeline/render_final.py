@@ -28,7 +28,10 @@ from progress import Progress
 
 FONT = "out/fonts/Staatliches-Regular.ttf"   # the notebook's typeface
 CLUB_COLOURS = {"warriors": "#FFC72C", "grizzlies": "#5D76A9",
-                "knicks": "#F58426", "celtics": "#007A33"}
+                "knicks": "#F58426", "celtics": "#007A33",
+                # Pistons red, not their blue: the Knicks wear blue on this
+                # footage and two blues on one floor defeat the point.
+                "pistons": "#C8102E"}
 UNKNOWN_HEX = "#9AA0A6"
 
 
