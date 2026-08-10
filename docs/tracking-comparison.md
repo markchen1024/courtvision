@@ -241,3 +241,41 @@ re-prompts") is shot segmentation: split at cut boundaries, run SAM2 per
 segment with fresh prompts, stitch identities across segments by jersey
 number. Court-space association remains in the repo as the measured
 alternative and the source of the court-coordinate viewer data.
+
+## Fine-tuning the number detector on our own labels (2026-08-10)
+
+The premise going in was that the number-region detector
+(`basketball-player-detection-3-ycjdo/4`) was trained on 2025 playoff kits
+and had never seen ours — measured earlier at 6.5 regions/frame on its home
+domain against 2.2 on Summer League. This run tested the fix on **playoff
+footage**, which is the detector's home domain, so it measures the labelling
+pipeline rather than the domain gap. Source: NYK @ DET 2025-04-27 (ABC,
+1080p60, 136.7 min).
+
+145 labelled frames, sampled every 8s across the full game from tip-off,
+close-ups filtered out, split by game time — train 101 / valid 14 / test 30
+(163 boxes). RF-DETR Base, 50 epochs, batch 8, grad accum 2, lr 1e-4, 11
+minutes on a 4080 SUPER.
+
+| on the same 30-frame test split | precision | recall | tp | fp | fn |
+|---|---|---|---|---|---|
+| base detector, untouched | **95.7%** | **82.2%** | 134 | 6 | 29 |
+| fine-tuned on our 101 frames | 68.0% | 74.2% | 121 | 57 | 42 |
+
+**The fine-tune is worse, and not marginally**: precision falls 27.7 points
+and false positives go from 6 to 57. On f0468814 the base detector is
+perfect — 7 numbers, no misses, no false alarms — while the fine-tune finds
+3, misses 4, and puts boxes on **spectators in the stands**
+(`img/numbers_baseline_f0468814.jpg` vs `img/numbers_finetune_f0468814.jpg`).
+Crowd numbers were deliberately excluded during labelling; 101 frames were
+not enough to teach the distinction, and were enough to damage what the base
+weights already knew.
+
+That is the result, and it is a measurement rather than a failure: 101 frames
+of ours against 13 games of theirs, on their home domain. It says nothing
+about the Summer League gap, which is the case the fine-tune was proposed
+for and which this footage cannot test. **Decision: `identify.py` keeps the
+base detector.** The chain — harvest, shot-type filter, label, ingest,
+time-based split, baseline, train, eval, render — is in the repo and
+reproducible, which is what makes the next attempt on Summer League footage
+cheap.
