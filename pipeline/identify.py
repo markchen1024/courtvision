@@ -110,7 +110,9 @@ def main():
     os.environ.setdefault("ROBOFLOW_API_KEY", config.secret("ROBOFLOW_API_KEY"))
     import supervision as sv
     from inference import get_model
-    from sports import ConsecutiveValueTracker, TeamClassifier
+    # sports/__init__.py is empty in the published package; the classes live
+    # in the submodules.
+    from sports.common.team import TeamClassifier
 
     sidecar = json.loads(Path(args.boxes).read_text())
     if sidecar["video"] != args.video:
@@ -126,7 +128,21 @@ def main():
     if args.match == "mask":
         from ultralytics import SAM
         sam_model = SAM("sam2.1_b.pt")
-    validator = ConsecutiveValueTracker(n_consecutive=N_CONSECUTIVE)
+    validator = None
+    if args.confirm == "consecutive3":
+        # Only the notebook's rule needs this, and the class is not in the
+        # published sports package -- it came from the notebook itself. Fail
+        # here, where the flag was asked for, rather than at import time on a
+        # run that never wanted it.
+        try:
+            from sports import ConsecutiveValueTracker
+        except ImportError:
+            raise SystemExit(
+                "--confirm consecutive3 needs ConsecutiveValueTracker, which "
+                "the installed sports package does not provide.\n"
+                "  Use --confirm majority (the default), or vendor the class "
+                "from the tutorial notebook.")
+        validator = ConsecutiveValueTracker(n_consecutive=N_CONSECUTIVE)
     number_votes = defaultdict(Counter)
     team_crops, team_crop_tids = [], []
     reads = 0
