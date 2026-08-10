@@ -45,8 +45,8 @@ def coco_subset(coco, image_ids):
     }
 
 
-def prepare():
-    coco = json.loads((SRC / "annotations.json").read_text(encoding="utf-8"))
+def prepare(src=SRC, ds=DS):
+    coco = json.loads((src / "annotations.json").read_text(encoding="utf-8"))
     images = sorted(coco["images"], key=lambda i: i["file_name"])  # time order
     n = len(images)
     cuts = [int(n * TRAIN), int(n * (TRAIN + VALID))]
@@ -54,10 +54,10 @@ def prepare():
               "valid": images[cuts[0]:cuts[1]],
               "test": images[cuts[1]:]}
     for name, imgs in splits.items():
-        d = DS / name
+        d = ds / name
         d.mkdir(parents=True, exist_ok=True)
         for im in imgs:
-            shutil.copy(SRC / "images" / im["file_name"], d / im["file_name"])
+            shutil.copy(src / "images" / im["file_name"], d / im["file_name"])
         (d / "_annotations.coco.json").write_text(
             json.dumps(coco_subset(coco, [i["id"] for i in imgs])),
             encoding="utf-8")
@@ -67,12 +67,9 @@ def prepare():
               f"(game-time order, no shuffling)")
 
 
-def score(model_ref, split="test"):
+def score(model_ref, ds=DS, split="test"):
     """Recall/precision of number regions against the labeled split."""
-    import numpy as np
-    import supervision as sv
-
-    coco = json.loads((DS / split / "_annotations.coco.json")
+    coco = json.loads((ds / split / "_annotations.coco.json")
                       .read_text(encoding="utf-8"))
     by_img = {}
     for a in coco["annotations"]:
@@ -81,7 +78,7 @@ def score(model_ref, split="test"):
     import cv2
     tp = fp = fn = 0
     for im in coco["images"]:
-        frame = cv2.imread(str(DS / split / im["file_name"]))
+        frame = cv2.imread(str(ds / split / im["file_name"]))
         dets = model_ref(frame)   # -> Nx4 xyxy
         gts = [[x, y, x + w, y + h] for x, y, w, h in by_img.get(im["id"], [])]
         matched = set()
@@ -110,7 +107,7 @@ def score(model_ref, split="test"):
           f"(tp {tp}, fp {fp}, fn {fn})")
 
 
-def baseline():
+def baseline(ds=DS):
     """The tutorial's ten-class detector, before any training of ours."""
     import sys
     sys.path.insert(0, str(Path(__file__).parent))
@@ -125,21 +122,21 @@ def baseline():
         det = sv.Detections.from_inference(
             m.infer(frame, confidence=0.2, iou_threshold=0.9)[0])
         return det[det.data["class_name"] == "number"].xyxy.tolist()
-    score(ref)
+    score(ref, ds)
 
 
-def train():
+def train(ds=DS, ckpt_dir=CKPT_DIR):
     from rfdetr import RFDETRBase
     model = RFDETRBase()
-    model.train(dataset_dir=str(DS), epochs=50, batch_size=8,
-                grad_accum_steps=2, lr=1e-4, output_dir=str(CKPT_DIR))
+    model.train(dataset_dir=str(ds), epochs=50, batch_size=8,
+                grad_accum_steps=2, lr=1e-4, output_dir=str(ckpt_dir))
 
 
-def evaluate():
+def evaluate(ds=DS, ckpt_dir=CKPT_DIR):
     from rfdetr import RFDETRBase
-    ckpt = CKPT_DIR / "checkpoint_best_ema.pth"
+    ckpt = ckpt_dir / "checkpoint_best_ema.pth"
     if not ckpt.exists():
-        ckpt = CKPT_DIR / "checkpoint_best.pth"
+        ckpt = ckpt_dir / "checkpoint_best.pth"
     model = RFDETRBase(pretrain_weights=str(ckpt))
 
     def ref(frame):
@@ -149,7 +146,7 @@ def evaluate():
             Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)),
             threshold=0.3)
         return det.xyxy.tolist()
-    score(ref)
+    score(ref, ds)
 
 
 def main():
@@ -158,16 +155,22 @@ def main():
     ap.add_argument("--baseline", action="store_true")
     ap.add_argument("--train", action="store_true")
     ap.add_argument("--eval", action="store_true")
+    ap.add_argument("--src", default=str(SRC),
+                    help="labelled COCO harvest, or the wide-shot subset "
+                         "filter_harvest.py wrote")
+    ap.add_argument("--dataset", default=str(DS))
+    ap.add_argument("--ckpt-dir", default=str(CKPT_DIR))
     args = ap.parse_args()
+    src, ds, ckpt_dir = Path(args.src), Path(args.dataset), Path(args.ckpt_dir)
     if args.prepare:
-        prepare()
+        prepare(src, ds)
     if args.baseline:
-        baseline()
+        baseline(ds)
     if args.train:
-        train()
+        train(ds, ckpt_dir)
     if args.eval:
-        evaluate()
-    if not any(vars(args).values()):
+        evaluate(ds, ckpt_dir)
+    if not any((args.prepare, args.baseline, args.train, args.eval)):
         print("pass --prepare / --baseline / --train / --eval (in that order)")
 
 
