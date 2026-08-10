@@ -32,6 +32,19 @@ Everything below follows from that rule.
 
 Box the digits only — not the jersey around them, not the name above them.
 
+## Why the digits themselves are not labelled
+
+Every box gets the same class. Nobody types "12".
+
+Splitting `number` into 0–99 would spread a few hundred boxes across a
+hundred classes — single-digit sample counts per class, which trains nothing.
+Worse, it would not generalise: one game supplies two rosters and maybe
+twenty distinct numbers, so a digit-classifier built from it is blind to
+every number it happened not to see. "A number region" is the same concept in
+every game, which is what makes it worth paying to label.
+
+Reading the digits is `identify.py`'s job, on the crops this model produces.
+
 Frames that arrive with zero boxes are deliberate: they are the hard
 negatives `harvest_numbers.py` keeps, one in every twelve empty frames. Leave
 them empty.
