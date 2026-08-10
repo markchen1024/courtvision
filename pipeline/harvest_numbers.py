@@ -10,6 +10,12 @@ confirm-and-fix rather than draw-from-scratch.
     python pipeline/harvest_numbers.py \
         --video "d:/夸克/NBA_20260719_GSW @ MEM_1080p60_ESPN.mkv"
 
+Check where tip-off actually is before harvesting: a broadcast recording
+opens with the pre-game show, and sampling from frame zero spends the whole
+budget on studio desks. --start-sec skips it, --every-sec spreads the budget
+across the whole game so the time-based split's test set is a genuinely
+unseen stretch of play.
+
 Outputs a COCO-format dataset (images/ + annotations.json, one class:
 number) under out/harvest_numbers/, ready for Roboflow upload or direct
 rfdetr training. Frames with zero detections are kept at a low rate on
@@ -36,6 +42,9 @@ def main():
     ap.add_argument("--video", required=True)
     ap.add_argument("--every-sec", type=float, default=2.0)
     ap.add_argument("--max-frames", type=int, default=800)
+    ap.add_argument("--start-sec", type=float, default=0.0,
+                    help="skip the pre-game show; a broadcast recording can "
+                         "open with half an hour of studio segments")
     ap.add_argument("--out", default="out/harvest_numbers")
     args = ap.parse_args()
 
@@ -50,6 +59,7 @@ def main():
     fps = cap.get(cv2.CAP_PROP_FPS) or 30.0
     total = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
     step = int(fps * args.every_sec)
+    start = int(fps * args.start_sec)
 
     out = Path(args.out)
     img_dir = out / "images"
@@ -57,8 +67,8 @@ def main():
 
     images, annotations = [], []
     ann_id, kept, empties = 1, 0, 0
-    prog = Progress("harvest", total=min(args.max_frames, total // step))
-    for f in range(0, total, step):
+    prog = Progress("harvest", total=min(args.max_frames, (total - start) // step))
+    for f in range(start, total, step):
         if kept >= args.max_frames:
             break
         cap.set(cv2.CAP_PROP_POS_FRAMES, f)
