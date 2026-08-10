@@ -63,6 +63,10 @@ session starts aligned.
   local-only).
 - `notes/tutorial-notebook.md` — the reference tutorial dissected, with our
   deviations and their evidence (CN, local-only).
+- `notes/tutorial/*.ipynb` — **the tutorial's own source**, and the thing to
+  read before trusting anything above about it. Local-only: 47MB with its
+  outputs. Re-fetch on a new machine with
+  `curl -L -o notes/tutorial/basketball.ipynb https://raw.githubusercontent.com/roboflow-ai/notebooks/main/notebooks/basketball-ai-how-to-detect-track-and-identify-basketball-players.ipynb`
 - `notes/memory.md` — snapshot of session memory (CN, local-only).
 
 ## Current state (2026-08-10)
