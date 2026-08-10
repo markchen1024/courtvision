@@ -108,6 +108,13 @@ def main():
     config.load_env()
     import os
     os.environ.setdefault("ROBOFLOW_API_KEY", config.secret("ROBOFLOW_API_KEY"))
+    # inference defaults its cache to /tmp/cache, and the OCR model is a LoRA
+    # whose base is fetched through that path. On Windows the result is
+    # "/tmp/cache\lora-bases/..." -- neither a usable path nor a HuggingFace
+    # repo id, and transformers reports it as a malformed repo id, a long way
+    # from the cause. Must be set before inference is imported.
+    os.environ.setdefault("MODEL_CACHE_DIR",
+                          str(Path.home() / ".cache" / "inference"))
     import supervision as sv
     from inference import get_model
     # sports/__init__.py is empty in the published package; the classes live

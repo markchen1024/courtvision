@@ -44,12 +44,32 @@ The models need a GPU-sized environment, kept outside the repo:
 C:/Users/Mark/.venvs/courtvision/Scripts/python.exe pipeline/try_models.py --every 30
 ```
 
-One trap in that environment: `rfdetr[train]` pulls in `opencv-python-headless`,
-which ships the same `cv2` module as `opencv-python` and wins by being installed
-second. Everything keeps working until `calibrate.py` opens a window and OpenCV
-reports that it was built without GUI support. The fix is to uninstall the
-headless build and reinstall `opencv-python` — a superset, so the training
-dependencies are satisfied either way.
+Three traps in that environment on Windows, each of which reports something a
+long way from its cause:
+
+- `rfdetr[train]` pulls in `opencv-python-headless`, which ships the same `cv2`
+  module as `opencv-python` and wins by being installed second. Everything keeps
+  working until `calibrate.py` opens a window and OpenCV reports that it was
+  built without GUI support. Uninstall the headless build and reinstall
+  `opencv-python` — a superset, so the training dependencies are satisfied
+  either way.
+- `inference` defaults its model cache to `/tmp/cache`. `identify.py` sets
+  `MODEL_CACHE_DIR` to `~/.cache/inference` before importing it; without that,
+  the jersey-number OCR fails claiming a malformed HuggingFace repo id.
+- The same package unpacks the OCR model's LoRA base into a *flattened*
+  directory — `~lora-bases-smolvlm2-smolvlm-256m-main-<hash>` — then reads it
+  back from the nested path `lora-bases/smolvlm2/smolvlm-256m/main`. The
+  weights download fine and the load still fails, again as a repo-id error.
+  Copy the flattened directory's contents to the nested path once:
+
+  ```powershell
+  $c = "$HOME\.cache\inference"
+  $src = Get-Item "$c\~lora-bases-smolvlm2-smolvlm-256m-main-*"
+  $dst = "$c\lora-bases\smolvlm2\smolvlm-256m\main"
+  New-Item -ItemType Directory -Force $dst
+  Get-ChildItem -LiteralPath $src -File | Where-Object Name -notlike "._*" |
+      Copy-Item -Destination $dst
+  ```
 
 The front end itself needs nothing but Python:
 
