@@ -21,6 +21,16 @@ session starts aligned.
 
 ## Engineering discipline (hard rules, earned the hard way)
 
+- When a baseline is designated, **read its source first** — the notebook, the
+  repo, the paper. This file and the docstrings in `pipeline/` describe that
+  baseline second-hand and have been wrong about it. Check the component ids,
+  the package branch and version, the thresholds, the class ids, the weight
+  filenames, and write the differences down before touching anything. Cost of
+  skipping it, measured: SAM2 was prompted for days by
+  `koppolusameer/rfdetr-...` out of `project.py` while the tutorial prompts
+  with `basketball-player-detection-3-ycjdo/4`, and every diagnosis built on
+  top of that was wrong. **If the same material is supplied twice, that is the
+  signal it has not actually been read.**
 - When a baseline is designated (a tutorial, a model, a config), **no
   component or parameter substitution without either (a) prior approval or
   (b) running both and presenting a same-conditions comparison**. Evidence of
