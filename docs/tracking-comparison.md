@@ -279,3 +279,50 @@ base detector.** The chain — harvest, shot-type filter, label, ingest,
 time-based split, baseline, train, eval, render — is in the repo and
 reproducible, which is what makes the next attempt on Summer League footage
 cheap.
+
+## The tutorial chain, end to end on NBA playoff footage (2026-08-10)
+
+blog.roboflow.com/identify-basketball-players run as specified -- RF-DETR
+detection, SAM2 tracking, SigLIP/UMAP/K-means teams, SmolVLM2 numbers -- on
+NYK @ DET 2025-04-27. No homography, no court-space association: the tutorial
+does not use them.
+
+**Segment choice decided the result, and it took three attempts to see that.**
+
+A 3-minute window picked for *wide-shot density* (73%) still contained a cut
+every 8.8s. SAM2 lost two thirds of its objects inside 7.5s and had moved
+track 0 from Brunson onto a referee by 15s -- while reporting every one of
+its ten prompts alive for the full 30s, because `--conf 0.05` deliberately
+keeps lost objects in the output to protect the slot mapping. The metric
+cannot see this; the render can.
+
+De-duplicating the prompts (two detections on one player, plus the net boxed
+as a player at 0.83) changed nothing measurable. The bottleneck was the cuts.
+
+On a 17-second segment verified single-shot -- detect_cuts.py reporting zero
+cuts, confirmed by eye -- the same chain behaves as the tutorial describes:
+
+| | 30s, cut every 8.8s | 17s, single shot |
+|---|---|---|
+| prompts | 9 | 8 |
+| still tracked at ~8s | 3 | **8 of 8** |
+| identity drift | track 0 onto a referee | none seen |
+
+and the identification stage then works:
+
+- 691 OCR reads over 204 sampled frames
+- **8 of 8 tracks with a confirmed number** (majority vote, >=2 and a clear winner)
+- **7 carrying a full name**: Brunson, Towns, Bridges, Anunoby, Duren,
+  Cunningham, Thompson
+- clusters mapped to clubs correctly on 7-vs-5 roster evidence
+- the eighth read 9 for a Knick, and no Knick wears 9. It is rendered as a
+  bare `#9` rather than given a name, which is the intended behaviour.
+
+Two limits are structural rather than faults. SAM2's prompts are taken on
+frame 0 only, so players who enter later are never identified -- several
+appear untinted in the final render. And a broadcast cuts every 8.8s here,
+so this chain covers a possession, not a game; the full-game path remains
+shot segmentation with re-prompting, stitched by jersey number.
+
+Artifacts: out/final_det3006.mp4, out/review_sam2_det3006.mp4,
+out/identities_det3006.json.
