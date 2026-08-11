@@ -34,6 +34,16 @@ def dedupe(rows, iou_thresh):
     SAM2 takes prompts by slot, so a duplicate does not merge later: it spends
     the whole clip tracking one man as two objects, and costs a slot that a
     player who was never prompted could have used.
+
+    The threshold is 0.7 and was 0.5, which was wrong in the expensive
+    direction. Basketball players guard each other body to body, so two boxes
+    on two different people overlap heavily and 0.5 deleted them: on the
+    tutorial's own 04.44-04.39 sample, 11 detections covering the whole lineup
+    became 9 prompts, and two real players were dropped before tracking began.
+    The genuine duplicate above measures IoU 0.857, so 0.7 still removes it
+    while leaving guarded pairs alone. Measured across all ten tutorial
+    samples and our four segments: 0.7 never drops a real player, 0.5 drops
+    them in three of fourteen.
     """
     kept = []
     for r in sorted(rows, key=lambda r: -r["conf"]):
@@ -65,10 +75,11 @@ def main():
                     help="kept low on purpose: a lost object must stay in the output "
                          "so the prompt-order identity mapping cannot shift")
     ap.add_argument("--min-prompt-conf", type=float, default=0.4)
-    ap.add_argument("--prompt-iou", type=float, default=0.5,
+    ap.add_argument("--prompt-iou", type=float, default=0.7,
                     help="drop a prompt overlapping a more confident one by "
                          "more than this: two prompts on one player split him "
-                         "between two slots for the whole clip")
+                         "between two slots for the whole clip. 0.7, not 0.5 "
+                         "-- see dedupe()")
     ap.add_argument("--out", default="out/tracks_sam2.json")
     args = ap.parse_args()
 

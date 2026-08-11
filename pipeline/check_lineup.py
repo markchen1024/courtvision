@@ -42,9 +42,15 @@ PLAYER_CLASS_IDS = [3, 4, 5, 6, 7]
 ON_COURT = 10                      # five a side
 
 
-def dedupe(boxes, scores, iou_thresh=0.5):
+def dedupe(boxes, scores, iou_thresh=0.7):
     """The same greedy NMS track_sam2.py applies to its prompts, so the count
-    reported here is the count that run will actually get."""
+    reported here is the count that run will actually get.
+
+    0.7, not 0.5: players guard each other body to body, so two boxes on two
+    different people overlap a lot. At 0.5 this gate reported the tutorial's
+    own 04.44-04.39 sample as short a player when all eleven detections were
+    real -- the shortage was ours, not the footage's.
+    """
     order = np.argsort(-np.asarray(scores))
     kept = []
     for i in order:
