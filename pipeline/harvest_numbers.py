@@ -49,8 +49,7 @@ def main():
     args = ap.parse_args()
 
     config.load_env()
-    import os
-    os.environ.setdefault("ROBOFLOW_API_KEY", config.secret("ROBOFLOW_API_KEY"))
+    config.inference_env()   # key, cache path, GPU provider -- before the import
     import supervision as sv
     from inference import get_model
 

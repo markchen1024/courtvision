@@ -111,9 +111,9 @@ def baseline(ds=DS):
     """The tutorial's ten-class detector, before any training of ours."""
     import sys
     sys.path.insert(0, str(Path(__file__).parent))
-    import config, os
+    import config
     config.load_env()
-    os.environ.setdefault("ROBOFLOW_API_KEY", config.secret("ROBOFLOW_API_KEY"))
+    config.inference_env()   # key, cache path, GPU provider -- before the import
     import supervision as sv
     from inference import get_model
     m = get_model(model_id="basketball-player-detection-3-ycjdo/4")

@@ -28,6 +28,37 @@ def load_env(path=ENV_FILE):
     return values
 
 
+def inference_env():
+    """Everything `inference` needs set BEFORE it is imported. Call first.
+
+    Three settings, each of which fails in a way that does not name its cause:
+
+      ROBOFLOW_API_KEY   without it the model download 401s.
+      MODEL_CACHE_DIR    defaults to /tmp/cache, which on Windows produces
+                         "/tmp/cache\\lora-bases/..." and a complaint from
+                         transformers about a malformed HuggingFace repo id.
+      ONNXRUNTIME_EXECUTION_PROVIDERS
+                         the notebook sets this so inference runs on the GPU.
+                         Without it every detection runs on CPU -- measured on
+                         this box, the player detector goes 21 fps with it and
+                         a fraction of that without. It only works if
+                         onnxruntime-gpu is installed rather than onnxruntime:
+                         the two ship the same module, so check
+                         ort.get_available_providers() lists CUDAExecutionProvider
+                         if the speed does not change.
+
+    Import order is the whole point -- onnxruntime reads the provider list once,
+    at import, so setting this afterwards is silently ignored.
+    """
+    import os
+
+    os.environ.setdefault("ROBOFLOW_API_KEY", secret("ROBOFLOW_API_KEY"))
+    os.environ.setdefault("MODEL_CACHE_DIR",
+                          str(Path.home() / ".cache" / "inference"))
+    os.environ.setdefault("ONNXRUNTIME_EXECUTION_PROVIDERS",
+                          "[CUDAExecutionProvider]")
+
+
 def secret(name, hint=""):
     """Environment first, then .env. Raises with instructions rather than a
     KeyError, because the fix is a file the caller has to create."""
