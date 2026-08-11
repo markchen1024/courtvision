@@ -93,6 +93,10 @@ def main():
                     help="attach numbers to players via SAM2 silhouettes "
                          "(the notebook's way; costs ~0.3s per OCR frame) "
                          "or plain box overlap")
+    ap.add_argument("--club-margin", type=int, default=2,
+                    help="confirmed numbers by which the cluster->club mapping "
+                         "must win before it is trusted; below this the clubs "
+                         "are left blank rather than guessed. 0 forces it.")
     ap.add_argument("--apply-only", action="store_true",
                     help="skip the 13-minute OCR pass and apply an existing --out")
     args = ap.parse_args()
@@ -106,15 +110,7 @@ def main():
         return
 
     config.load_env()
-    import os
-    os.environ.setdefault("ROBOFLOW_API_KEY", config.secret("ROBOFLOW_API_KEY"))
-    # inference defaults its cache to /tmp/cache, and the OCR model is a LoRA
-    # whose base is fetched through that path. On Windows the result is
-    # "/tmp/cache\lora-bases/..." -- neither a usable path nor a HuggingFace
-    # repo id, and transformers reports it as a malformed repo id, a long way
-    # from the cause. Must be set before inference is imported.
-    os.environ.setdefault("MODEL_CACHE_DIR",
-                          str(Path.home() / ".cache" / "inference"))
+    config.inference_env()   # key, cache path, GPU provider -- before the import
     import supervision as sv
     from inference import get_model
     # sports/__init__.py is empty in the published package; the classes live
@@ -268,10 +264,27 @@ def main():
                 score[(cluster[tid], c)] += 1
     straight = score[(0, clubs[0])] + score[(1, clubs[1])]
     crossed = score[(0, clubs[1])] + score[(1, clubs[0])]
-    club_of = {0: clubs[0], 1: clubs[1]} if straight >= crossed else \
-              {0: clubs[1], 1: clubs[0]}
-    print(f"cluster->club: {club_of} (evidence {max(straight, crossed)} vs "
-          f"{min(straight, crossed)} confirmed numbers)")
+    # GATE. Which cluster is which club is decided by how many confirmed
+    # numbers land in each roster, and the two readings are usually close: 9-7
+    # on one run of this clip, 8-8 on the next. A tie does not degrade the
+    # output, it inverts it -- every colour and every name on screen swaps
+    # sides, confidently. So refuse the mapping unless it wins by a margin,
+    # and leave the clubs unassigned rather than guess. Numbers still render;
+    # names do not.
+    lead, second = max(straight, crossed), min(straight, crossed)
+    if lead - second < args.club_margin:
+        club_of = {}
+        print(f"cluster->club: REFUSED -- evidence {lead} vs {second} is "
+              f"within the margin of {args.club_margin}.")
+        print("  A mapping this close is a coin toss, and getting it wrong "
+              "swaps every name and colour.")
+        print("  Numbers are kept; names and clubs are left blank. Pass "
+              "--club-margin 0 to force it, or name the clubs by hand.")
+    else:
+        club_of = {0: clubs[0], 1: clubs[1]} if straight >= crossed else \
+                  {0: clubs[1], 1: clubs[0]}
+        print(f"cluster->club: {club_of} (evidence {lead} vs {second} "
+              f"confirmed numbers)")
 
     identities, labels = {}, {}
     for tid in all_tids:
@@ -291,6 +304,34 @@ def main():
     named = sum(1 for v in identities.values() if v["name"])
     print(f"{named} tracks carry a full name, "
           f"{len(confirmed) - named} a number the roster does not list")
+
+    # GATE. Two live tracks confirmed to the same club and number is one player
+    # holding two slots -- a hard error, not a judgement call, and it reached
+    # the screen unnoticed every time (Duren rendered twice, Towns twice). The
+    # weaker claim loses its identity: it keeps its number for review but stops
+    # short of a name, so the render draws one label per player.
+    by_number = defaultdict(list)
+    for tid, v in identities.items():
+        if v["number"]:
+            by_number[(v["club"], v["number"])].append(tid)
+    duplicates = {k: v for k, v in by_number.items() if len(v) > 1}
+    for (club, number), tids in duplicates.items():
+        strength = {t: sum((identities[t].get("number_votes") or {}).values())
+                    for t in tids}
+        winner = max(strength, key=strength.get)
+        losers = [t for t in tids if t != winner]
+        print(f"DUPLICATE: #{number} {club or '?'} claimed by tracks "
+              f"{', '.join(str(t) for t in tids)} "
+              f"(votes {', '.join(f'{t}:{strength[t]}' for t in tids)})")
+        print(f"  keeping track {winner}; {', '.join(str(t) for t in losers)} "
+              f"keep the number for review but lose the name")
+        for t in losers:
+            identities[t]["name"] = None
+            identities[t]["duplicate_of"] = winner
+    if duplicates:
+        print(f"{len(duplicates)} duplicate identities demoted")
+        named = sum(1 for v in identities.values() if v["name"])
+        print(f"{named} tracks now carry a full name")
 
     Path(args.out).parent.mkdir(parents=True, exist_ok=True)
     Path(args.out).write_text(json.dumps({
