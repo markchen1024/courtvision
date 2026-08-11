@@ -29,11 +29,11 @@ interface Source {
 const SOURCES: Source[] = [
   {
     id: 'nba',
-    label: 'NBA Summer League final',
+    label: 'NBA playoffs, East first round game 4',
     video: '/media/nba.mp4',
     data: '/data/nba.json',
     note: 'court solved per frame by a keypoint model — no human input',
-    game: { home: 'Grizzlies', away: 'Warriors', title: 'GSW 94–90 MEM · Las Vegas · 19 Jul 2026' },
+    game: { home: 'Pistons', away: 'Knicks', title: 'NYK 94–93 DET · Detroit · 27 Apr 2025' },
   },
   {
     id: 'bigv',

@@ -34,7 +34,7 @@ export function initHome() {
     const Plyr = window.Plyr;
 
     const TEAM = { home: '#c8f031', away: '#3bc9a8' };
-    // Two renders of the same 178s timeline, so switching sources never breaks
+    // Two renders of the same 8s timeline, so switching sources never breaks
     // the court sync: the AI view carries club-tinted silhouettes and
     // jersey-OCR name chips burned in by pipeline/render_final.py.
     const VIEWS = { ai: '/media/nba_ai.mp4', raw: '/media/nba.mp4' };
@@ -102,7 +102,7 @@ export function initHome() {
         markers: DATA ? { enabled: true, points: [{ time: DATA.video.duration, label: 'tracking ends' }] } : undefined,
       });
 
-      // AI view <-> broadcast. Same 178s timeline in both files, so the swap
+      // AI view <-> broadcast. Same 8s timeline in both files, so the swap
       // only has to carry the clock across; the court canvas never notices.
       for (const b of document.querySelectorAll('.viewtoggle button')) {
         b.addEventListener('click', () => {
@@ -219,75 +219,85 @@ export function initHome() {
        with its own shot chart is a page nobody looks at twice.
        ═══════════════════════════════════════════════════════════════════════════ */
     const TEAMS = [
-      { club: 'Warriors', score: 94, tone: 'gsw', roster: [
-        // Official ESPN lines, adjusted only where a row did not reconcile with its
-        // own points. Standing in until tracked stats are labelled.
-        { n:  1, name: 'Yaxel Lendeborg',  min: 32, m2: 7, a2: 12, m3: 2, a3: 6, mf: 1, af: 1, oreb: 4, dreb: 6, ast: 2, stl: 2, blk: 0, tov: 3, pf: 4 , pm:   7 },
-        { n: 36, name: 'Deivon Smith',     min: 23, m2: 9, a2: 13, m3: 0, a3: 1, mf: 3, af: 4, oreb: 4, dreb: 5, ast: 3, stl: 0, blk: 0, tov: 2, pf: 0 , pm:  -2 },
-        { n: 18, name: 'LJ Cryer',         min: 29, m2: 1, a2:  2, m3: 4, a3: 8, mf: 1, af: 2, oreb: 0, dreb: 3, ast: 6, stl: 0, blk: 0, tov: 3, pf: 2 , pm:  12 },
-        { n:  3, name: 'Will Richard',     min: 29, m2: 2, a2:  4, m3: 3, a3: 6, mf: 0, af: 0, oreb: 2, dreb: 2, ast: 1, stl: 2, blk: 1, tov: 1, pf: 2 , pm:   9 },
-        { n: 33, name: 'Malevy Leons',     min: 22, m2: 3, a2:  4, m3: 1, a3: 5, mf: 1, af: 1, oreb: 1, dreb: 2, ast: 1, stl: 1, blk: 1, tov: 1, pf: 0 , pm:  -1 },
-        { n: 45, name: 'Graham Ike',       min: 24, m2: 2, a2:  4, m3: 0, a3: 0, mf: 2, af: 3, oreb: 6, dreb: 3, ast: 3, stl: 0, blk: 1, tov: 1, pf: 3 , pm:  12 },
-        { n: 25, name: 'Lajae Jones',      min: 11, m2: 2, a2:  3, m3: 0, a3: 2, mf: 0, af: 0, oreb: 0, dreb: 0, ast: 0, stl: 0, blk: 0, tov: 1, pf: 2 , pm:  -5 },
-        { n: 55, name: 'Chance McMillian', min: 14, m2: 1, a2:  2, m3: 0, a3: 2, mf: 0, af: 0, oreb: 0, dreb: 1, ast: 0, stl: 1, blk: 0, tov: 0, pf: 2 , pm:  -3 },
-        { n: 47, name: 'Lachlan Olbrich',  min: 16, m2: 1, a2:  1, m3: 0, a3: 0, mf: 0, af: 1, oreb: 1, dreb: 2, ast: 0, stl: 0, blk: 0, tov: 2, pf: 3 , pm:  -9 },
+      // ESPN box score, gameId 401768043 -- NYK 94 DET 93, East first round
+      // game 4, Little Caesars Arena, 27 April 2025. Only players who took
+      // the floor. ESPN reports total field goals; two-pointers here are that
+      // minus the threes, so every column still adds to the team line:
+      // Knicks 34-91 FG, 15-33 3PT, 38 reb, 19 ast. DNPs are omitted.
+      { club: 'Knicks', score: 94, tone: 'nyk', roster: [
+        { n: 11, name: 'Jalen Brunson',      min: 39, m2: 9, a2: 19, m3: 4, a3: 7, mf: 2, af: 2, oreb: 3, dreb: 2, ast: 11, stl: 0, blk: 1, tov: 2, pf: 3, pm:  5 },
+        { n: 32, name: 'Karl-Anthony Towns', min: 40, m2: 5, a2: 16, m3: 5, a3: 7, mf: 2, af: 2, oreb: 1, dreb: 8, ast:  1, stl: 0, blk: 1, tov: 3, pf: 5, pm:  5 },
+        { n:  3, name: 'Josh Hart',          min: 42, m2: 1, a2:  4, m3: 3, a3: 5, mf: 3, af: 6, oreb: 2, dreb: 8, ast:  5, stl: 4, blk: 0, tov: 2, pf: 1, pm:  2 },
+        { n:  8, name: 'OG Anunoby',         min: 39, m2: 3, a2: 10, m3: 0, a3: 3, mf: 2, af: 2, oreb: 1, dreb: 1, ast:  0, stl: 3, blk: 0, tov: 0, pf: 2, pm: -9 },
+        { n: 25, name: 'Mikal Bridges',      min: 44, m2: 1, a2:  6, m3: 2, a3: 6, mf: 0, af: 0, oreb: 2, dreb: 4, ast:  1, stl: 3, blk: 1, tov: 1, pf: 2, pm:  2 },
+        { n:  2, name: 'Miles McBride',      min: 19, m2: 0, a2:  0, m3: 1, a3: 5, mf: 2, af: 2, oreb: 0, dreb: 1, ast:  0, stl: 0, blk: 0, tov: 0, pf: 2, pm:  1 },
+        { n: 23, name: 'Mitchell Robinson',  min:  9, m2: 0, a2:  1, m3: 0, a3: 0, mf: 0, af: 4, oreb: 3, dreb: 0, ast:  0, stl: 0, blk: 0, tov: 1, pf: 1, pm:  3 },
+        { n:  1, name: 'Cameron Payne',      min:  7, m2: 0, a2:  2, m3: 0, a3: 0, mf: 0, af: 0, oreb: 0, dreb: 2, ast:  1, stl: 1, blk: 0, tov: 1, pf: 1, pm: -4 },
+        { n: 44, name: 'Landry Shamet',      min:  1, m2: 0, a2:  0, m3: 0, a3: 0, mf: 0, af: 0, oreb: 0, dreb: 0, ast:  0, stl: 0, blk: 0, tov: 0, pf: 0, pm:  0 },
       ]},
-      { club: 'Grizzlies', score: 90, tone: 'mem', roster: [
-        { n: 27, name: 'Cameron Boozer',          min: 35, m2: 4, a2: 10, m3: 3, a3: 7, mf: 2, af: 3, oreb: 5, dreb: 3, ast: 4, stl: 2, blk: 0, tov: 4, pf: 4 , pm:  -1 },
-        { n: 23, name: 'Cedric Coward',           min: 27, m2: 1, a2:  5, m3: 5, a3: 5, mf: 2, af: 2, oreb: 1, dreb: 5, ast: 4, stl: 0, blk: 1, tov: 1, pf: 0 , pm:   7 },
-        { n: 22, name: 'Taylor Hendricks',        min: 28, m2: 2, a2:  3, m3: 3, a3: 7, mf: 0, af: 0, oreb: 2, dreb: 3, ast: 2, stl: 1, blk: 0, tov: 1, pf: 0 , pm:  -7 },
-        { n: 18, name: 'Olivier-Maxence Prosper', min: 27, m2: 4, a2:  5, m3: 0, a3: 7, mf: 0, af: 0, oreb: 0, dreb: 3, ast: 2, stl: 0, blk: 0, tov: 3, pf: 3 , pm:  -7 },
-        { n: 10, name: 'Javon Small',             min: 30, m2: 1, a2:  4, m3: 2, a3: 7, mf: 2, af: 2, oreb: 2, dreb: 2, ast: 8, stl: 0, blk: 0, tov: 1, pf: 2 , pm: -15 },
-        { n: 20, name: 'Carson Cooper',           min: 17, m2: 7, a2:  8, m3: 0, a3: 0, mf: 2, af: 2, oreb: 0, dreb: 1, ast: 0, stl: 2, blk: 0, tov: 0, pf: 3 , pm:   5 },
-        { n: 21, name: 'Jahmai Mashack',          min: 23, m2: 1, a2:  4, m3: 1, a3: 4, mf: 0, af: 1, oreb: 2, dreb: 2, ast: 2, stl: 1, blk: 0, tov: 0, pf: 3 , pm:  -1 },
-        { n: 34, name: 'Lawson Lovering',         min: 11, m2: 0, a2:  0, m3: 0, a3: 0, mf: 0, af: 0, oreb: 1, dreb: 1, ast: 0, stl: 0, blk: 0, tov: 0, pf: 1 , pm:  -3 },
-        { n: '—', name: 'Tyler Burton',           min:  2, m2: 0, a2:  0, m3: 0, a3: 0, mf: 0, af: 0, oreb: 0, dreb: 0, ast: 0, stl: 0, blk: 0, tov: 0, pf: 1 , pm:   2 },
+      { club: 'Pistons', score: 93, tone: 'det', roster: [
+        { n:  2, name: 'Cade Cunningham',    min: 42, m2: 11, a2: 20, m3: 0, a3:  3, mf: 3, af: 4, oreb: 1, dreb:  9, ast: 10, stl: 0, blk: 4, tov: 7, pf: 2, pm:   3 },
+        { n: 12, name: 'Tobias Harris',      min: 35, m2:  6, a2: 12, m3: 0, a3:  3, mf: 6, af: 6, oreb: 1, dreb:  7, ast:  0, stl: 1, blk: 1, tov: 1, pf: 5, pm:  -9 },
+        { n:  8, name: 'Tim Hardaway Jr.',   min: 37, m2:  1, a2:  3, m3: 4, a3: 13, mf: 0, af: 1, oreb: 1, dreb:  1, ast:  1, stl: 0, blk: 0, tov: 0, pf: 1, pm:   9 },
+        { n:  5, name: 'Malik Beasley',      min: 26, m2:  2, a2:  3, m3: 3, a3:  9, mf: 0, af: 0, oreb: 0, dreb:  5, ast:  1, stl: 1, blk: 0, tov: 0, pf: 1, pm:  -1 },
+        { n:  9, name: 'Ausar Thompson',     min: 22, m2:  3, a2:  6, m3: 0, a3:  1, mf: 2, af: 2, oreb: 0, dreb:  4, ast:  0, stl: 1, blk: 1, tov: 4, pf: 2, pm:   8 },
+        { n:  0, name: 'Jalen Duren',        min: 38, m2:  3, a2:  5, m3: 0, a3:  0, mf: 0, af: 0, oreb: 6, dreb: 11, ast:  4, stl: 0, blk: 2, tov: 3, pf: 3, pm: -17 },
+        { n: 17, name: 'Dennis Schroder',    min: 27, m2:  2, a2:  4, m3: 0, a3:  0, mf: 2, af: 2, oreb: 2, dreb:  1, ast:  2, stl: 3, blk: 0, tov: 0, pf: 1, pm:  -4 },
+        { n:  7, name: 'Paul Reed',          min:  8, m2:  1, a2:  2, m3: 0, a3:  0, mf: 0, af: 0, oreb: 2, dreb:  2, ast:  0, stl: 0, blk: 1, tov: 0, pf: 1, pm:   8 },
+        { n: '00', name: 'Ronald Holland II', min: 6, m2: 0, a2:  0, m3: 0, a3:  0, mf: 1, af: 2, oreb: 1, dreb:  0, ast:  0, stl: 0, blk: 0, tov: 2, pf: 1, pm:  -2 },
       ]},
     ];
     const ROSTER = TEAMS[0].roster;   // the minutes tab reads the tracked side
 
-    const OPP = { pts: 90, m2: 20, a2: 39, m3: 14, a3: 37, mf: 4, af: 8,
-                  oreb: 13, reb: 33, ast: 22, stl: 6, blk: 1, tov: 10, pf: 17 };
+    // Detroit's line, for the comparison column.
+    const OPP = { pts: 93, m2: 29, a2: 55, m3: 7, a3: 29, mf: 14, af: 17,
+                  oreb: 14, reb: 54, ast: 18, stl: 6, blk: 9, tov: 17, pf: 17 };
 
     // Splits of the roster's field goals by where they were taken. m/a here sum
     // back to the two- and three-point totals above.
     const ZONESBY = {
-      // Placeholder zone splits, but each club's column sums to its real FG and 3P
-      // totals from the box score -- GSW 38/74 with 10/30 from three, MEM 34/76
-      // with 14/37 -- so the totals row of this chart is true even while the
-      // per-zone split is illustrative.
-      gsw: [
-        { key: 'ra',    name: 'Restricted area',   m: 14, a: 19 },
-        { key: 'paint', name: 'Paint (non-RA)',    m:  8, a: 13 },
-        { key: 'mid',   name: 'Mid-range',         m:  6, a: 12 },
-        { key: 'c3',    name: 'Corner 3',          m:  4, a:  9 },
-        { key: 'atb',   name: 'Above the break 3', m:  6, a: 21 },
-      ],
-      mem: [
-        { key: 'ra',    name: 'Restricted area',   m:  9, a: 14 },
-        { key: 'paint', name: 'Paint (non-RA)',    m:  6, a: 12 },
-        { key: 'mid',   name: 'Mid-range',         m:  5, a: 13 },
+      // The zone split is illustrative; the totals are not. ESPN's box score
+      // gives field goals and threes but not where they were taken, so each
+      // column here is distributed by hand and made to add back to the real
+      // line: Knicks 34-91 with 15-33 from three, Pistons 36-84 with 7-29.
+      // The totals row of this chart is therefore true while the per-zone
+      // breakdown is not, and stays that way until shot events are tracked.
+      nyk: [
+        { key: 'ra',    name: 'Restricted area',   m:  9, a: 20 },
+        { key: 'paint', name: 'Paint (non-RA)',    m:  5, a: 18 },
+        { key: 'mid',   name: 'Mid-range',         m:  5, a: 20 },
         { key: 'c3',    name: 'Corner 3',          m:  5, a: 10 },
-        { key: 'atb',   name: 'Above the break 3', m:  9, a: 27 },
+        { key: 'atb',   name: 'Above the break 3', m: 10, a: 23 },
+      ],
+      det: [
+        { key: 'ra',    name: 'Restricted area',   m: 15, a: 24 },
+        { key: 'paint', name: 'Paint (non-RA)',    m:  8, a: 17 },
+        { key: 'mid',   name: 'Mid-range',         m:  6, a: 14 },
+        { key: 'c3',    name: 'Corner 3',          m:  2, a:  8 },
+        { key: 'atb',   name: 'Above the break 3', m:  5, a: 21 },
       ],
     };
-    const zonesFor = () => ZONESBY[drawShots.club ?? 'gsw'];
+    const zonesFor = () => ZONESBY[drawShots.club ?? 'nyk'];
 
     const CLIPS = [
-      // The twelve hand-tagged events from the processed stretch, at clip time.
-      // Names are the placeholder roster assignment; the club tag is the kit colour.
-      { q: 'Q1', clock: '—', kind: 'score', cls: 'score', what: '3PT made',    who: 'Cameron Boozer · MEM',          at: '00:06' },
-      { q: 'Q1', clock: '—', kind: 'board', cls: 'board', what: 'Rebound',     who: 'Cedric Coward · MEM',           at: '00:25' },
-      { q: 'Q1', clock: '—', kind: 'board', cls: 'board', what: 'Rebound',     who: 'Carson Cooper · MEM',           at: '00:33' },
-      { q: 'Q1', clock: '—', kind: 'score', cls: 'score', what: '3PT made',    who: 'Yaxel Lendeborg · GSW',         at: '00:36' },
-      { q: 'Q1', clock: '—', kind: 'score', cls: 'score', what: 'Shot made',   who: 'Taylor Hendricks · MEM',        at: '01:00' },
-      { q: 'Q1', clock: '—', kind: 'score', cls: 'score', what: '2PT missed',  who: 'Deivon Smith · GSW',            at: '01:12' },
-      { q: 'Q1', clock: '—', kind: 'score', cls: 'score', what: '2PT made',    who: 'LJ Cryer · GSW',                at: '01:15' },
-      { q: 'Q1', clock: '—', kind: 'score', cls: 'score', what: '2PT missed',  who: 'Will Richard · GSW',            at: '01:32' },
-      { q: 'Q1', clock: '—', kind: 'score', cls: 'score', what: '2PT missed',  who: 'Javon Small · MEM',             at: '01:39' },
-      { q: 'Q1', clock: '—', kind: 'board', cls: 'board', what: 'Rebound',     who: 'Malevy Leons · GSW',            at: '01:39' },
-      { q: 'Q1', clock: '—', kind: 'score', cls: 'score', what: '2PT made',    who: 'Olivier-Maxence Prosper · MEM', at: '01:47' },
-      { q: 'Q1', clock: '—', kind: 'loss',  cls: 'loss',  what: 'Turnover',    who: 'Graham Ike · GSW',              at: '02:02' },
+      // PLACEHOLDER. Event detection is not implemented: nothing in pipeline/
+      // reads a shot, a rebound or a turnover out of the footage, and the
+      // eight seconds this demo covers contain none of them anyway -- it is a
+      // half-court possession at 6:32 of the third.
+      //
+      // What is real here is only the roster: these are players who were on
+      // the floor, identified by the pipeline, on the correct clubs. The
+      // events themselves are invented to show the shape of the output, and
+      // the panel says so above the table. ShotEventTracker ships in
+      // sports@feat/basketball and would replace this.
+      { q: 'Q3', clock: '—', kind: 'score', cls: 'score', what: '3PT made',   who: 'Tim Hardaway Jr. · DET', at: '00:01' },
+      { q: 'Q3', clock: '—', kind: 'board', cls: 'board', what: 'Rebound',    who: 'Jalen Duren · DET',      at: '00:02' },
+      { q: 'Q3', clock: '—', kind: 'score', cls: 'score', what: '2PT made',   who: 'Cade Cunningham · DET',  at: '00:03' },
+      { q: 'Q3', clock: '—', kind: 'score', cls: 'score', what: '3PT made',   who: 'Karl-Anthony Towns · NYK', at: '00:04' },
+      { q: 'Q3', clock: '—', kind: 'board', cls: 'board', what: 'Rebound',    who: 'Josh Hart · NYK',        at: '00:05' },
+      { q: 'Q3', clock: '—', kind: 'score', cls: 'score', what: '2PT missed', who: 'Mikal Bridges · NYK',    at: '00:06' },
+      { q: 'Q3', clock: '—', kind: 'loss',  cls: 'loss',  what: 'Turnover',   who: 'Ausar Thompson · DET',   at: '00:07' },
+      { q: 'Q3', clock: '—', kind: 'score', cls: 'score', what: '2PT made',   who: 'Jalen Brunson · NYK',    at: '00:08' },
     ];
 
     const sum = k => ROSTER.reduce((t, p) => t + p[k], 0);
@@ -415,8 +425,8 @@ export function initHome() {
     /* ── team comparison ─────────────────────────────────────────────────────── */
     function renderCompare(){
       const legend = `<div class="r">
-        <span class="v us">Warriors</span><span></span><span class="k">GSW · MEM</span>
-        <span></span><span class="v them">Grizzlies</span></div>`;
+        <span class="v us">Knicks</span><span></span><span class="k">NYK · DET</span>
+        <span></span><span class="v them">Pistons</span></div>`;
       const rows = [
         ['Points',      US.pts,                       OPP.pts,                       false],
         ['Field goal %', pct(US.m2 + US.m3, US.a2 + US.a3), pct(OPP.m2 + OPP.m3, OPP.a2 + OPP.a3), true],

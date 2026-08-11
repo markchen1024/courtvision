@@ -46,13 +46,13 @@ export default function Home() {
     <a className="btn primary lg" href="#product">Open the demo <span className="arrow">→</span></a>
     <a className="btn lg" href="#method">See how it works</a>
   </div>
-  <p className="fine">No account. Three minutes of the 2026 Summer League final, already processed.</p>
+  <p className="fine">No account. Eight seconds of NYK @ DET, game 4 of the 2025 East first round, already processed.</p>
 
   {/* The product shot is the product. */}
   <div className="frame" id="product">
     <div className="chrome">
       <span className="dots"><i></i><i></i><i></i></span>
-      <span className="url">courtvision.io/app — GSW @ MEM · 2026 Summer League final</span>
+      <span className="url">courtvision.io/app — NYK @ DET · 2025 East first round, game 4</span>
     </div>
     <div className="panes">
       <div className="pane">
@@ -86,8 +86,8 @@ export default function Home() {
 
     <div className="tabpanel" role="tabpanel" id="p-box" aria-labelledby="tab-box">
       <div className="clubs" role="tablist" aria-label="Club">
-        <button role="tab" aria-selected="true" className="on gsw" data-club="0">Warriors — 94</button>
-        <button role="tab" aria-selected="false" className="mem" data-club="1">Grizzlies — 90</button>
+        <button role="tab" aria-selected="true" className="on nyk" data-club="0">Knicks — 94</button>
+        <button role="tab" aria-selected="false" className="det" data-club="1">Pistons — 93</button>
       </div>
       <div className="scroll-x"><table className="stat" id="boxTable"></table></div>
     </div>
@@ -99,8 +99,8 @@ export default function Home() {
     <div className="tabpanel" role="tabpanel" id="p-shots" aria-labelledby="tab-shots" hidden>
       <div className="pillrow">
         <div className="clubs" role="tablist" aria-label="Club">
-          <button role="tab" aria-selected="true" className="on gsw" data-shotclub="gsw">Warriors</button>
-          <button role="tab" aria-selected="false" className="mem" data-shotclub="mem">Grizzlies</button>
+          <button role="tab" aria-selected="true" className="on nyk" data-shotclub="nyk">Knicks</button>
+          <button role="tab" aria-selected="false" className="det" data-shotclub="det">Pistons</button>
         </div>
       </div>
       <div className="shots">
@@ -117,6 +117,9 @@ export default function Home() {
     </div>
 
     <div className="tabpanel" role="tabpanel" id="p-clips" aria-labelledby="tab-clips" hidden>
+      <p className="fine">Placeholder. Event detection is not implemented — no
+        shots, rebounds or turnovers are read from the footage. The rows below
+        show the shape of the output, on this game&rsquo;s real roster.</p>
       <div className="clips" id="clips"></div>
     </div>
 

@@ -242,10 +242,10 @@ h1 em { font-style: normal; color: var(--signal); }
   border-radius: 999px; padding: 6px 14px; cursor: pointer;
   font: 500 11px/1 var(--font-mono); letter-spacing: .08em;
 }
-.clubs button.on.gsw { color: var(--signal); border-color: var(--signal-line); }
-.clubs button.on.mem { color: var(--teal); border-color: var(--teal); }
-.stat .num.gsw { border-color: var(--signal-line); color: var(--signal); }
-.stat .num.mem { border-color: var(--teal); color: var(--teal); }
+.clubs button.on.nyk { color: var(--signal); border-color: var(--signal-line); }
+.clubs button.on.det { color: var(--teal); border-color: var(--teal); }
+.stat .num.nyk { border-color: var(--signal-line); color: var(--signal); }
+.stat .num.det { border-color: var(--teal); color: var(--teal); }
 .stat tr.totals td { border-top: 1px solid var(--line); color: var(--foreground); font-weight: 500; }
 .scroll-x { overflow-x: auto; }
 
