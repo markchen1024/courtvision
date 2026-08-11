@@ -83,7 +83,7 @@ def main():
     ap.add_argument("--team-stride", type=int, default=6,
                     help="team crops every Nth OCR sample (6 at 5Hz is ~1.2s, "
                          "the notebook's stride-30 at 25fps)")
-    ap.add_argument("--confirm", choices=["majority", "consecutive3"],
+    ap.add_argument("--confirm", choices=["majority", "consecutive3", "roster"],
                     default="majority",
                     help="how a track's number is confirmed; consecutive3 is "
                          "the notebook's original rule")
@@ -93,6 +93,10 @@ def main():
                     help="attach numbers to players via SAM2 silhouettes "
                          "(the notebook's way; costs ~0.3s per OCR frame) "
                          "or plain box overlap")
+    ap.add_argument("--min-votes", type=int, default=2,
+                    help="votes a roster-constrained assignment needs before "
+                         "it counts as confirmed; below this it is kept but "
+                         "marked needs_review rather than asserted or dropped")
     ap.add_argument("--club-margin", type=int, default=2,
                     help="confirmed numbers by which the cluster->club mapping "
                          "must win before it is trusted; below this the clubs "
@@ -211,7 +215,8 @@ def main():
                 values.append(reading)
                 reads += 1
         if tids:
-            if args.confirm == "majority":
+            if args.confirm in ("majority", "roster"):
+                # roster assignment weights its matching by the same votes
                 for tid, v in zip(tids, values):
                     number_votes[tid][v] += 1
             else:
@@ -227,7 +232,7 @@ def main():
         prog.step(note=f"frame {frame_idx}, {reads} reads")
     cap.release()
 
-    if args.confirm == "majority":
+    if args.confirm in ("majority", "roster"):
         confirmed = {}
         for tid, votes in number_votes.items():
             top = votes.most_common(2)
@@ -235,6 +240,11 @@ def main():
             # stays unconfirmed rather than guessed
             if top[0][1] >= 2 and (len(top) == 1 or top[0][1] > top[1][1]):
                 confirmed[tid] = top[0][0]
+        # In roster mode these are provisional. Mapping a cluster to a club is
+        # scored by how many confirmed numbers land in each roster, so it needs
+        # numbers before the roster is known, and the roster-constrained
+        # assignment needs the club before it can match. The majority result
+        # breaks that circle and is replaced below.
     else:
         confirmed = {tid: v for tid in all_tids
                      if (v := validator.get_validated(tid)) is not None}
@@ -286,12 +296,51 @@ def main():
         print(f"cluster->club: {club_of} (evidence {lead} vs {second} "
               f"confirmed numbers)")
 
+    tentative = {}
+    if args.confirm == "roster":
+        # A roster is a constraint, not a lookup table: one number belongs to
+        # one player. Deciding each track on its own throws that away, and the
+        # two corrections the demo needed by hand were both recoverable from
+        # it -- track 7 tied 25 against 8, but 8 was already taken by a track
+        # with twice the votes, so 25 was the only reading left. Solve all the
+        # tracks of a club at once: maximum-weight matching between tracks and
+        # the club's numbers, weights being the votes.
+        from scipy.optimize import linear_sum_assignment
+
+        confirmed = {}
+        for cluster_id, club in club_of.items():
+            tids = [t for t in all_tids if cluster.get(t) == cluster_id]
+            numbers = sorted(club_numbers.get(club, []))
+            if not tids or not numbers:
+                continue
+            cost = np.zeros((len(tids), len(numbers)))
+            for i, t in enumerate(tids):
+                for j, n in enumerate(numbers):
+                    cost[i, j] = -number_votes[t].get(n, 0)
+            for i, j in zip(*linear_sum_assignment(cost)):
+                got = int(-cost[i, j])
+                if got >= args.min_votes:
+                    confirmed[tids[i]] = numbers[j]
+                elif got > 0:
+                    # the matching says this is the only number left for this
+                    # track, but the reads barely support it. Keep it, marked,
+                    # rather than either asserting or discarding it.
+                    tentative[tids[i]] = (numbers[j], got)
+        print(f"roster-constrained assignment: {len(confirmed)} confirmed, "
+              f"{len(tentative)} tentative (under {args.min_votes} votes)")
+        for tid, (num, got) in sorted(tentative.items()):
+            print(f"  track {tid}: #{num} on {got} vote(s) -- needs review")
+
     identities, labels = {}, {}
     for tid in all_tids:
         club = club_of.get(cluster.get(tid))
         num = confirmed.get(tid)
+        weak = tentative.get(tid)
+        if num is None and weak:
+            num = weak[0]
         name = club_names.get(club, {}).get(num) if num else None
         identities[tid] = {"number": num, "club": club, "name": name,
+                           **({"needs_review": weak[1]} if weak else {}),
                            "team_votes": dict(votes.get(tid, {})),
                            # Keep what the OCR actually saw. Without it a
                            # wrong number is a bare assertion: on this
