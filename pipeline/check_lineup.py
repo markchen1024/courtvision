@@ -76,6 +76,12 @@ def main():
     ap.add_argument("--at", type=int, default=0, help="frame to check")
     ap.add_argument("--need", type=int, default=ON_COURT,
                     help="players required for the gate to pass")
+    ap.add_argument("--render", metavar="JPG",
+                    help="draw the frame with every detection: green becomes a "
+                         "prompt, red was struck out as a duplicate. A count is "
+                         "not enough to tell a missing player from a false "
+                         "positive from a de-duplication mistake, and those "
+                         "three want different answers.")
     ap.add_argument("--scan", action="store_true",
                     help="read the whole clip and list frames with a full lineup")
     ap.add_argument("--every", type=int, default=30, help="scan stride")
@@ -94,15 +100,37 @@ def main():
         video = root / video
     model = get_model(model_id=DETECTION_MODEL_ID)
 
-    def count(frame):
+    def detect(frame):
         res = model.infer(frame, confidence=CONFIDENCE,
                           iou_threshold=IOU_THRESHOLD)[0]
         det = sv.Detections.from_inference(res)
         det = det[np.isin(det.class_id, PLAYER_CLASS_IDS)]
         if len(det) == 0:
-            return 0, 0
-        keep = dedupe(det.xyxy.tolist(), det.confidence.tolist())
+            return det, set()
+        return det, set(dedupe(det.xyxy.tolist(), det.confidence.tolist()))
+
+    def count(frame):
+        det, keep = detect(frame)
         return len(det), len(keep)
+
+    def render(frame, det, keep, verdict, out_path):
+        for i, (box, conf) in enumerate(zip(det.xyxy, det.confidence)):
+            x1, y1, x2, y2 = (int(v) for v in box)
+            kept = i in keep
+            colour = (0, 210, 0) if kept else (0, 0, 240)
+            cv2.rectangle(frame, (x1, y1), (x2, y2), colour, 3)
+            cv2.putText(frame, f"{conf:.2f}" + ("" if kept else " DUP"),
+                        (x1, max(18, y1 - 8)), cv2.FONT_HERSHEY_SIMPLEX,
+                        0.7, colour, 2)
+        cv2.putText(frame, f"{len(det)} detections, {len(keep)} prompts, "
+                           f"{args.need} needed -- {verdict}",
+                    (20, 46), cv2.FONT_HERSHEY_SIMPLEX, 1.1, (255, 255, 255), 3)
+        out_path = Path(out_path)
+        if not out_path.is_absolute():
+            out_path = root / out_path
+        out_path.parent.mkdir(parents=True, exist_ok=True)
+        cv2.imwrite(str(out_path), frame, [cv2.IMWRITE_JPEG_QUALITY, 92])
+        print(f"rendered {out_path}")
 
     cap = cv2.VideoCapture(str(video))
     if not cap.isOpened():
@@ -151,12 +179,16 @@ def main():
     cap.release()
     if not ok:
         raise SystemExit(f"cannot read frame {args.at}")
-    raw, kept = count(frame)
+    det, keep = detect(frame)
+    raw, kept = len(det), len(keep)
 
     print(f"frame {args.at} of {video.name}")
     print(f"  {raw} player detections at confidence {CONFIDENCE}")
     print(f"  {kept} prompts after de-duplication")
     print(f"  {args.need} needed\n")
+    if args.render:
+        render(frame.copy(), det, keep,
+               "PASS" if kept >= args.need else "FAIL", args.render)
     if kept >= args.need:
         print(f"PASS -- a run from here can reach all {args.need} players.")
         return 0
