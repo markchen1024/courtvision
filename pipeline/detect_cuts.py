@@ -1,4 +1,4 @@
-﻿"""Find the hard cuts, and the longest single-shot stretches between them.
+"""Find the hard cuts, and the longest single-shot stretches between them.
 
 SAM2 takes its prompts once and matches by appearance memory, so it holds
 identity within a shot and loses it across one -- measured here and in
@@ -49,6 +49,75 @@ import numpy as np
 from progress import Progress
 
 
+GX, GY, CELLS = 3, 3, 16
+
+
+def grid_hist(frame):
+    """Per-cell HSV histograms on a 3x3 grid.
+
+    Not one histogram over the frame: whole-frame colour cannot separate a
+    wide shot from a courtside close-up on this broadcast -- both are arena
+    blue, crowd and pale wood -- and a cut we could see with our eyes scored
+    above threshold. Per-cell histograms carry where the colours are, so a cut
+    moves every cell while a pan leaves several recognisable.
+    """
+    small = cv2.resize(frame, (321, 180))
+    hsv = cv2.cvtColor(small, cv2.COLOR_BGR2HSV)
+    cells = []
+    for gy in range(GY):
+        for gx in range(GX):
+            cell = hsv[gy * 60:(gy + 1) * 60, gx * 107:(gx + 1) * 107]
+            h = cv2.calcHist([cell], [0, 1], None, [CELLS, CELLS],
+                             [0, 180, 0, 256])
+            cells.append(cv2.normalize(h, h).flatten())
+    return cells
+
+
+def similarity(a, b):
+    return float(np.mean([cv2.compareHist(x, y, cv2.HISTCMP_CORREL)
+                          for x, y in zip(a, b)]))
+
+
+def find_cuts(video, threshold=0.55, flash_window=5, start=0, end=None,
+              progress=None):
+    """Frame indices where the picture changes and stays changed.
+
+    Returns (cuts, flashes, frames_read). A flash -- and an arena is full of
+    them -- collapses a histogram exactly like a cut, so a collapse only counts
+    once the picture has failed to come back within flash_window frames.
+    """
+    cap = cv2.VideoCapture(str(video))
+    if not cap.isOpened():
+        raise SystemExit(f"cannot open {video}")
+    if start:
+        cap.set(cv2.CAP_PROP_POS_FRAMES, start)
+    cuts, flashes = [], 0
+    prev, pending, idx = None, None, start
+    while end is None or idx < end:
+        ok, frame = cap.read()
+        if not ok:
+            break
+        h = grid_hist(frame)
+        if pending is not None:
+            at, before = pending
+            if similarity(before, h) >= threshold:
+                flashes += 1
+                pending = None
+            elif idx - at >= flash_window:
+                cuts.append(at)
+                pending = None
+        elif prev is not None and similarity(prev, h) < threshold:
+            pending = (idx, prev)
+        prev = h
+        idx += 1
+        if progress and (idx - start) % 500 == 0:
+            progress(idx, len(cuts), flashes)
+    if pending is not None:
+        cuts.append(pending[0])
+    cap.release()
+    return cuts, flashes, idx
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--video", required=True)
@@ -76,59 +145,12 @@ def main():
     if start:
         cap.set(cv2.CAP_PROP_POS_FRAMES, start)
 
-    # A 3x3 grid, not one histogram over the frame. Whole-frame colour cannot
-    # separate a wide shot from a courtside close-up here -- both are arena
-    # blue, crowd, and pale wood, and the correlation stayed above threshold
-    # across a cut we could see with our eyes. Per-cell histograms carry where
-    # the colours are, so a cut moves every cell while a pan leaves several
-    # recognisable.
-    GX, GY, CELLS = 3, 3, 16
+    def report(i, ncuts, nflash):
+        prog.step(500, note=f"frame {i}, {ncuts} cuts, {nflash} flashes")
 
-    def hist(frame):
-        small = cv2.resize(frame, (321, 180))
-        hsv = cv2.cvtColor(small, cv2.COLOR_BGR2HSV)
-        cells = []
-        for gy in range(GY):
-            for gx in range(GX):
-                cell = hsv[gy * 60:(gy + 1) * 60, gx * 107:(gx + 1) * 107]
-                h = cv2.calcHist([cell], [0, 1], None, [CELLS, CELLS],
-                                 [0, 180, 0, 256])
-                cells.append(cv2.normalize(h, h).flatten())
-        return cells
-
-    def similarity(a, b):
-        return float(np.mean([cv2.compareHist(x, y, cv2.HISTCMP_CORREL)
-                              for x, y in zip(a, b)]))
-
-    cuts = []
-    flashes = 0
-    prev = None
-    pending = None          # (frame index, histogram from before the collapse)
-    idx = start
     prog = Progress("detect-cuts", total=end - start)
-    while idx < end:
-        ok, frame = cap.read()
-        if not ok:
-            break
-        h = hist(frame)
-        if pending is not None:
-            at, before = pending
-            if similarity(before, h) >= args.threshold:
-                flashes += 1          # picture came back: a flash, not a cut
-                pending = None
-            elif idx - at >= args.flash_window:
-                cuts.append(at)       # still gone: a real cut
-                pending = None
-        elif prev is not None and \
-                similarity(prev, h) < args.threshold:
-            pending = (idx, prev)
-        prev = h
-        idx += 1
-        if (idx - start) % 500 == 0:
-            prog.step(500, note=f"frame {idx}, {len(cuts)} cuts, {flashes} flashes")
-    if pending is not None:
-        cuts.append(pending[0])
-    cap.release()
+    cuts, flashes, idx = find_cuts(args.video, args.threshold,
+                                   args.flash_window, start, end, report)
     prog.done(note=f"{len(cuts)} cuts, {flashes} flashes")
     print(f"\nignored {flashes} flashes (picture returned within "
           f"{args.flash_window} frames)")
