@@ -326,3 +326,41 @@ shot segmentation with re-prompting, stitched by jersey number.
 
 Artifacts: out/final_det3006.mp4, out/review_sam2_det3006.mp4,
 out/identities_det3006.json.
+
+## Jersey OCR: the notebook's v3 against v7 (2026-08-12)
+
+The notebook pins `basketball-jersey-numbers-ocr/3`. Roboflow has published up
+to v7, and the difference is larger than the version numbers suggest: v3's
+LoRA base is SmolVLM2-**256M** (884MB), v7's is the **2.2B** (12.6GB). Training
+crops also grew, 3136 to 3615.
+
+Same 33-second segment, same SAM2 tracks, same roster, same
+roster-constrained assignment. Only the OCR version changed.
+
+**Both name the same eleven tracks.** What changes is how hard the evidence is:
+
+| track | v3 (256M) | v7 (2.2B) |
+|---|---|---|
+| #3 Josh Hart | `9:95, 3:50` — **the misread wins** | `3:174, 2:5` |
+| #8 OG Anunoby | `8:139, 0:103` | `8:169, 0:65` |
+| #25 Mikal Bridges | `25:121, 8:32, 45:21` | `25:142, 5:19, 8:12` |
+| cluster→club evidence | 9 vs 7 | 10 vs 6 |
+
+Hart's 3 read as a 9 in every earlier run on this footage, on both segments
+and under both aggregation rules — the one systematic error this pipeline
+had. On the 2.2B base it disappears.
+
+The identical outcome is not an argument for staying on v3. It only holds
+because the roster constraint is strong enough to overturn a 95-50 misread,
+and that safety net has a hole in it: track 7 reads `8:139, 0:103`, and 0 is
+a number the Knicks roster does contain (Delon Wright). A read that is wrong
+*and* plausible cannot be caught by the roster, and v3 was 36 votes from
+producing one. v7 widens that to 104.
+
+v7 is the default from here; `--ocr-model basketball-jersey-numbers-ocr/3`
+restores the notebook's.
+
+Cost: the 2.2B base is a 12.6GB download, and `inference` unpacks it to a
+flattened cache directory it then cannot read — the same trap as the 256M
+base but at a different path (`lora-bases/smolvlm2/main`, without the
+`smolvlm-256m` level). A junction avoids storing it twice.

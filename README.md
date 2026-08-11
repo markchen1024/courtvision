@@ -59,7 +59,7 @@ never been the problem — the prompts were coming from the wrong detector.
 | Detection | RF-DETR (`basketball-player-detection-3-ycjdo/4`) — players, jersey-number regions, referees, rim, ball |
 | Tracking | SAM2 (`sam2.1_hiera_large`) through `segment-anything-2-real-time` |
 | Teams | SigLIP embeddings → UMAP → K-means, no labelling |
-| Numbers | SmolVLM2 LoRA (`basketball-jersey-numbers-ocr/3`), aggregated over a track |
+| Numbers | SmolVLM2 LoRA (`basketball-jersey-numbers-ocr/7`), aggregated over a track. The notebook pins v3; v7 replaces it on a same-conditions comparison — its base is the 2.2B rather than the 256M, and the one systematic misread on this footage disappears |
 | Court | `basketball-court-detection-2/14` keypoints → `ViewTransformer` → NBA court plan from `sports.basketball` |
 | Front end | Next.js on port 3100, playing the clip beside a live top-down court |
 
@@ -159,18 +159,22 @@ Each reports something a long way from its cause.
   silently ignored, and it only works with `onnxruntime-gpu` installed in place
   of `onnxruntime`. Measured: identify goes from 30 minutes to 9.5.
 - The same package unpacks the OCR model's LoRA base into a *flattened*
-  directory — `~lora-bases-smolvlm2-smolvlm-256m-main-<hash>` — then reads it
-  back from the nested path `lora-bases/smolvlm2/smolvlm-256m/main`. The
-  weights download fine and the load still fails, again as a repo-id error.
-  Copy the flattened directory's contents to the nested path once:
+  directory — `~lora-bases-smolvlm2-...-<hash>` — then reads it back from a
+  nested path. The weights download fine and the load still fails, again as a
+  repo-id error. The path differs by base: v3 wants
+  `lora-bases/smolvlm2/smolvlm-256m/main`, v7 wants `lora-bases/smolvlm2/main`.
+  Link the flattened directory to where it is looked for — a junction rather
+  than a copy, since the 2.2B base is 12.6GB:
 
   ```powershell
   $c = "$HOME\.cache\inference"
-  $src = Get-Item "$c\~lora-bases-smolvlm2-smolvlm-256m-main-*"
-  $dst = "$c\lora-bases\smolvlm2\smolvlm-256m\main"
-  New-Item -ItemType Directory -Force $dst
-  Get-ChildItem -LiteralPath $src -File | Where-Object Name -notlike "._*" |
-      Copy-Item -Destination $dst
+  # v7 (2.2B, the default)
+  $src = (Get-ChildItem $c -Directory -Filter "~lora-bases-smolvlm2-main-*")[0].FullName
+  $dst = "$c\lora-bases\smolvlm2\main"
+  # v3 (256M) would be ~lora-bases-smolvlm2-smolvlm-256m-main-* into
+  #   $c\lora-bases\smolvlm2\smolvlm-256m\main
+  New-Item -ItemType Directory -Force (Split-Path $dst)
+  New-Item -ItemType Junction -Path $dst -Target $src
   ```
 
 Clips must be written **faststart** or the browser cannot begin playback until

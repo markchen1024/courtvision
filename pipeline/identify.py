@@ -51,7 +51,14 @@ from progress import Progress
 DETECTION_MODEL_ID = "basketball-player-detection-3-ycjdo/4"
 DETECTION_CONFIDENCE = 0.4
 DETECTION_IOU = 0.9
-OCR_MODEL_ID = "basketball-jersey-numbers-ocr/3"
+# The notebook pins v3. v7 replaces it here on a same-conditions comparison
+# (docs/tracking-comparison.md): identical 33s segment, identical SAM2 tracks,
+# identical roster and aggregation, only the OCR version swapped. Both name
+# the same eleven tracks; what changes is how hard the evidence is. Hart's 3
+# went from losing 95-50 to a misread 9, to winning 174-5. The two differ by
+# more than training data -- v3's base is SmolVLM2-256M, v7's is the 2.2B.
+NOTEBOOK_OCR_MODEL = "basketball-jersey-numbers-ocr/3"
+OCR_MODEL_ID = "basketball-jersey-numbers-ocr/7"
 OCR_PROMPT = "Read the number."
 IOS_THRESHOLD = 0.9
 N_CONSECUTIVE = 3
@@ -93,6 +100,12 @@ def main():
                     help="attach numbers to players via SAM2 silhouettes "
                          "(the notebook's way; costs ~0.3s per OCR frame) "
                          "or plain box overlap")
+    ap.add_argument("--detection-model", default=DETECTION_MODEL_ID,
+                    help="Roboflow model id for players and number regions")
+    ap.add_argument("--ocr-model", default=OCR_MODEL_ID,
+                    help=f"Roboflow model id for reading the digits. Defaults "
+                         f"to v7 on measured evidence; {NOTEBOOK_OCR_MODEL} is "
+                         f"what the notebook pins, and restores it.")
     ap.add_argument("--min-votes", type=int, default=2,
                     help="votes a roster-constrained assignment needs before "
                          "it counts as confirmed; below this it is kept but "
@@ -129,8 +142,11 @@ def main():
     all_tids = sorted({t["tid"] for rows in frames.values() for t in rows})
     print(f"{len(grid)} frames on the grid, {len(all_tids)} tracks")
 
-    det_model = get_model(model_id=DETECTION_MODEL_ID)
-    ocr = get_model(model_id=OCR_MODEL_ID)
+    det_model = get_model(model_id=args.detection_model)
+    ocr = get_model(model_id=args.ocr_model)
+    if args.ocr_model != NOTEBOOK_OCR_MODEL:
+        print(f"OCR: {args.ocr_model} (the notebook pins "
+              f"{NOTEBOOK_OCR_MODEL})")
     sam_model = None
     if args.match == "mask":
         from ultralytics import SAM
@@ -385,7 +401,7 @@ def main():
     Path(args.out).parent.mkdir(parents=True, exist_ok=True)
     Path(args.out).write_text(json.dumps({
         "video": args.video, "boxes": args.boxes,
-        "models": {"detection": DETECTION_MODEL_ID, "ocr": OCR_MODEL_ID},
+        "models": {"detection": args.detection_model, "ocr": args.ocr_model},
         "policy": f"IoS>={IOS_THRESHOLD}, {N_CONSECUTIVE} consecutive reads",
         "identities": {str(k): v for k, v in identities.items()},
         "labels": {str(k): v for k, v in labels.items()},
