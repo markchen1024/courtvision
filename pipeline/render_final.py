@@ -27,6 +27,7 @@ import numpy as np
 from progress import Progress
 
 FONT = "out/fonts/Staatliches-Regular.ttf"   # the notebook's typeface
+CHIP_H = 34          # a chip's height in pixels, for pushing overlaps apart
 CLUB_COLOURS = {"warriors": "#FFC72C", "grizzlies": "#5D76A9",
                 "knicks": "#F58426", "celtics": "#007A33",
                 # Pistons red, not their blue: the Knicks wear blue on this
@@ -43,6 +44,11 @@ def main():
     ap.add_argument("--start", type=int, default=0)
     ap.add_argument("--end", type=int, default=10**9)
     ap.add_argument("--out", required=True)
+    ap.add_argument("--nvenc", action="store_true",
+                    help="encode on the GPU (h264_nvenc) instead of libx264. "
+                         "Off by default: ffmpeg lists h264_nvenc on this box "
+                         "but cannot open it (driver 591.86), and the encode "
+                         "is not the bottleneck anyway -- SAM2 runs per frame.")
     args = ap.parse_args()
 
     import supervision as sv
@@ -64,11 +70,23 @@ def main():
         text_color=sv.Color.WHITE, text_position=sv.Position.BOTTOM_CENTER,
         color_lookup=sv.ColorLookup.INDEX)
 
+    # "Tim Hardaway Jr." ends in "Jr.", not in a surname, and taking the last
+    # word rendered him as "#8 Jr." on screen. Same trap waiting in "Ronald
+    # Holland II" and "Lindy Waters III".
+    SUFFIXES = {"jr", "sr", "ii", "iii", "iv", "v"}
+
+    def surname_of(full):
+        parts = full.split()
+        tail = []
+        while len(parts) > 1 and parts[-1].lower().rstrip(".") in SUFFIXES:
+            tail.insert(0, parts.pop())
+        return " ".join(parts[-1:] + tail)
+
     def chip(tid):
         v = idn.get(tid)
         if not v or not v["number"]:
             return None
-        surname = v["name"].split()[-1] if v["name"] else ""
+        surname = surname_of(v["name"]) if v["name"] else ""
         return f"#{v['number']} {surname}".strip()
 
     sam = SAM("sam2.1_b.pt")
@@ -81,10 +99,15 @@ def main():
     start, end = args.start, min(args.end, total - 1)
     cap.set(cv2.CAP_PROP_POS_FRAMES, start)
 
+    # The GPU is already busy running SAM2 per frame; NVENC costs it almost
+    # nothing and takes the encode off the CPU, which is the other thing
+    # feeding this pipe.
+    codec = (["-c:v", "h264_nvenc", "-preset", "p4", "-cq", "20"]
+             if args.nvenc else
+             ["-c:v", "libx264", "-crf", "20", "-preset", "veryfast"])
     ff = subprocess.Popen(
         ["ffmpeg", "-y", "-v", "error", "-f", "rawvideo", "-pix_fmt", "bgr24",
-         "-s", f"{w}x{h}", "-r", f"{fps}", "-i", "-",
-         "-c:v", "libx264", "-crf", "20", "-preset", "veryfast",
+         "-s", f"{w}x{h}", "-r", f"{fps}", "-i", "-", *codec,
          "-pix_fmt", "yuv420p", args.out], stdin=subprocess.PIPE)
 
     prog = Progress("final-render", total=end - start + 1)
@@ -113,8 +136,30 @@ def main():
             labels = [chip(r["tid"]) for r in rows]
             keep = np.array([i for i, t in enumerate(labels) if t])
             if len(keep):
+                shown = det[keep]
+                # Chips sit under a player's feet, and players stand next to
+                # each other, so two chips land on the same pixels and one is
+                # drawn over the other -- "#32 Towns" was unreadable behind
+                # "#12 Harris". Push overlapping chips down a row each: the
+                # anchor stays under the right player, only the text moves.
+                order = np.argsort(shown.xyxy[:, 3])          # top of court first
+                taken = []
+                offsets = np.zeros(len(shown))
+                for i in order:
+                    x1, _, x2, y2 = shown.xyxy[i]
+                    row = 0
+                    while any(abs((y2 + row * CHIP_H) - ty) < CHIP_H
+                              and not (x2 < tx1 or x1 > tx2)
+                              for tx1, tx2, ty in taken):
+                        row += 1
+                    offsets[i] = row * CHIP_H
+                    taken.append((x1, x2, y2 + row * CHIP_H))
+                nudged = shown.xyxy.copy()
+                nudged[:, 1] += offsets
+                nudged[:, 3] += offsets
+                shown = sv.Detections(xyxy=nudged, class_id=shown.class_id)
                 frame = label_annotator.annotate(
-                    scene=frame, detections=det[keep],
+                    scene=frame, detections=shown,
                     labels=[labels[i] for i in keep],
                     custom_color_lookup=clubs[keep])
         ff.stdin.write(frame.tobytes())
