@@ -1,61 +1,163 @@
 # courtvision
 
-Turning basketball footage into a live stat line.
+Give it a broadcast of a basketball game. It returns who is on the floor, where
+they are standing in metres, and which club they play for — from the television
+picture alone, with no fixed camera and no instrumented arena.
 
-A weekend experiment: take an ordinary video of a game, detect and track the players,
-map the court from camera perspective into a top-down plan, and update a stat panel as
-the video plays.
+Currently: an eight-second possession from NYK @ DET, game 4 of the 2025 East
+first round. Ten players on court, ten identified by jersey number, ten named
+against the roster, no duplicates.
+
+## What it actually does, and what that cost
+
+Every number below was measured on this footage by the scripts in `pipeline/`,
+not quoted from a paper or a vendor page. Where something has not been
+measured, it says so.
+
+| stage | measured |
+|---|---|
+| Player detection, per frame | 10 of 10 players on **52%** of frames — the rest of the time somebody is genuinely off camera |
+| Jersey-number regions | **precision 95.7%, recall 82.2%** against 30 hand-labelled frames (163 boxes) |
+| Court projection | **88 of 88** sampled frames solved, 10–12 landmarks found where 4 are needed |
+| Identity, 8-second clip | 10 of 10, no duplicates |
+| Identity, 17-second clip | 8–9 of 10, one duplicate |
+
+That last row is the honest shape of this: the result degrades with clip
+length, for a reason given below.
 
 ## The interesting part
 
-The detection and tracking are off-the-shelf. The part that actually turns pixels into
-basketball is the **homography** — the perspective transform from court markings in the
-frame to a standard court plan, so a player's position on screen becomes a position on
-the floor. Everything downstream (heat maps, shot charts, spacing) falls out of having
-real court coordinates.
+Not the models. All five are off the shelf. What took the time was finding out
+which of the pipeline's own assumptions were wrong.
 
-The footage here comes from a camera that pans left and right but never moves. That
-matters more than it sounds: a camera that only rotates about its optical centre maps
-between any two of its frames by a *pure homography*. So the court only has to be
-calibrated once, on a reference frame; every other frame is registered back to that
-reference by feature matching, and the two homographies compose. No per-frame court-line
-detection required.
+**The tracker only asks once.** SAM2 takes its prompts on frame 0 and
+propagates from there, so the set of players it can ever identify is fixed by a
+single detection call. On this broadcast only about half of all frames show all
+ten players, and the camera cuts every 8.8 seconds — so a longer clip is not
+more data, it is more chances to be holding the wrong ten people. Eight-second
+single-shot segments are not a demo shortcut; they are the regime the
+architecture actually supports.
+
+**The roster is a constraint, not a lookup table.** One number belongs to one
+player. Deciding each track independently throws that away and produces two
+players wearing #0. Solving a club's tracks together — maximum-weight matching
+between tracks and the club's numbers, weighted by OCR votes — recovers
+readings that independent voting refuses: a track tied 13–13 between #25 and #8
+resolves to #25 once #8 is taken by a track with twice the evidence.
+
+**Gates belong at the front.** The pipeline's checks were all at the end, where
+a bad result is cheap. Three runs of roughly an hour each were decided by a
+detection call in minute two and only discovered at the final render. The fix
+was not a model: count the lineup on the prompt frame and refuse to continue
+when it is short. Its first run repaid itself by revealing that the segment had
+never been the problem — the prompts were coming from the wrong detector.
 
 ## Stack
 
-- Python + OpenCV
-- **RF-DETR** for player detection — first real-time detector past 60 AP on COCO, and
-  it transfers to custom domains better than the YOLO line. YOLO26 is the pick instead
-  if this ever has to run on CPU or an edge device.
-- **Deep-EIoU** for tracking, not ByteTrack. Pedestrian trackers underperform badly on
-  sport: on SportsMOT, ByteTrack scores 62.8 HOTA, BoT-SORT 68.7, Deep-EIoU 77.2. Fast
-  erratic motion, near-identical uniforms and constant occlusion are exactly the cases
-  the pedestrian benchmarks do not cover.
-- Camera-motion homography chain (ORB/SIFT + RANSAC against a reference frame)
-- Court homography via `cv2.findHomography`
-- Team assignment by clustering appearance embeddings — no labelling needed
-- Static web front end that plays the clip beside the top-down view
+| | |
+|---|---|
+| Detection | RF-DETR (`basketball-player-detection-3-ycjdo/4`) — players, jersey-number regions, referees, rim, ball |
+| Tracking | SAM2 (`sam2.1_hiera_large`) through `segment-anything-2-real-time` |
+| Teams | SigLIP embeddings → UMAP → K-means, no labelling |
+| Numbers | SmolVLM2 LoRA (`basketball-jersey-numbers-ocr/3`), aggregated over a track |
+| Court | `basketball-court-detection-2/14` keypoints → `ViewTransformer` → NBA court plan from `sports.basketball` |
+| Front end | Next.js on port 3100, playing the clip beside a live top-down court |
+
+This follows [Roboflow's basketball notebook](https://blog.roboflow.com/identify-basketball-players/)
+component for component. Where this repo deviates, the deviation was measured
+against the original on the same footage — see `docs/tracking-comparison.md`.
+
+## What was tried and rejected
+
+Kept here because a negative result that is not written down gets paid for
+twice.
+
+- **Fine-tuning the number detector on our own labels.** 150 frames labelled by
+  hand, split by game time, scored before and after. It got worse: precision
+  95.7% → 68.0%, false positives 6 → 57. 101 training frames against the 13
+  games behind the base weights. The base detector stayed.
+- **Filtering unreadable crops with signals we already had** — box size,
+  detector confidence, Laplacian sharpness. None separates a correct read from
+  a wrong one; a threshold on confidence drops 25 bad reads and loses 26 good
+  ones. Doing this properly needs a trained legibility classifier.
+- **Deep-EIoU**, which an earlier version of this file recommended on SportsMOT
+  numbers. Never implemented. The tutorial designates SAM2 and this repo
+  follows the designated baseline, so the comparison was never run and the
+  claim has been removed rather than left standing unearned.
+
+## Known limits
+
+- **Eight seconds, not a game.** Identity does not survive a camera cut, and
+  this broadcast cuts every 8.8 seconds. The route to a full game is in
+  `docs/tracking-comparison.md`: segment at cut boundaries, re-prompt each
+  segment, stitch identities across them by jersey number. Not built.
+- **No event detection.** No shots, rebounds, assists or made/missed.
+  `ShotEventTracker` ships in `sports@feat/basketball` and has never been run
+  here. The event list on the homepage is placeholder and labelled as such.
+- **No ball tracking.** Small, fast, heavily occluded — a different problem.
+- **No tracking accuracy benchmark.** No HOTA, no IDF1. "10 of 10" is counted
+  on one clip, not measured against ground truth.
+- **One game, one broadcaster.** Nothing here has been tried on another arena,
+  another camera crew, or another league.
+
+`docs/gap-analysis.md` holds the full version of this, stage by stage.
 
 ## Run it
 
 The models need a GPU-sized environment, kept outside the repo:
 
 ```bash
-C:/Users/Mark/.venvs/courtvision/Scripts/python.exe pipeline/try_models.py --every 30
+python -m venv ~/.venvs/courtvision
+~/.venvs/courtvision/Scripts/pip install torch torchvision --index-url https://download.pytorch.org/whl/cu124
+~/.venvs/courtvision/Scripts/pip install rfdetr supervision inference onnxruntime-gpu ultralytics \
+    "git+https://github.com/roboflow/sports.git@feat/basketball" "supervision==0.27.0"
 ```
 
-Three traps in that environment on Windows, each of which reports something a
-long way from its cause:
+Then, gate first — it costs two minutes and decides the ceiling of everything
+after it:
+
+```bash
+python pipeline/check_lineup.py --video web/media/demo.mp4 --render out/lineup.jpg
+python pipeline/detect_cuts.py  --video web/media/demo.mp4
+python pipeline/track_sam2_tutorial.py --video web/media/demo.mp4 --out out/tracks.json
+python pipeline/identify.py --video web/media/demo.mp4 --boxes out/tracks.json \
+    --rosters web/data/rosters_det.json --out out/identities.json --confirm roster
+python pipeline/render_final.py --video web/media/demo.mp4 --boxes out/tracks.json \
+    --identities out/identities.json --out out/final.mp4
+python pipeline/project_tutorial.py --video web/media/demo.mp4 --boxes out/tracks.json \
+    --identities out/identities.json --out web/data/nba.json
+```
+
+Long runs report to files rather than a terminal buffer —
+`python pipeline/progress.py --serve`, then http://localhost:8799. A two-and-a-
+half hour SAM2 run once produced no visible output at all because ultralytics
+buffered every result; progress belongs in files.
+
+The front end:
+
+```bash
+cd webapp && npx next dev -p 3100
+```
+
+`web/media/` and `web/data/` are the sources of truth; `webapp/public/{media,data}`
+are junctions to them.
+
+### Three Windows traps
+
+Each reports something a long way from its cause.
 
 - `rfdetr[train]` pulls in `opencv-python-headless`, which ships the same `cv2`
-  module as `opencv-python` and wins by being installed second. Everything keeps
-  working until `calibrate.py` opens a window and OpenCV reports that it was
-  built without GUI support. Uninstall the headless build and reinstall
-  `opencv-python` — a superset, so the training dependencies are satisfied
-  either way.
-- `inference` defaults its model cache to `/tmp/cache`. `identify.py` sets
-  `MODEL_CACHE_DIR` to `~/.cache/inference` before importing it; without that,
-  the jersey-number OCR fails claiming a malformed HuggingFace repo id.
+  module as `opencv-python` and wins by installing second. Everything keeps
+  working until `calibrate.py` opens a window and OpenCV says it was built
+  without GUI support. Uninstall the headless build and reinstall
+  `opencv-python` — a superset, so training dependencies are satisfied either way.
+- `inference` defaults its model cache to `/tmp/cache`, which on Windows
+  produces `/tmp/cache\lora-bases/...` and a complaint from transformers about
+  a malformed HuggingFace repo id. `config.inference_env()` sets
+  `MODEL_CACHE_DIR` before the import — along with `ONNXRUNTIME_EXECUTION_PROVIDERS`,
+  without which every model runs on CPU. Setting it after the import is
+  silently ignored, and it only works with `onnxruntime-gpu` installed in place
+  of `onnxruntime`. Measured: identify goes from 30 minutes to 9.5.
 - The same package unpacks the OCR model's LoRA base into a *flattened*
   directory — `~lora-bases-smolvlm2-smolvlm-256m-main-<hash>` — then reads it
   back from the nested path `lora-bases/smolvlm2/smolvlm-256m/main`. The
@@ -71,44 +173,16 @@ long way from its cause:
       Copy-Item -Destination $dst
   ```
 
-The front end itself needs nothing but Python:
+Clips must be written **faststart** or the browser cannot begin playback until
+it has the whole file:
 
 ```bash
-python pipeline/make_sample_data.py --seconds 180   # writes web/data/sample.json
-python pipeline/serve.py                            # open http://localhost:8765
+ffmpeg -i raw.mp4 -c copy -movflags +faststart web/media/nba.mp4
 ```
-
-Transport controls come from [Plyr](https://github.com/sampotts/plyr) (MIT), vendored into
-`web/assets/vendor/` rather than pulled from a CDN — including its icon sprite, which Plyr
-otherwise fetches from `cdn.plyr.io` at runtime. The demo has to survive a room with bad
-wifi.
-
-Two pages, sharing `web/assets/theme.css` and one court renderer in
-`web/assets/court.js`:
-
-- `/` — the product page. Mock SaaS: real copy, real numbers off the tracking data, and a
-  hero that plays the actual clip beside a live top-down court. Every link but the demo
-  goes nowhere. The stat tabs — box score, team comparison, shot chart, timeline, minutes
-  — run on one invented game that is internally consistent: the zone splits add back to
-  the box score's field goals, the shot chart is generated from those zones, and the
-  plus-minus column sums to five times the final margin.
-- `/app.html` — the viewer. Footage, top-down court, box score, play by play.
-
-Drop a clip at `web/media/game.mp4` and it plays automatically. With no clip both pages
-fall back to an internal clock so there is always something moving.
-
-The clip has to be written **faststart**, or the browser cannot begin playback until it
-has pulled the entire file — an exported mp4 usually has its `moov` atom at the end:
-
-```bash
-ffmpeg -i raw.mp4 -c copy -movflags +faststart web/media/game.mp4   # remux, no re-encode
-```
-
-`serve.py` rather than `python -m http.server` because the stdlib server ignores Range
-requests — the browser then has to fetch the whole clip before it plays and the scrubber
-does nothing, which defeats the point.
 
 ## Status
 
-Experimental. Deliberately scoped: no ball tracking (small, fast, heavily occluded — a
-different problem), no claimed accuracy numbers.
+Experimental, and scoped on purpose. The box score on the homepage is the real
+ESPN line for this game; the shot-zone split is illustrative and adds back to
+the real field-goal totals; the event list is placeholder. Anything not
+measured says so.
