@@ -52,9 +52,7 @@ def main():
     args = ap.parse_args()
 
     config.load_env()
-    os.environ.setdefault("ROBOFLOW_API_KEY", config.secret("ROBOFLOW_API_KEY"))
-    os.environ.setdefault("MODEL_CACHE_DIR",
-                          str(Path.home() / ".cache" / "inference"))
+    config.inference_env()   # key, cache path, GPU provider -- before the import
 
     import cv2
     import torch
