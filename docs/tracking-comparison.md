@@ -592,3 +592,13 @@ one second too early.
 This is a deviation from the notebook, which prompts with every player-class
 detection on frame 0. `--no-court-filter` restores that on both
 `check_lineup.py` and `track_sam2_tutorial.py`.
+
+Re-cut one second later as `seg_02m28.00s_13s` and run end to end: the gate
+passes at 11 detections, one struck out as off the court, 10 prompts. SAM2
+keeps all ten for the full 12.5s. Ten tracks carry a full name, and the split
+is five a side for the first time on this segment -- Knicks Brunson, Towns,
+Hart, Bridges, Anunoby; Pistons Harris, Beasley, Duren, Hardaway Jr., and
+**Cunningham**, track 10, `2` read twenty times, verified against the raw
+frames where the jersey is legible. `#2 Miles McBride` is gone, because
+nothing was left over to give his number to. Both spectators in CUNNINGHAM
+jerseys sit in the crowd untinted and unlabelled.
