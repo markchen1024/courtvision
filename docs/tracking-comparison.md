@@ -602,3 +602,49 @@ Hart, Bridges, Anunoby; Pistons Harris, Beasley, Duren, Hardaway Jr., and
 frames where the jersey is legible. `#2 Miles McBride` is gone, because
 nothing was left over to give his number to. Both spectators in CUNNINGHAM
 jerseys sit in the crowd untinted and unlabelled.
+
+## Re-seeding SAM2 fixes the tracking and breaks the naming (2026-08-12)
+
+Mark, on the 19s render: Beasley and Brunson just disappear at 12s. They do,
+and by design -- after their contact both tracks sit on Beasley, so there is
+no box on Brunson at all and no rendering choice brings him back. The only
+real fix is upstream, so the tracker was changed to re-detect and re-seed
+every three seconds, inheriting ids by a one-to-one assignment. One-to-one is
+the whole trick: when two tracks have merged onto one man, only one of them
+can be given that man's box and the other is forced onto what is left, which
+is the player it lost.
+
+It works, at the level it was aimed at:
+
+| | prompt once | re-seed every 3s |
+|---|---|---|
+| merge lasts | 7.3s, to the end of the clip | 3.0s |
+| Brunson | lost from 11.9s | re-acquired at 15.0s, verified on the crop |
+| Duren's duplicate | ids 9 and 10 | gone -- prompts are de-duplicated now |
+| tracks named | 10, all correct | 11, one of them invented |
+
+Two things it did not fix, and one it broke.
+
+It did not un-merge them at 12.0s. The re-seed lands while the two are still
+in contact, the detector returns two boxes on top of each other, and SAM2 has
+them merged again within a fifth of a second. Only the 15.0s re-seed, after
+they separate, splits the pair. Re-seeding during contact is wasted.
+
+Ids drift. Track 11 was born at 9.0s on a man standing behind the basket --
+inside the court plus 3m, so the on-court filter allowed him -- and became
+Brunson at 15.0s. Its crops therefore span two people and the team clustering
+split 11 votes to 10, putting it on the Pistons, whose roster has no 11. The
+recovered track went unnamed.
+
+And it invented a player. Harris ended up on two ids, 5 until 15s and 12 from
+18s, both reading `12`. The roster-constrained assignment gives one number per
+track, so the stronger took #12 and the other was pushed onto the only number
+left: `#7 Paul Reed`, who did not play in this segment. Trading two players
+unmarked for seven seconds against a name on screen belonging to a man who is
+not on the floor is a bad trade by the standard the rest of this file keeps.
+
+The missing piece for both is tracklet association: tracks that never coexist
+and read the same number are one player, and must be merged before the
+assignment runs. That is GTA's job done with jersey numbers instead of ReID
+embeddings, which is the stronger evidence of the two. Until it exists,
+`--reprompt-seconds` defaults to 0 and the renders keep the single prompt.

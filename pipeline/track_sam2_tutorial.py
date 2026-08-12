@@ -23,6 +23,29 @@ visible once the notebook was read line by line:
 
 Output matches track_sam2.py's schema, so identify.py and render_final.py take
 either one and the two can be scored against each other.
+
+--reprompt-seconds re-detects and re-seeds mid-clip, which fixes tracking and
+breaks naming. It is off by default. Measured on seg_01m10.87s_19s at 3.0s:
+
+                        prompt once      re-seed every 3s
+    merge lasts         7.3s, to the end   3.0s
+    Brunson             lost from 11.9s    re-acquired at 15.0s
+    Duren duplicate     ids 9 and 10       gone (prompts are de-duplicated)
+    names               10, all correct    11, one of them invented
+
+The invention is the point. Harris ended up on two ids -- 5 until 15s and 12
+from 18s -- because a re-seed can hand a player a fresh id. The roster
+matching in identify.py assigns one number per track, so with #12 taken by the
+stronger of the two, the other was pushed onto the only number left and became
+`#7 Paul Reed`, who was not on the floor. Brunson's recovered track went
+unnamed for a related reason: its crops span two different people, so the team
+clustering split 11-10 and put it on the wrong side of a roster that has no
+11.
+
+Both need the same missing piece, tracklet association: tracks that never
+coexist and read the same number are one player and must be merged before the
+assignment. Until that exists, a wrong name on screen is worse than a missing
+one, so the default stays 0.
 """
 
 import argparse
@@ -54,10 +77,13 @@ def main():
     ap.add_argument("--no-court-filter", action="store_true",
                     help="prompt with every frame-0 detection, the notebook's "
                          "behaviour, including anyone in the crowd")
-    ap.add_argument("--reprompt-seconds", type=float, default=3.0,
+    ap.add_argument("--reprompt-seconds", type=float, default=0.0,
                     help="re-detect and re-seed every N seconds, inheriting "
-                         "track ids. 0 prompts once on frame 0, the notebook's "
-                         "behaviour, and lets a merge last to the final frame")
+                         "track ids. 3.0 is the measured setting; 0, the "
+                         "default, prompts once on frame 0 as the notebook "
+                         "does and lets a merge last to the final frame. Off "
+                         "by default because it currently costs more than it "
+                         "buys -- see the tracker's docstring")
     ap.add_argument("--stitch-iou", type=float, default=0.2,
                     help="IoU at which a fresh detection is the same object as "
                          "an existing track")
