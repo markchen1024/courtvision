@@ -26,6 +26,7 @@ import cv2
 import numpy as np
 
 import config
+import overlap
 from progress import Progress
 
 FONT = "out/fonts/Staatliches-Regular.ttf"   # the notebook's typeface
@@ -58,8 +59,16 @@ def main():
 
     sidecar = json.loads(Path(args.boxes).read_text())
     frames = {int(k): v for k, v in sidecar["frames"].items()}
-    idn = json.loads(Path(args.identities).read_text())["identities"]
-    idn = {int(k): v for k, v in idn.items()}
+    doc = json.loads(Path(args.identities).read_text())
+    idn = {int(k): v for k, v in doc["identities"].items()}
+    # Spans where this track was sitting on another track's player. Both boxes
+    # are real and both numbers are right, so nothing else in the pipeline can
+    # tell them apart -- but drawing them puts two names on one man and leaves
+    # the other unmarked. Better to mark neither until they separate.
+    collapse = {int(k): [tuple(s) for s in v]
+                for k, v in (doc.get("overlap") or {}).get("collapse", {}).items()}
+    if collapse:
+        print(f"{len(collapse)} tracks go unmarked inside their collapsed spans")
 
     clubs_present = sorted({v.get("club") for v in idn.values() if v.get("club")})
     club_order = clubs_present + [None]
@@ -138,21 +147,25 @@ def main():
             rows = [r for r in frames[f]
                     if not (idn.get(r["tid"]) or {}).get("ignored")
                     and (idn.get(r["tid"]) or {}).get("number")]
-        if rows:
-            boxes = np.array([r["box"] for r in rows], np.float32)
+        # re-tested every frame, not just the ones the sidecar carries: a
+        # collapse starts and ends part-way through a track's life
+        draw = [r for r in rows
+                if not overlap.is_contaminated(collapse, r["tid"], f)]
+        if draw:
+            boxes = np.array([r["box"] for r in draw], np.float32)
             res = sam(frame, bboxes=boxes.tolist(), verbose=False)[0]
             masks = (res.masks.data.cpu().numpy() > 0.5) \
                 if res.masks is not None else None
             clubs = np.array(
                 [club_order.index((idn.get(r["tid"]) or {}).get("club"))
-                 for r in rows])
+                 for r in draw])
             det = sv.Detections(
                 xyxy=boxes,
-                mask=masks if masks is not None and len(masks) == len(rows) else None,
+                mask=masks if masks is not None and len(masks) == len(draw) else None,
                 class_id=clubs)
             frame = mask_annotator.annotate(
                 scene=frame, detections=det, custom_color_lookup=clubs)
-            labels = [chip(r["tid"]) for r in rows]
+            labels = [chip(r["tid"]) for r in draw]
             keep = np.array([i for i, t in enumerate(labels) if t])
             if len(keep):
                 shown = det[keep]

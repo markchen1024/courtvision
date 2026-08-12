@@ -387,3 +387,66 @@ the honest outcome, and blank tracks are neither labelled nor tinted.
 Worth stating plainly: the bug was present for every segment. The first four
 did not hit it only because the numbers they misread happened not to exist on
 the other team's bench.
+
+## Two tracks on one player, and how to tell the two kinds apart (2026-08-12)
+
+On the 19-second segment Brunson went unmarked from about twelve seconds in.
+He was not lost. SAM2 held both his track and Beasley's, and after their
+contact both were on Beasley: IoU 0.06 at 11.0s, 0.29 at 12.0s, 0.97 at 12.5s,
+1.00 from 14.0s to the end of the clip. Brunson's box area jumped 4472 to
+24738 at the moment of contact.
+
+Nothing downstream could see it. Both tracks had read their own jersey for
+twelve clean seconds before the collision, so both numbers were right; the
+duplicate gate compares numbers, and 11 is not 5. The vote is taken over the
+whole clip, so the contaminated reads were outvoted rather than excluded. The
+render then drew exactly what it was told.
+
+`pipeline/overlap.py` tests the tracks for sustained shared position --
+intersection over the *smaller* box, since a swallowed player sits inside the
+larger one and IoU understates that badly. Two faults look identical to that
+test and want opposite treatment, so they are separated by coverage, the
+overlap's length over the shorter track's lifetime:
+
+| | coverage | what it is | treatment |
+|---|---|---|---|
+| duplicate | >= 90% | frame 0 prompted twice on one man | retire the track with fewer votes, keep the other's reads |
+| collapse | < 90% | two players merged mid-clip | no votes and no drawing inside the span |
+
+Both thresholds were set from measurements on this footage: IoS 0.75 sustained
+1.0s. At 0.5s the test flagged ordinary crossings -- players pass behind each
+other constantly and are apart again inside half a second.
+
+Treating a collapse by suspending trust rather than repairing it follows what
+sports MOT does about occlusion. FC-Track and relatives build a pairwise IoA
+matrix over tracklets and suspend appearance updates where overlap is high.
+Repairing it -- deciding which man each track was on -- is GTA's job (OSNet
+ReID embeddings, DBSCAN over a tracklet, +3.83 HOTA on SportsMOT), an offline
+pass with a model attached. The spans found here are its input if it is ever
+built.
+
+Measured on the 19s segment after the change: 104 number regions ignored
+inside collapsed spans, one duplicate pair retired (track 9 had 0 votes
+against track 10's 109 -- it was Duren's shadow from frame 0), 1025 reads,
+still all ten players named, cluster-to-club still 10 against 3. Frames pulled
+from the render confirm it: at 8s all ten carry chips; at 13s and at 18s the
+two collapsed pairs carry neither chip nor tint while the other six are
+correct. Two labels on one player is replaced by no label on either, which is
+the honest output when the tracker cannot say which is which.
+
+The same test run over every segment already rendered:
+
+| segment | duplicates | collapses | track-frames distrusted |
+|---|---|---|---|
+| tut_sample | 0 | 0 | 0 |
+| seg_02m27.00s_14s | 0 | 1 | 182 |
+| demo | 0 | 2 | 304 |
+| seg_00m30.68s_17s | 0 | 1 | 1236 |
+| seg_01m10.87s_19s | 1 | 5 | 1886 |
+| seg26 | 2 | 7 | 2249 |
+| seg33 | 0 | 5 | 4531 |
+
+seg33 is the 33-second clip on the home page, and its number is the least
+alarming of the set: 33.4s of it belong to track 1, which never got a number
+and was therefore never drawn. The three collapses between tracks that *were*
+drawn last 1.3s, 1.5s and 1.6s. seg26 is the one that most needs the rerun.

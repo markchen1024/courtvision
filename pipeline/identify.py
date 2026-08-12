@@ -46,6 +46,7 @@ import cv2
 import numpy as np
 
 import config
+import overlap
 from progress import Progress
 
 DETECTION_MODEL_ID = "basketball-player-detection-3-ycjdo/4"
@@ -114,6 +115,12 @@ def main():
                     help="confirmed numbers by which the cluster->club mapping "
                          "must win before it is trusted; below this the clubs "
                          "are left blank rather than guessed. 0 forces it.")
+    ap.add_argument("--overlap-seconds", type=float, default=overlap.MIN_SECONDS,
+                    help="how long two tracks must share a position before the "
+                         "pair is called broken (see pipeline/overlap.py)")
+    ap.add_argument("--no-overlap", action="store_true",
+                    help="trust every track everywhere, the way this ran before "
+                         "the collapse on seg_01m10.87s_19s was found")
     ap.add_argument("--apply-only", action="store_true",
                     help="skip the 13-minute OCR pass and apply an existing --out")
     args = ap.parse_args()
@@ -142,6 +149,20 @@ def main():
     all_tids = sorted({t["tid"] for rows in frames.values() for t in rows})
     print(f"{len(grid)} frames on the grid, {len(all_tids)} tracks")
 
+    # A track is only worth reading where it is on one player. Two tracks
+    # sharing a position read the same jersey and both come away confirmed,
+    # which is how two labels ended up following Brunson while Beasley went
+    # unmarked -- both numbers were correct, so no later check could see it.
+    fps = sidecar.get("fps", 59.94)
+    overlaps = [] if args.no_overlap else overlap.find_overlaps(
+        frames, fps=fps, min_seconds=args.overlap_seconds)
+    collapse = overlap.collapse_spans(overlaps)
+    dupes = overlap.duplicate_pairs(overlaps)
+    for o in overlaps:
+        a, b = o["pair"]
+        print(f"  {o['kind']:9} tracks {a} and {b}: "
+              f"{o['start'] / fps:6.2f}s - {o['end'] / fps:6.2f}s")
+
     det_model = get_model(model_id=args.detection_model)
     ocr = get_model(model_id=args.ocr_model)
     if args.ocr_model != NOTEBOOK_OCR_MODEL:
@@ -168,7 +189,7 @@ def main():
         validator = ConsecutiveValueTracker(n_consecutive=N_CONSECUTIVE)
     number_votes = defaultdict(Counter)
     team_crops, team_crop_tids = [], []
-    reads = 0
+    reads, blocked = 0, 0
 
     cap = cv2.VideoCapture(args.video)
     prog = Progress("identify", total=len(grid))
@@ -220,6 +241,12 @@ def main():
                         best_tid, best = t["tid"], s
             if best_tid is None:
                 continue
+            if overlap.is_contaminated(collapse, best_tid, frame_idx):
+                # this track is sharing its position with another right now,
+                # so whichever jersey is under it belongs to whoever the pair
+                # settled on. Do not read it, let alone vote with it.
+                blocked += 1
+                continue
             x1, y1, x2, y2 = sv.clip_boxes(
                 sv.pad_boxes(np.array([nb]), px=10, py=10), (w, h))[0]
             crop = frame[int(y1):int(y2), int(x1):int(x2)]
@@ -247,10 +274,32 @@ def main():
                     team_crop_tids.append(t["tid"])
         prog.step(note=f"frame {frame_idx}, {reads} reads")
     cap.release()
+    if blocked:
+        print(f"{blocked} number regions ignored inside collapsed spans")
+
+    # A duplicate pair is one man wearing two track ids from the first frame
+    # on. Unlike a collapse there is nothing to distrust -- the reads are of a
+    # real player and they are right -- so the fix is to retire one id. The
+    # one with less evidence goes, and its number slot is freed before the
+    # roster matching runs, so it cannot take a number off a real track.
+    retired = {}
+    for a, b in dupes:
+        if a in retired or b in retired:
+            continue
+        strength = {t: sum(number_votes[t].values()) for t in (a, b)}
+        winner = max(strength, key=strength.get)
+        loser = b if winner == a else a
+        retired[loser] = winner
+        print(f"DUPLICATE TRACK: {a} and {b} are one player "
+              f"(votes {strength[a]} vs {strength[b]}); "
+              f"retiring track {loser}, keeping {winner}")
+    live_tids = [t for t in all_tids if t not in retired]
 
     if args.confirm in ("majority", "roster"):
         confirmed = {}
         for tid, votes in number_votes.items():
+            if tid in retired:
+                continue
             top = votes.most_common(2)
             # at least two votes, and a strict winner -- a lone read or a tie
             # stays unconfirmed rather than guessed
@@ -262,7 +311,7 @@ def main():
         # assignment needs the club before it can match. The majority result
         # breaks that circle and is replaced below.
     else:
-        confirmed = {tid: v for tid in all_tids
+        confirmed = {tid: v for tid in live_tids
                      if (v := validator.get_validated(tid)) is not None}
     print(f"{reads} OCR reads -> {len(confirmed)} tracks with a confirmed number")
 
@@ -325,7 +374,7 @@ def main():
 
         confirmed = {}
         for cluster_id, club in club_of.items():
-            tids = [t for t in all_tids if cluster.get(t) == cluster_id]
+            tids = [t for t in live_tids if cluster.get(t) == cluster_id]
             numbers = sorted(club_numbers.get(club, []))
             if not tids or not numbers:
                 continue
@@ -357,6 +406,11 @@ def main():
         name = club_names.get(club, {}).get(num) if num else None
         identities[tid] = {"number": num, "club": club, "name": name,
                            **({"needs_review": weak[1]} if weak else {}),
+                           # the render skips these outright: a retired track
+                           # is a second box on a player who already has one
+                           **({"ignored": "duplicate-track",
+                               "duplicate_of": retired[tid]}
+                              if tid in retired else {}),
                            "team_votes": dict(votes.get(tid, {})),
                            # Keep what the OCR actually saw. Without it a
                            # wrong number is a bare assertion: on this
@@ -403,6 +457,15 @@ def main():
         "video": args.video, "boxes": args.boxes,
         "models": {"detection": args.detection_model, "ocr": args.ocr_model},
         "policy": f"IoS>={IOS_THRESHOLD}, {N_CONSECUTIVE} consecutive reads",
+        # render_final.py reads this: a track is drawn only outside its
+        # collapsed spans, because inside them it is on someone else's man.
+        "overlap": {
+            "policy": f"IoS>={overlap.IOS_THRESHOLD} sustained "
+                      f"{args.overlap_seconds}s",
+            "collapse": {str(k): [list(s) for s in v]
+                         for k, v in collapse.items()},
+            "retired": {str(k): v for k, v in retired.items()},
+        },
         "identities": {str(k): v for k, v in identities.items()},
         "labels": {str(k): v for k, v in labels.items()},
     }))
