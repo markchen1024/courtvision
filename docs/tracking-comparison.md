@@ -648,3 +648,48 @@ and read the same number are one player, and must be merged before the
 assignment runs. That is GTA's job done with jersey numbers instead of ReID
 embeddings, which is the stronger evidence of the two. Until it exists,
 `--reprompt-seconds` defaults to 0 and the renders keep the single prompt.
+
+## What the tutorial actually does about occlusion: nothing (2026-08-12)
+
+The blog's model list says of SAM2: "re-identifies players after occlusion and
+keeps target IDs stable through body contact." Read against the notebook, that
+is a claim about SAM2's memory, not a description of code. `SAM2Tracker`
+(cell 40) has two methods:
+
+    prompt_first_frame(frame, detections)   load_first_frame + add_new_prompt
+    propagate(frame)                        predictor.track(frame)
+
+and a `reset()` that sets `self._prompted = False` and nothing else. All six
+call sites (cells 41, 55, 65, 67, 71, 85) prompt once at the start of a clip
+and propagate to the end. There is no re-detection, no re-prompt, no recovery
+of a lost object, no conflict handling.
+
+Why it never shows: their clips are eight seconds and five seconds.
+
+    cell 18   ...game-1-q1-04.28-04.20.mp4    game clock 4:28 -> 4:20
+    cell 97   ...game-1-q1-03.16-03.11.mp4    3:16 -> 3:11
+
+The saved progress bars confirm it -- 237 frames, 7.9s at 30fps. The merge
+measured here takes twelve seconds to develop (IoU 0.06 at 11.0s, 0.97 at
+12.5s). An eight-second clip does not give it time to happen. The tutorial's
+result is not evidence the problem is solved; it is evidence the problem is
+out of frame.
+
+Two more things the list gets wrong about the notebook:
+
+**ResNet-32 is not in it.** Zero matches for `resnet` across code and
+markdown. The only number model is `NUMBER_RECOGNITION_MODEL_ID =
+"basketball-jersey-numbers-ocr/3"`. The 93%-beats-SmolVLM2 claim has no
+implementation to read.
+
+**The roster is a dict lookup**, not an assignment:
+
+    f"#{number} {TEAM_ROSTERS[TEAM_NAMES[team]].get(number)}"
+
+No de-duplication and no conflict resolution, so two tracks reading the same
+number get the same name drawn twice, and a misread that lands on a bench
+player's number gets that player's name. Those are the two holes this repo
+added gates for; the notebook does not detect them, let alone fix them.
+
+The conclusion for tracklet association: there is nothing to copy. It is work
+beyond the baseline, not a step of it we skipped.
