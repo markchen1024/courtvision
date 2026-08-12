@@ -364,3 +364,26 @@ Cost: the 2.2B base is a 12.6GB download, and `inference` unpacks it to a
 flattened cache directory it then cannot read — the same trap as the 256M
 base but at a different path (`lora-bases/smolvlm2/main`, without the
 `smolvlm-256m` level). A junction avoids storing it twice.
+
+## A roster is only as strong as what it excludes (2026-08-12)
+
+On the 17-second segment the pipeline named a Knick who never left the bench.
+
+Duren's 0 was read correctly. The team classifier put that track on the wrong
+side. The roster then found a Knicks #0 -- Delon Wright, DNP in this game --
+and the constrained assignment accepted it, because a number that exists on
+the roster is exactly what it checks for.
+
+This is the hole named earlier in this file: a read that is wrong *and*
+plausible cannot be caught by a roster. What was missed is that we had widened
+the hole ourselves. The roster was built from the full ESPN team list,
+including eleven players who did not play, and every one of them is a legal
+answer waiting for a misassigned track to find it.
+
+Dropping the DNPs takes the Knicks from fifteen numbers to nine. The 0 is gone,
+so that track can no longer be given a name at all -- it goes blank, which is
+the honest outcome, and blank tracks are neither labelled nor tinted.
+
+Worth stating plainly: the bug was present for every segment. The first four
+did not hit it only because the numbers they misread happened not to exist on
+the other team's bench.
