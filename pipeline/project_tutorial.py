@@ -94,7 +94,7 @@ def main():
     seen = set()
     unsolved = 0
     idx = 0
-    prog = Progress("project-tutorial", total=total // step)
+    prog = Progress("project-tutorial", total=total // step, video=args.video)
     while True:
         ok, frame = cap.read()
         if not ok:

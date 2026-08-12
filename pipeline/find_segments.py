@@ -71,7 +71,7 @@ def main():
     start = int(fps * args.start_sec)
     end = total if not args.max_sec else min(total, start + int(fps * args.max_sec))
 
-    prog = Progress("find-segments-cuts", total=end - start)
+    prog = Progress("find-segments-cuts", total=end - start, video=args.video)
     cuts, flashes, last = find_cuts(
         video, args.threshold, 5, start, end,
         lambda i, c, f: prog.step(500, note=f"frame {i}, {c} cuts"))
@@ -104,7 +104,7 @@ def main():
 
     cap = cv2.VideoCapture(str(video))
     segments = []
-    prog = Progress("find-segments-lineup", total=len(stretches))
+    prog = Progress("find-segments-lineup", total=len(stretches), video=args.video)
     for a, b in stretches:
         # walk forward until the lineup is complete; everything from there to
         # the cut is runnable

@@ -30,17 +30,24 @@ import sys
 import time
 from pathlib import Path
 
-DIR = Path(__file__).resolve().parent.parent / "out" / "progress"
+ROOT = Path(__file__).resolve().parent.parent
+DIR = ROOT / "out" / "progress"
 PORT = 8799
 
 
 class Progress:
-    def __init__(self, job, total=None, note=""):
+    def __init__(self, job, total=None, note="", video=None, folder=None):
         self.job = job
         self.total = total
         self.count = 0
         self.started = time.time()
         self._last_write = 0.0
+        # What this job is chewing through, and where its output lands. Both
+        # are for the watcher: a still from the clip says more about whether a
+        # run is on the right footage than any counter, and the folder button
+        # saves hunting for out/ in a file manager.
+        self.video = str(video) if video else None
+        self.folder = str(folder) if folder else "out"
         self.path = DIR / f"{job}.json"
         DIR.mkdir(parents=True, exist_ok=True)
         self._write("running", note, force=True)
@@ -68,6 +75,7 @@ class Progress:
             "job": self.job, "state": state,
             "done": self.count, "total": self.total,
             "note": note, "started": self.started, "updated": now,
+            "video": self.video, "folder": self.folder,
         }
         tmp = self.path.with_suffix(".tmp")
         # On Windows, os.replace is denied while a reader (the watcher polling)
@@ -217,31 +225,61 @@ PAGE = """<!doctype html>
   @keyframes slide { from { margin-left:0 } to { margin-left:70% } }
   .note { font:400 11px/1.4 var(--font-mono); color:var(--subtle); }
   .empty { color:var(--subtle); }
+  .body { display:flex; gap:.9rem; align-items:flex-start; }
+  .bars { flex:1; min-width:0; }
+  .shot { width:168px; flex:none; aspect-ratio:16/9; object-fit:cover;
+          border-radius:.45rem; border:1px solid var(--line);
+          background:var(--inset); margin-top:.55rem; }
+  .src { font:400 10.5px/1.4 var(--font-mono); color:var(--line-strong);
+         margin-top:.3rem; overflow:hidden; text-overflow:ellipsis;
+         white-space:nowrap; }
+  @media (max-width: 620px) { .shot { display:none; } }
 </style>
 <div class="shell">
   <div class="topbar">
     <span class="brand"><i></i>courtvision</span>
     <span class="toplabel">Pipeline monitor</span>
     <span class="clock" id="clock"></span>
+    <button class="ghost" onclick="openOut()">Open out/</button>
     <button class="ghost" onclick="clearFinished()">Clear finished</button>
   </div>
   <div id="jobs"><div class="empty">(no jobs have reported)</div></div>
 </div>
 <script>
 // The pipeline's shape, in run order, with one honest sentence each.
-// Job files map onto stages; anything unrecognised lands in Other.
+//
+// Names are matched as prefixes, not equality. The list used to hold exact
+// names and had gone stale against the scripts: sam2-tutorial, check-lineup,
+// find-segments-cuts, find-segments-lineup, detect-cuts, review-detection,
+// review-build, project-tutorial, legibility, harvest and tutorial-crops all
+// piled into Other, which was most of what actually runs. A prefix also means
+// the next sam2-something lands in the right stage without an edit here.
 const STAGES = [
-  ["Calibration", "Court landmarks solved into a per-frame homography — pixels become metres.",
-   ["keypoints"]],
-  ["Detection & tracking", "Every player found in every frame, boxes strung into identity tracks.",
+  ["Scouting", "Shot cuts found, then frames scored on whether a full lineup is visible — a segment worth an hour of GPU.",
+   ["detect-cuts", "find-segments", "check-lineup"]],
+  ["Detection & tracking", "Every player found on the prompt frame, then carried through the clip as identity tracks.",
    ["detect", "dense-detect", "sam2", "sam3"]],
   ["Identity", "Jersey numbers read and voted per track, teams clustered, roster joined — tracks become names.",
-   ["identify", "shirts", "resnet-ocr"]],
+   ["identify", "shirts", "legibility"]],
+  ["Court space", "Landmarks solved into a homography, players projected onto the court plan — pixels become metres.",
+   ["keypoints", "project"]],
   ["Events", "Shot attempts from pose and rim signals. Outcomes stay hand-tagged, and the UI says so.",
    ["shot-events"]],
-  ["Render", "Masks, name chips and the top-down court burned into reviewable video.",
-   ["render", "final-render"]],
+  ["Render & review", "Masks, name chips and the top-down court burned into video you can actually eyeball.",
+   ["render", "final-render", "review"]],
+  ["Labelling & training", "Crops harvested for Roboflow, and models fine-tuned on what comes back.",
+   ["harvest", "resnet-ocr", "tutorial-crops", "train"]],
 ];
+// longest prefix wins, so "detect-cuts" beats "detect" and lands in Scouting
+const stageOf = job => {
+  let best = -1, bestLen = 0;
+  STAGES.forEach(([, , prefixes], i) => prefixes.forEach(p => {
+    if ((job === p || job.startsWith(p)) && p.length > bestLen) {
+      best = i; bestLen = p.length;
+    }
+  }));
+  return best;
+};
 const STALE_S = 1800;   // quiet this long reads as a corpse, not a slow job
 
 const eta = s => s == null || s < 0 ? "-"
@@ -261,14 +299,31 @@ function jobCard(d) {
   const fill = d.state === "failed" ? "var(--red)" : (stale || quiet) ? "var(--amber)"
              : d.state === "done" ? "var(--teal)" : "var(--signal)";
   const closable = stale || d.state !== "running";
+  // A still from where the run has got to. Bucketed so it refreshes about
+  // twenty times over a job instead of on every 1.5s poll -- enough to see the
+  // clip advance, cheap enough that ffmpeg is not called in a loop.
+  const bucket = pct == null ? 0 : Math.floor(pct / 5);
+  const shot = d.video
+    ? `<img class="shot" loading="lazy" alt=""
+         src="/thumb?job=${encodeURIComponent(d.job)}&b=${bucket}"
+         onerror="this.remove()">`
+    : "";
   return `<div class="job${stale ? " dim" : ""}">
     <div class="jobtop"><span class="jobname">${d.job}</span>
       <span class="chip ${cls}">${label}</span>
       <span class="nums">${nums}</span>
+      ${d.folder ? `<button class="dismiss" title="open ${d.folder}"
+        onclick="openFolder('${d.job}')">&#128193;</button>` : ""}
       ${closable ? `<button class="dismiss" title="remove this job file" onclick="dismiss('${d.job}')">&times;</button>` : ""}</div>
-    <div class="track"><div class="fill${pct == null && d.state === "running" && !stale ? " indet" : ""}"
-      style="width:${pct == null ? 100 : Math.max(pct, 1.5)}%;background:${fill}"></div></div>
-    <div class="note">${d.note || ""}</div>
+    <div class="body">
+      ${shot}
+      <div class="bars">
+        <div class="track"><div class="fill${pct == null && d.state === "running" && !stale ? " indet" : ""}"
+          style="width:${pct == null ? 100 : Math.max(pct, 1.5)}%;background:${fill}"></div></div>
+        <div class="note">${d.note || ""}</div>
+        ${d.video ? `<div class="src" title="${d.video}">${d.video.split(/[\\\\/]/).pop()}</div>` : ""}
+      </div>
+    </div>
   </div>`;
 }
 
@@ -301,18 +356,22 @@ async function clearFinished() {
   await fetch("/clear-finished", { method: "POST" });
   tick();
 }
+async function openFolder(job) {
+  await fetch("/open?job=" + encodeURIComponent(job), { method: "POST" });
+}
+async function openOut() {
+  await fetch("/open", { method: "POST" });
+}
 
 async function tick() {
   try {
     const jobs = await (await fetch("/jobs", {cache: "no-store"})).json();
     document.getElementById("clock").textContent = new Date().toLocaleTimeString();
-    const claimed = new Set();
-    const sections = STAGES.map(([name, desc, names], i) => {
-      const mine = jobs.filter(j => names.includes(j.job));
-      mine.forEach(j => claimed.add(j.job));
-      return stageSection(i + 1, name, desc, mine, i === STAGES.length - 1);
-    });
-    const rest = jobs.filter(j => !claimed.has(j.job));
+    const rest = jobs.filter(j => stageOf(j.job) < 0);
+    const sections = STAGES.map(([name, desc], i) =>
+      stageSection(i + 1, name, desc,
+                   jobs.filter(j => stageOf(j.job) === i),
+                   i === STAGES.length - 1 && !rest.length));
     if (rest.length) sections.push(stageSection("+", "Other",
       "Jobs this page does not recognise yet.", rest, true));
     document.getElementById("jobs").innerHTML = sections.join("");
@@ -324,12 +383,104 @@ setInterval(tick, 1500);
 """
 
 
+def _under_root(raw):
+    """Resolve a path from a job file, refusing anything outside the repo.
+
+    The server only listens on 127.0.0.1 and the paths come from files this
+    code wrote, but it opens folders and reads video, so it checks anyway.
+    """
+    if not raw:
+        return None
+    p = Path(raw)
+    p = (p if p.is_absolute() else ROOT / p).resolve()
+    try:
+        p.relative_to(ROOT.resolve())
+    except ValueError:
+        return None
+    return p
+
+
+_DURATIONS = {}
+_THUMBS = {}
+
+
+def _duration(video):
+    key = str(video)
+    if key not in _DURATIONS:
+        import subprocess
+        try:
+            r = subprocess.run(
+                ["ffprobe", "-v", "error", "-show_entries", "format=duration",
+                 "-of", "default=nw=1:nk=1", key],
+                capture_output=True, text=True, timeout=10)
+            _DURATIONS[key] = float(r.stdout.strip() or 0)
+        except (OSError, ValueError, subprocess.SubprocessError):
+            _DURATIONS[key] = 0.0
+    return _DURATIONS[key]
+
+
+def _thumbnail(video, fraction):
+    """One frame from where the run has reached, as JPEG bytes."""
+    import subprocess
+    dur = _duration(video)
+    at = max(0.0, min(fraction, 0.98)) * dur if dur else 0.0
+    key = (str(video), round(at, 1))
+    if key in _THUMBS:
+        return _THUMBS[key]
+    try:
+        r = subprocess.run(
+            ["ffmpeg", "-v", "error", "-ss", f"{at:.2f}", "-i", str(video),
+             "-frames:v", "1", "-vf", "scale=336:-2", "-f", "image2",
+             "-c:v", "mjpeg", "pipe:1"],
+            capture_output=True, timeout=20)
+    except (OSError, subprocess.SubprocessError):
+        return None
+    if r.returncode or not r.stdout:
+        return None
+    if len(_THUMBS) > 80:          # a long session should not grow forever
+        _THUMBS.clear()
+    _THUMBS[key] = r.stdout
+    return r.stdout
+
+
 def serve(port):
     import http.server
+    from urllib.parse import parse_qs, urlparse
+
+    try:                            # winget put ffmpeg on PATH after this shell
+        import config               # started; rebuild it or the thumbnails die
+        config.ensure_ffmpeg()
+    except Exception:
+        pass
+
+    def job_named(name):
+        for d in read_jobs():
+            if d["job"] == name:
+                return d
+        return None
 
     class Handler(http.server.BaseHTTPRequestHandler):
         def do_GET(self):
-            if self.path == "/jobs":
+            u = urlparse(self.path)
+            if u.path == "/thumb":
+                d = job_named(parse_qs(u.query).get("job", [""])[0])
+                video = _under_root(d.get("video")) if d else None
+                frac = (d["done"] / d["total"]
+                        if d and d.get("total") and d["done"] else 0.0)
+                jpeg = _thumbnail(video, frac) if video and video.exists() else None
+                if not jpeg:
+                    self.send_response(404)
+                    self.send_header("Content-Length", "0")
+                    self.end_headers()
+                    return
+                self.send_response(200)
+                self.send_header("Content-Type", "image/jpeg")
+                self.send_header("Cache-Control", "no-store")
+                self.send_header("Content-Length", str(len(jpeg)))
+                self.end_headers()
+                self.wfile.write(jpeg)
+                return
+            if u.path == "/jobs":
                 body = json.dumps(read_jobs()).encode()
                 ctype = "application/json"
             else:
@@ -343,9 +494,22 @@ def serve(port):
             self.wfile.write(body)
 
         def do_POST(self):
-            from urllib.parse import parse_qs, urlparse
             u = urlparse(self.path)
-            if u.path == "/dismiss":
+            if u.path == "/open":
+                job = parse_qs(u.query).get("job", [""])[0]
+                d = job_named(job) if job else None
+                target = _under_root((d or {}).get("folder") or "out")
+                if target and target.exists():
+                    if target.is_file():
+                        target = target.parent
+                    if hasattr(os, "startfile"):
+                        os.startfile(target)          # Windows Explorer
+                    else:
+                        import subprocess
+                        subprocess.Popen(
+                            ["open" if sys.platform == "darwin" else "xdg-open",
+                             str(target)])
+            elif u.path == "/dismiss":
                 job = parse_qs(u.query).get("job", [""])[0]
                 # the job name came from a filename we wrote; still, never let
                 # a request walk the filesystem

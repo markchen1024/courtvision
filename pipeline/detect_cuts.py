@@ -148,7 +148,7 @@ def main():
     def report(i, ncuts, nflash):
         prog.step(500, note=f"frame {i}, {ncuts} cuts, {nflash} flashes")
 
-    prog = Progress("detect-cuts", total=end - start)
+    prog = Progress("detect-cuts", total=end - start, video=args.video)
     cuts, flashes, idx = find_cuts(args.video, args.threshold,
                                    args.flash_window, start, end, report)
     prog.done(note=f"{len(cuts)} cuts, {flashes} flashes")

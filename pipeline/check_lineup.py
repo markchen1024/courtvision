@@ -162,7 +162,7 @@ def main():
     if args.scan:
         rows = []
         idx = 0
-        prog = Progress("check-lineup", total=total // args.every)
+        prog = Progress("check-lineup", total=total // args.every, video=args.video)
         while True:
             ok, frame = cap.read()
             if not ok:

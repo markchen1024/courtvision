@@ -202,7 +202,7 @@ def main():
     reads, blocked = 0, 0
 
     cap = cv2.VideoCapture(args.video)
-    prog = Progress("identify", total=len(grid))
+    prog = Progress("identify", total=len(grid), video=args.video)
     for n, frame_idx in enumerate(grid):
         rows = frames[frame_idx]
         if not rows:
