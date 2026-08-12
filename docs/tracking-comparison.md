@@ -450,3 +450,55 @@ seg33 is the 33-second clip on the home page, and its number is the least
 alarming of the set: 33.4s of it belong to track 1, which never got a number
 and was therefore never drawn. The three collapses between tracks that *were*
 drawn last 1.3s, 1.5s and 1.6s. seg26 is the one that most needs the rerun.
+
+## Blocking bad reads is not enough on its own (2026-08-12)
+
+Rerunning the other segments through the overlap gate changed exactly one
+label, and changed it for the worse. On `seg_00m30.68s_17s`, track 10 went
+from `#3 Josh Hart` to `#1 Cameron Payne`:
+
+    before the gate   '3' x 22,  '1' x 6,  '11' x 2, ...
+    after the gate    '1' x 4,   '11' x 1, '7' x 1,  '17' x 1
+
+All twenty-two reads of 3 fell inside the span where track 10 was collapsed
+onto track 8, so they were blocked -- correctly. What was not anticipated is
+what the roster-constrained assignment does with what is left. It is a
+maximum-weight matching, so it always finds something: four stray reads of 1,
+and Cameron Payne was still unclaimed. A name that was right by accident was
+traded for one that is wrong on purpose.
+
+The gate added for this is a fraction, not another threshold on reads: a track
+collapsed for more than half its life gets no number and no name. Below half,
+the pre-contact evidence still stands and the track keeps its identity -- it
+simply goes unmarked inside the span, which is what the 19s segment does and
+what was verified there. Above half there is not enough track left to say
+whose it is. Measured: the 19s segment's collapsed tracks sit at 34-44% and
+are unaffected; this segment's tracks 8 and 10 sit at 60% and both drop out.
+Named tracks went from 10 to 8, and the two that left were `#2 McBride` and
+`#1 Payne`, neither of whom was on the floor.
+
+What that segment then exposed is a separate fault the overlap test cannot
+see. Cutting each track's box out of the raw video, at 3s:
+
+| track | named | actually on |
+|---|---|---|
+| 8 | `#2 McBride` | Towns -- its own top read is `32` x 26, but track 6 had taken 32 |
+| 6 | `#32 Towns` | a Pistons player in white; its votes are `'0' x 30, '32' x 30` |
+| 10 | `#1 Payne` | collapsed onto track 8 for 60% of the clip |
+
+Track 6 is on a Piston at 3s and on Towns from about 8s -- an identity switch,
+not a collapse. The two players never sat on top of each other long enough for
+the IoS test to fire, so nothing flags it, and the render puts `#32 TOWNS` on
+a Detroit player while the real Towns stands unmarked beside him.
+
+Its signature is visible in the votes and nowhere else: a dead tie between
+`0` and `32`, which are numbers belonging to *different clubs*. The majority
+rule would have refused it -- it requires a strict winner -- but roster mode
+replaces majority with the matching, and the matching has no such rule. That
+is worth fixing separately, and carefully: the whole value of the matching is
+that it resolves ties like track 7's 25-against-8, where both numbers belonged
+to the same club and one was already taken. A tie *across* clubs is a
+different animal and means the track is on two players.
+
+Until that is settled, `seg_00m30.68s_17s` carries a wrong label in its first
+five seconds and should not go in the reel.

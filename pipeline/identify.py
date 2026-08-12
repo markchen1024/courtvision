@@ -118,6 +118,10 @@ def main():
     ap.add_argument("--overlap-seconds", type=float, default=overlap.MIN_SECONDS,
                     help="how long two tracks must share a position before the "
                          "pair is called broken (see pipeline/overlap.py)")
+    ap.add_argument("--max-collapsed", type=float, default=0.5,
+                    help="a track collapsed onto another for more than this "
+                         "fraction of its life gets no name at all -- there is "
+                         "not enough of it left to say whose track it is")
     ap.add_argument("--no-overlap", action="store_true",
                     help="trust every track everywhere, the way this ran before "
                          "the collapse on seg_01m10.87s_19s was found")
@@ -293,12 +297,34 @@ def main():
         print(f"DUPLICATE TRACK: {a} and {b} are one player "
               f"(votes {strength[a]} vs {strength[b]}); "
               f"retiring track {loser}, keeping {winner}")
-    live_tids = [t for t in all_tids if t not in retired]
+    # GATE. Blocking the contaminated reads is not enough on its own. A track
+    # that spends most of its life on someone else's man has only a handful of
+    # clean reads left, and the roster matching will still hand it a leftover
+    # number on that handful -- measured on seg_00m30.68s_17s, where track 10
+    # lost its 22 reads of '3' and was promptly named Cameron Payne on four
+    # reads of '1'. Trading a name that was right by accident for one that is
+    # wrong on purpose is not an improvement. Below half a life, the pre-
+    # contact evidence still stands and the track keeps its name (it simply
+    # goes unmarked inside the span); above it, there is no track left to name.
+    life = overlap.lifetimes(frames)
+    unvouched = {}
+    for tid, spans in collapse.items():
+        if tid in retired:
+            continue
+        span = sum(e - s + 1 for s, e in spans)
+        whole = life[tid][1] - life[tid][0] + 1
+        frac = span / max(1, whole)
+        if frac > args.max_collapsed:
+            unvouched[tid] = frac
+            print(f"UNVOUCHED: track {tid} is collapsed for {frac:.0%} of its "
+                  f"life -- no name, no number")
+    live_tids = [t for t in all_tids
+                 if t not in retired and t not in unvouched]
 
     if args.confirm in ("majority", "roster"):
         confirmed = {}
         for tid, votes in number_votes.items():
-            if tid in retired:
+            if tid in retired or tid in unvouched:
                 continue
             top = votes.most_common(2)
             # at least two votes, and a strict winner -- a lone read or a tie
@@ -411,6 +437,9 @@ def main():
                            **({"ignored": "duplicate-track",
                                "duplicate_of": retired[tid]}
                               if tid in retired else {}),
+                           **({"ignored": "mostly-collapsed",
+                               "collapsed_fraction": round(unvouched[tid], 3)}
+                              if tid in unvouched else {}),
                            "team_votes": dict(votes.get(tid, {})),
                            # Keep what the OCR actually saw. Without it a
                            # wrong number is a bare assertion: on this
@@ -465,6 +494,7 @@ def main():
             "collapse": {str(k): [list(s) for s in v]
                          for k, v in collapse.items()},
             "retired": {str(k): v for k, v in retired.items()},
+            "unvouched": {str(k): round(v, 3) for k, v in unvouched.items()},
         },
         "identities": {str(k): v for k, v in identities.items()},
         "labels": {str(k): v for k, v in labels.items()},
