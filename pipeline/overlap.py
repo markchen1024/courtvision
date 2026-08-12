@@ -60,6 +60,10 @@ GAP_SECONDS = 0.5
 # Overlapping for this much of the shorter track's life means it was never a
 # second player.
 DUPLICATE_COVERAGE = 0.9
+# for count_players: the same detector the rest of the pipeline prompts with
+DETECTION_MODEL_ID = "basketball-player-detection-3-ycjdo/4"
+DETECTION_IOU = 0.9
+PLAYER_CLASS_IDS = [3, 4, 5, 6, 7]
 
 
 def ios(a, b):
@@ -156,6 +160,75 @@ def duplicate_pairs(overlaps):
     return sorted({o["pair"] for o in overlaps if o["kind"] == "duplicate"})
 
 
+def count_players(video, frames, overlaps, sample_every=15, confidence=0.4):
+    """Ask the detector how many players are inside each shared box.
+
+    Two boxes on top of each other say nothing about what is under them, and
+    the two cases want opposite treatment. Measured at 16.0s of
+    seg_01m10.87s_19s, both pairs had identical boxes:
+
+      tracks 6 and 8   one player in the box -- Beasley. Brunson is gone, both
+                       tracks are on the same man, and drawing either name is
+                       a coin toss.
+      tracks 1 and 5   two players in the box -- Towns posting up with Harris
+                       behind him. Neither track lost anyone; the boxes
+                       overlap because one man is standing in front of the
+                       other, which is most of basketball.
+
+    Suppressing the second kind is what left four players unlabelled at 16s.
+    So each candidate span is sampled and reclassified: a span whose shared box
+    usually holds two or more players is occlusion and is left alone; one that
+    usually holds a single player is a collapse.
+
+    Mutates and returns `overlaps`, adding "players" (the median count) and
+    turning "kind" into "occlusion" where the pair is merely stacked.
+    """
+    import cv2
+    import numpy as np
+    import supervision as sv
+    from inference import get_model
+
+    model = get_model(model_id=DETECTION_MODEL_ID)
+    cap = cv2.VideoCapture(video)
+    try:
+        for o in overlaps:
+            if o["kind"] != "collapse":
+                continue
+            a, b = o["pair"]
+            counts = []
+            for f in range(o["start"], o["end"] + 1, sample_every):
+                rows = {r["tid"]: r["box"] for r in frames.get(f, [])}
+                if a not in rows or b not in rows:
+                    continue
+                box = [min(rows[a][0], rows[b][0]), min(rows[a][1], rows[b][1]),
+                       max(rows[a][2], rows[b][2]), max(rows[a][3], rows[b][3])]
+                cap.set(cv2.CAP_PROP_POS_FRAMES, f)
+                ok, frame = cap.read()
+                if not ok:
+                    continue
+                res = model.infer(frame, confidence=confidence,
+                                  iou_threshold=DETECTION_IOU)[0]
+                det = sv.Detections.from_inference(res)
+                det = det[np.isin(det.class_id, PLAYER_CLASS_IDS)]
+                # a detection belongs to the shared box if its centre is inside
+                # it -- a neighbour clipping the edge should not count as a
+                # second man
+                inside = 0
+                for x1, y1, x2, y2 in det.xyxy:
+                    cx, cy = (x1 + x2) / 2, (y1 + y2) / 2
+                    if box[0] <= cx <= box[2] and box[1] <= cy <= box[3]:
+                        inside += 1
+                counts.append(inside)
+            o["players"] = float(np.median(counts)) if counts else 0.0
+            # no samples at all leaves it a collapse: unverified is not the
+            # same as cleared
+            if counts and o["players"] >= 2:
+                o["kind"] = "occlusion"
+    finally:
+        cap.release()
+    return overlaps
+
+
 def is_contaminated(spans, tid, frame):
     for a, b in spans.get(tid, ()):
         if a <= frame <= b:
@@ -168,6 +241,10 @@ def main():
     ap.add_argument("--boxes", required=True)
     ap.add_argument("--threshold", type=float, default=IOS_THRESHOLD)
     ap.add_argument("--min-seconds", type=float, default=MIN_SECONDS)
+    ap.add_argument("--video", help="run the detector inside each candidate "
+                                    "span to separate a collapse from plain "
+                                    "occlusion; without it every candidate is "
+                                    "reported as a collapse")
     args = ap.parse_args()
 
     root = Path(__file__).resolve().parent.parent
@@ -183,6 +260,12 @@ def main():
         print(f"no overlapping tracks over {args.min_seconds}s "
               f"at IoS >= {args.threshold}")
         return 0
+    if args.video:
+        import config
+        config.load_env()
+        config.inference_env()
+        v = Path(args.video)
+        count_players(str(v if v.is_absolute() else root / v), frames, overlaps)
 
     def show(kind, note):
         rows = [o for o in overlaps if o["kind"] == kind]
@@ -192,15 +275,18 @@ def main():
         for o in rows:
             a, b = o["pair"]
             s, e = o["start"], o["end"]
+            seen = f", {o['players']:.0f} in the box" if "players" in o else ""
             print(f"  tracks {a} and {b}: {s / fps:6.2f}s - {e / fps:6.2f}s "
                   f"({(e - s + 1) / fps:5.1f}s, {o['coverage']:.0%} of the "
-                  f"shorter track)")
+                  f"shorter track{seen})")
 
     print(f"{len(overlaps)} sustained overlaps (IoS >= {args.threshold} for "
           f"{args.min_seconds}s or more)")
     show("duplicate", "one player prompted twice -- the weaker track is dropped, "
                       "the other keeps its reads")
-    show("collapse", "two players merged -- neither track is trusted inside the "
+    show("occlusion", "both players still there, one standing in front of the "
+                      "other -- left alone")
+    show("collapse", "two tracks, one player -- neither is trusted inside the "
                      "span: no votes, nothing drawn")
 
     spans = collapse_spans(overlaps)

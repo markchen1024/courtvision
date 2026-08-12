@@ -160,12 +160,18 @@ def main():
     fps = sidecar.get("fps", 59.94)
     overlaps = [] if args.no_overlap else overlap.find_overlaps(
         frames, fps=fps, min_seconds=args.overlap_seconds)
+    if overlaps:
+        # Geometry alone cannot tell a collapse from one player standing in
+        # front of another, and they want opposite treatment. Ask the detector
+        # what is inside each shared box before believing the worst.
+        overlap.count_players(args.video, frames, overlaps)
     collapse = overlap.collapse_spans(overlaps)
     dupes = overlap.duplicate_pairs(overlaps)
     for o in overlaps:
         a, b = o["pair"]
+        seen = f"  {o['players']:.0f} in the box" if "players" in o else ""
         print(f"  {o['kind']:9} tracks {a} and {b}: "
-              f"{o['start'] / fps:6.2f}s - {o['end'] / fps:6.2f}s")
+              f"{o['start'] / fps:6.2f}s - {o['end'] / fps:6.2f}s{seen}")
 
     det_model = get_model(model_id=args.detection_model)
     ocr = get_model(model_id=args.ocr_model)

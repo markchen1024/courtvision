@@ -502,3 +502,43 @@ different animal and means the track is on two players.
 
 Until that is settled, `seg_00m30.68s_17s` carries a wrong label in its first
 five seconds and should not go in the reel.
+
+## Two boxes on top of each other say nothing about what is under them (2026-08-12)
+
+The first version of the overlap gate suppressed four of ten players for the
+last five seconds of the 19s segment, and two more at 5s and 11s. Mark caught
+it on the render. Cutting the boxes out of the raw video at 16.0s, where both
+pairs had effectively identical boxes:
+
+| pair | shared box | what is in it |
+|---|---|---|
+| tracks 6 and 8 | 1138,297,1221,478 (identical) | **one player** -- Beasley. Brunson is gone. |
+| tracks 1 and 5 | 907,525,1062,781 vs 899,525,1062,781 | **two players** -- Towns posting up, Harris behind him. |
+
+The second is not a failure. Neither track lost anyone; the boxes overlap
+because one man is standing in front of another, which is most of basketball.
+Geometry cannot tell the two apart -- both give IoS near 1.0 -- and treating
+them the same is what stripped the labels off players who were tracked
+perfectly well.
+
+The discriminator is the detector the pipeline already runs. Sample each
+candidate span, count player detections whose centre falls inside the shared
+box, take the median: two or more is occlusion and is left alone, one is a
+collapse. Cost is about thirty extra detector calls per span.
+
+Reclassified with it, the 19s segment:
+
+    duplicate  9 and 10    0.00s - 19.22s
+    occlusion  1 and 5     4.04s -  5.82s   2 in the box
+    occlusion  8 and 9    10.68s - 11.88s   2 in the box
+    occlusion  8 and 10   10.68s - 11.88s   2 in the box
+    collapse   6 and 8    11.88s - 19.22s   1 in the box
+    occlusion  1 and 5    14.48s - 19.22s   2 in the box
+
+One collapse out of five candidates. Distrusted track-frames fell from 1960 to
+882, and the render checks out: ten of ten labelled at 5s and at 11s, eight of
+ten at 16s, the two missing being exactly the pair that merged.
+
+The other segments, reclassified: `seg_02m27.00s_14s`'s only candidate is
+occlusion, so it loses nothing at all. `seg_00m30.68s_17s`'s remains a genuine
+collapse -- one player in the box -- so tracks 8 and 10 stay unnamed there.
