@@ -152,15 +152,62 @@ def main():
                    "-i", str(video), "-t", f"{length:.2f}",
                    "-c:v", "libx264", "-preset", "medium", "-crf", "18",
                    "-pix_fmt", "yuv420p", "-movflags", "+faststart",
-                   "-an", str(dst)]
+                   # keep the commentary: it survives to the final render,
+                   # and a silent possession does not read as basketball
+                   "-c:a", "aac", "-b:a", "192k", str(dst)]
             r = subprocess.run(cmd, capture_output=True, text=True)
             if r.returncode:
                 print(f"  FAILED {name}: {r.stderr.strip()[:200]}")
-            else:
-                mb = dst.stat().st_size / 1e6
-                print(f"  wrote {dst.relative_to(root)}  "
-                      f"{length:.1f}s  {n} prompts  {mb:.1f}MB")
+                continue
+            mb = dst.stat().st_size / 1e6
+            print(f"  wrote {dst.relative_to(root)}  "
+                  f"{length:.1f}s  {n} prompts  {mb:.1f}MB")
+            contact_sheet(dst, out_dir / f"{dst.stem}_sheet.jpg")
+
+        print("\nLook at the sheets before running any of these. detect_cuts\n"
+              "misses a cut between two shots that share a colour layout, and\n"
+              "one got through on seg_00m03.54s_26s: SAM2 lost every object at\n"
+              "22.89s and the run was 40 minutes old before it showed.")
     return 0
+
+
+def contact_sheet(video, out, shots=6):
+    """Start, end and four points between, in one image.
+
+    A segment that looks right in a frame count can still open on a close-up
+    or contain a cut the detector missed. Both are obvious in six frames and
+    invisible in the numbers, and the check has to be in the same command as
+    the cut or it does not happen.
+    """
+    import cv2
+
+    cap = cv2.VideoCapture(str(video))
+    total = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+    fps = cap.get(cv2.CAP_PROP_FPS) or 30.0
+    want = [int(total * i / (shots - 1)) - (1 if i == shots - 1 else 0)
+            for i in range(shots)]
+    tiles, idx = [], 0
+    while True:
+        ok, frame = cap.read()
+        if not ok:
+            break
+        if idx in want:
+            t = cv2.resize(frame, (480, 270))
+            cv2.putText(t, f"{idx / fps:5.2f}s", (10, 26),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 255, 255), 2)
+            tiles.append(t)
+        idx += 1
+    cap.release()
+    if not tiles:
+        return
+    cols = 3
+    rows = (len(tiles) + cols - 1) // cols
+    sheet = np.zeros((rows * 270, cols * 480, 3), np.uint8)
+    for i, t in enumerate(tiles):
+        r, c = divmod(i, cols)
+        sheet[r * 270:(r + 1) * 270, c * 480:(c + 1) * 480] = t
+    cv2.imwrite(str(out), sheet, [cv2.IMWRITE_JPEG_QUALITY, 88])
+    print(f"       sheet -> {out.name}")
 
 
 if __name__ == "__main__":

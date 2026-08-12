@@ -105,10 +105,19 @@ def main():
     codec = (["-c:v", "h264_nvenc", "-preset", "p4", "-cq", "20"]
              if args.nvenc else
              ["-c:v", "libx264", "-crf", "20", "-preset", "veryfast"])
+    # Carry the source audio across. The annotated frames arrive on the pipe
+    # with no sound, and a silent possession does not read as basketball --
+    # the commentary is half of what makes it legible. The clip is a second
+    # input, seeked to wherever --start put us, and `1:a?` makes the audio
+    # optional so a source without a track still renders.
+    audio_in = ["-ss", f"{start / fps:.3f}", "-i", args.video]
+    audio_map = ["-map", "0:v:0", "-map", "1:a:0?", "-c:a", "aac", "-b:a", "192k",
+                 "-shortest"]
     ff = subprocess.Popen(
         ["ffmpeg", "-y", "-v", "error", "-f", "rawvideo", "-pix_fmt", "bgr24",
-         "-s", f"{w}x{h}", "-r", f"{fps}", "-i", "-", *codec,
-         "-pix_fmt", "yuv420p", args.out], stdin=subprocess.PIPE)
+         "-s", f"{w}x{h}", "-r", f"{fps}", "-i", "-", *audio_in,
+         *codec, *audio_map, "-pix_fmt", "yuv420p",
+         "-movflags", "+faststart", args.out], stdin=subprocess.PIPE)
 
     prog = Progress("final-render", total=end - start + 1)
     rows = []
