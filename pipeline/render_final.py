@@ -117,8 +117,15 @@ def main():
         if not ok:
             break
         if f in frames:
+            # A tint is a claim too. Tracks without a confirmed number were
+            # already denied a name chip, but the mask annotator was still
+            # painting them in a club colour -- which put a referee in Knicks
+            # orange on the 26s segment, and would have coloured in the five
+            # courtside tracks that segment's prompts picked up. Whoever the
+            # pipeline cannot name, it does not claim a side for either.
             rows = [r for r in frames[f]
-                    if not (idn.get(r["tid"]) or {}).get("ignored")]
+                    if not (idn.get(r["tid"]) or {}).get("ignored")
+                    and (idn.get(r["tid"]) or {}).get("number")]
         if rows:
             boxes = np.array([r["box"] for r in rows], np.float32)
             res = sam(frame, bboxes=boxes.tolist(), verbose=False)[0]
