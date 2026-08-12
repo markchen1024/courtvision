@@ -19,11 +19,13 @@ guessing on screen.
 import argparse
 import json
 import subprocess
+import sys
 from pathlib import Path
 
 import cv2
 import numpy as np
 
+import config
 from progress import Progress
 
 FONT = "out/fonts/Staatliches-Regular.ttf"   # the notebook's typeface
@@ -113,6 +115,7 @@ def main():
     audio_in = ["-ss", f"{start / fps:.3f}", "-i", args.video]
     audio_map = ["-map", "0:v:0", "-map", "1:a:0?", "-c:a", "aac", "-b:a", "192k",
                  "-shortest"]
+    config.ensure_ffmpeg()
     ff = subprocess.Popen(
         ["ffmpeg", "-y", "-v", "error", "-f", "rawvideo", "-pix_fmt", "bgr24",
          "-s", f"{w}x{h}", "-r", f"{fps}", "-i", "-", *audio_in,

@@ -28,6 +28,39 @@ def load_env(path=ENV_FILE):
     return values
 
 
+def ensure_ffmpeg():
+    """Make `ffmpeg` findable, whatever this process inherited.
+
+    Every render pipes raw frames to ffmpeg, and on Windows an installer that
+    edits the machine PATH does not reach a shell that was already open --
+    each process carries the PATH it started with. Running a render by hand
+    worked because the command reset PATH first; the same render launched from
+    run_segment.py died with WinError 2 after the three expensive stages had
+    already finished.
+
+    Look for it, and if it is missing rebuild PATH from the registry, where
+    the installer did write it.
+    """
+    import os
+    import shutil
+
+    if shutil.which("ffmpeg"):
+        return True
+    for scope in ("Machine", "User"):
+        try:
+            import subprocess
+            out = subprocess.run(
+                ["powershell", "-NoProfile", "-Command",
+                 f'[System.Environment]::GetEnvironmentVariable("Path","{scope}")'],
+                capture_output=True, text=True, timeout=30)
+            extra = (out.stdout or "").strip()
+            if extra:
+                os.environ["PATH"] = os.environ.get("PATH", "") + os.pathsep + extra
+        except Exception:
+            pass
+    return bool(shutil.which("ffmpeg"))
+
+
 def inference_env():
     """Everything `inference` needs set BEFORE it is imported. Call first.
 

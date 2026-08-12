@@ -72,6 +72,7 @@ def main():
     out.parent.mkdir(parents=True, exist_ok=True)
     # cv2's mp4v plays poorly in browsers; pipe raw frames to ffmpeg for H.264,
     # the same way render_tracks.py does.
+    config.ensure_ffmpeg()
     ff = subprocess.Popen(
         ["ffmpeg", "-y", "-v", "error", "-f", "rawvideo", "-pix_fmt", "bgr24",
          "-s", f"{w}x{h}", "-r", f"{fps}", "-i", "-",

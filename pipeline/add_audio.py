@@ -18,9 +18,13 @@ Writes alongside the input as <name>_sound.mp4 unless --out says otherwise.
 
 import argparse
 import subprocess
+import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import config
 
 
 def main():
@@ -41,6 +45,7 @@ def main():
 
     # -c:v copy: the render is already H.264 and re-encoding it would only lose
     # quality. -shortest stops at the video, which is the shorter stream.
+    config.ensure_ffmpeg()
     cmd = ["ffmpeg", "-y", "-v", "error",
            "-i", str(video),
            "-ss", f"{args.at:.3f}", "-i", str(args.source),

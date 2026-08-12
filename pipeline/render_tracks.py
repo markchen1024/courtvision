@@ -16,10 +16,12 @@ to ffmpeg for H.264.
 import argparse
 import json
 import subprocess
+import sys
 from pathlib import Path
 
 import cv2
 
+import config
 from progress import Progress
 
 # distinct hues, dark-footage friendly (BGR)
@@ -53,6 +55,7 @@ def main():
     h = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
     total = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
 
+    config.ensure_ffmpeg()
     ff = subprocess.Popen(
         ["ffmpeg", "-y", "-v", "error", "-f", "rawvideo", "-pix_fmt", "bgr24",
          "-s", f"{w}x{h}", "-r", f"{fps}", "-i", "-",
