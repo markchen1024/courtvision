@@ -33,6 +33,7 @@ from pathlib import Path
 import numpy as np
 
 import config
+import oncourt
 from progress import Progress
 
 DETECTION_MODEL_ID = "basketball-player-detection-3-ycjdo/4"
@@ -82,6 +83,10 @@ def main():
                          "not enough to tell a missing player from a false "
                          "positive from a de-duplication mistake, and those "
                          "three want different answers.")
+    ap.add_argument("--no-court-filter", action="store_true",
+                    help="count detections wherever they are, the way this ran "
+                         "before a spectator in a CUNNINGHAM jersey filled the "
+                         "tenth slot on seg_02m27.00s_14s")
     ap.add_argument("--scan", action="store_true",
                     help="read the whole clip and list frames with a full lineup")
     ap.add_argument("--every", type=int, default=30, help="scan stride")
@@ -100,26 +105,42 @@ def main():
         video = root / video
     model = get_model(model_id=DETECTION_MODEL_ID)
 
+    # The gate promises that a run from this frame can reach every player, and
+    # a detection in the stands breaks that promise twice: it takes a prompt a
+    # player should have had, and it makes a short lineup look full.
+    kp_model = None if args.no_court_filter else oncourt.keypoint_model()
+
     def detect(frame):
         res = model.infer(frame, confidence=CONFIDENCE,
                           iou_threshold=IOU_THRESHOLD)[0]
         det = sv.Detections.from_inference(res)
         det = det[np.isin(det.class_id, PLAYER_CLASS_IDS)]
         if len(det) == 0:
-            return det, set()
-        return det, set(dedupe(det.xyxy.tolist(), det.confidence.tolist()))
+            return det, set(), set(), ""
+        off, note = set(), ""
+        if kp_model is not None:
+            on, _, note = oncourt.feet_on_court(frame, det.xyxy, model=kp_model)
+            off = {i for i, v in enumerate(on) if not v}
+        on_court = [i for i in range(len(det)) if i not in off]
+        sub = dedupe([det.xyxy[i].tolist() for i in on_court],
+                     [float(det.confidence[i]) for i in on_court])
+        return det, {on_court[i] for i in sub}, off, note
 
     def count(frame):
-        det, keep = detect(frame)
+        det, keep, _, _ = detect(frame)
         return len(det), len(keep)
 
-    def render(frame, det, keep, verdict, out_path):
+    def render(frame, det, keep, off, verdict, out_path):
         for i, (box, conf) in enumerate(zip(det.xyxy, det.confidence)):
             x1, y1, x2, y2 = (int(v) for v in box)
-            kept = i in keep
-            colour = (0, 210, 0) if kept else (0, 0, 240)
+            if i in keep:
+                colour, tag = (0, 210, 0), ""
+            elif i in off:
+                colour, tag = (0, 170, 255), " OFF COURT"
+            else:
+                colour, tag = (0, 0, 240), " DUP"
             cv2.rectangle(frame, (x1, y1), (x2, y2), colour, 3)
-            cv2.putText(frame, f"{conf:.2f}" + ("" if kept else " DUP"),
+            cv2.putText(frame, f"{conf:.2f}{tag}",
                         (x1, max(18, y1 - 8)), cv2.FONT_HERSHEY_SIMPLEX,
                         0.7, colour, 2)
         cv2.putText(frame, f"{len(det)} detections, {len(keep)} prompts, "
@@ -179,15 +200,19 @@ def main():
     cap.release()
     if not ok:
         raise SystemExit(f"cannot read frame {args.at}")
-    det, keep = detect(frame)
+    det, keep, off, note = detect(frame)
     raw, kept = len(det), len(keep)
 
     print(f"frame {args.at} of {video.name}")
     print(f"  {raw} player detections at confidence {CONFIDENCE}")
+    if note:
+        print(f"  {note}")
+    if off:
+        print(f"  {len(off)} struck out as off the court")
     print(f"  {kept} prompts after de-duplication")
     print(f"  {args.need} needed\n")
     if args.render:
-        render(frame.copy(), det, keep,
+        render(frame.copy(), det, keep, off,
                "PASS" if kept >= args.need else "FAIL", args.render)
     if kept >= args.need:
         print(f"PASS -- a run from here can reach all {args.need} players.")

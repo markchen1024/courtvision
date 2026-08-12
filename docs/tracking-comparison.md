@@ -542,3 +542,53 @@ ten at 16s, the two missing being exactly the pair that merged.
 The other segments, reclassified: `seg_02m27.00s_14s`'s only candidate is
 occlusion, so it loses nothing at all. `seg_00m30.68s_17s`'s remains a genuine
 collapse -- one player in the box -- so tracks 8 and 10 stay unnamed there.
+
+## A spectator took a prompt, and the gate called it a full lineup (2026-08-12)
+
+Mark: "活塞二号从始至终都没有 cover 住." Cade Cunningham is never marked in
+`seg_02m27.00s_14s`, and the reason is on frame 0. The gate reported *10
+detections, 10 prompts, 10 needed -- PASS*. One of those ten, at confidence
+0.64, was a spectator in the front row wearing a CUNNINGHAM #2 Pistons jersey.
+
+It took a prompt. SAM2 tracked it for the whole clip. The OCR read `2` off its
+back twenty times -- the only number that track ever produced. The team
+classifier put it in the Knicks cluster on four crops, and since 2 exists on
+both rosters the constrained assignment named it `#2 Miles McBride`. The real
+Cunningham, off camera at frame 0, was never tracked at all.
+
+The gate exists to promise that a run from this frame can reach every player.
+A crowd detection breaks that promise twice: it fills a slot a player should
+have had, and it makes a nine-player frame look like ten.
+
+`pipeline/oncourt.py` tests where a detection is standing, using the
+tutorial's own court model rather than anything new: landmarks from
+basketball-court-detection-2/14, ViewTransformer onto the NBA plan from
+sports.basketball, and the feet -- bottom-centre, the only part of a standing
+player on the court plane. On that frame the spectator lands 4.1m past the
+sideline; the deepest real player is 1.7m inside. A 3m margin separates them
+and still allows for inbounders standing behind the baseline.
+
+Two things were needed to make it safe:
+
+**It must check its own fit.** The first version threw out two real players on
+frame 0 of `seg_00m30.68s_17s`, projecting a man standing in the paint to 44m
+off the far sideline. That frame yields nine landmarks bunched into an
+817x249px patch, and the homography fitted to them misses its own anchors by a
+median of 1.91m, against 0.09m and 0.12m on the two frames whose verdicts are
+correct. So the transform is asked to reproduce the points it was built from,
+and a solve above 0.5m is not allowed to judge anybody -- that segment now
+falls open and prompts with everything, as before.
+
+**The alternative was worse.** An image-space convex hull of the landmarks
+needs no homography and cannot blow up like one, but the landmarks cluster
+near the middle of the visible court: the hull put five of nine real players
+outside on the 14s frame. Rejected.
+
+With the filter on, `seg_02m27.00s_14s` fails its gate at 9 prompts -- which
+is the honest verdict, since the tenth player is off camera. Scanning the clip
+finds ten on-court players from frame 60 onward, so the segment simply starts
+one second too early.
+
+This is a deviation from the notebook, which prompts with every player-class
+detection on frame 0. `--no-court-filter` restores that on both
+`check_lineup.py` and `track_sam2_tutorial.py`.

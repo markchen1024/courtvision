@@ -33,6 +33,7 @@ from pathlib import Path
 import numpy as np
 
 import config
+import oncourt
 from progress import Progress
 
 SAM2_REPO = Path(r"C:\Users\fqche\segment-anything-2-real-time")
@@ -49,6 +50,9 @@ def main():
     ap.add_argument("--checkpoint",
                     default=str(SAM2_REPO / "checkpoints" / "sam2.1_hiera_large.pt"))
     ap.add_argument("--sam2-config", default="configs/sam2.1/sam2.1_hiera_l.yaml")
+    ap.add_argument("--no-court-filter", action="store_true",
+                    help="prompt with every frame-0 detection, the notebook's "
+                         "behaviour, including anyone in the crowd")
     args = ap.parse_args()
 
     config.load_env()
@@ -83,6 +87,19 @@ def main():
                             iou_threshold=IOU_THRESHOLD)[0]
     detections = sv.Detections.from_inference(result)
     detections = detections[np.isin(detections.class_id, PLAYER_CLASS_IDS)]
+    # DEVIATION from the notebook, which prompts with every player-class
+    # detection on frame 0. On seg_02m27.00s_14s one of them was a spectator in
+    # a CUNNINGHAM #2 jersey in the front row: it took a prompt, was tracked for
+    # the whole clip, had '2' read off its back twenty times and was given a
+    # name, while the real Cade Cunningham was never tracked at all. Anyone
+    # whose feet are not on the floor is not a player. --no-court-filter
+    # restores the notebook's behaviour; the test falls open when the court
+    # cannot be solved, so a frame without landmarks still prompts with
+    # everything.
+    if not args.no_court_filter and len(detections):
+        on, _, note = oncourt.feet_on_court(frame, detections.xyxy)
+        print(f"court check: {note}")
+        detections = detections[on]
     detections.tracker_id = np.arange(1, len(detections.class_id) + 1)
     if len(detections) == 0:
         raise SystemExit("no players on frame 0 to prompt with")
