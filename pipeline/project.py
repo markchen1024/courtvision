@@ -174,7 +174,7 @@ def clip_zero_shot(cache, video, path, batch=64):
         scores.extend((f @ tf.T).cpu().numpy())
         crops.clear()
 
-    prog = Progress("shirts", total=len(cache))
+    prog = Progress("shirts", total=len(cache), video=video, artifact=path)
     for n, (frame_idx, rows) in enumerate(sorted(cache.items())):
         prog.step(note=f"frame {frame_idx}")
         players = [(i, r) for i, r in enumerate(rows) if r["name"] == "player"]
@@ -476,7 +476,11 @@ def main():
         print(f"loading {DETECTOR}")
         proc, model = load_detector()
         cache = {}
-        prog = Progress("detect", total=len(usable))
+        # The detector id is recorded, not described. A docstring saying which
+        # model this uses has been wrong before; a run that carries its own
+        # answer cannot be.
+        prog = Progress("detect", total=len(usable), video=args.video,
+                        artifact=cache_path, meta={"detector": DETECTOR})
         for n, r in enumerate(usable):
             cap.set(cv2.CAP_PROP_POS_FRAMES, r["frame"])
             ok, frame = cap.read()

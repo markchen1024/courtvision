@@ -63,7 +63,9 @@ def main():
          "-pix_fmt", "yuv420p", args.out],
         stdin=subprocess.PIPE)
 
-    prog = Progress("render", total=total)
+    prog = Progress("render", total=total, video=args.video, artifact=args.out,
+                    meta={"tracks": Path(args.tracks).name,
+                          "labels": Path(args.labels).name if args.labels else "none"})
     idx = 0
     last = []   # sparse tracks (every>1) hold their boxes until the next sample
     while True:

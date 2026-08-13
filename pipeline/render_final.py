@@ -131,7 +131,12 @@ def main():
          *codec, *audio_map, "-pix_fmt", "yuv420p",
          "-movflags", "+faststart", args.out], stdin=subprocess.PIPE)
 
-    prog = Progress("final-render", total=end - start + 1, video=args.video)
+    prog = Progress("final-render", total=end - start + 1, video=args.video,
+                    artifact=args.out,
+                    meta={"codec": "nvenc" if args.nvenc else "x264",
+                          "boxes": Path(args.boxes).name,
+                          "identities": Path(args.identities).name,
+                          "frames": f"{start}-{end}"})
     rows = []
     for f in range(start, end + 1):
         ok, frame = cap.read()

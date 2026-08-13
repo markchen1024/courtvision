@@ -105,7 +105,10 @@ def main():
 
     tracks = {}
     n = 0
-    prog = Progress("sam2", total=total)
+    prog = Progress("sam2", total=total, video=args.video, artifact=args.out,
+                    meta={"model": args.model, "conf": args.conf,
+                          "min_prompt_conf": args.min_prompt_conf,
+                          "prompt_iou": args.prompt_iou})
     partial = Path(args.out).with_suffix(".partial.json")
     # stream=True is load-bearing: without it ultralytics buffers every result
     # and returns a list, so this loop -- progress, checkpoints, everything --

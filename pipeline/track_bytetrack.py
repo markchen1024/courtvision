@@ -51,7 +51,8 @@ def dense_detections(video, cache_path, every):
     proc, model = load_detector()
     out = {}
     idx = 0
-    prog = Progress("dense-detect", total=total // every)
+    prog = Progress("dense-detect", total=total // every, video=video,
+                    artifact=cache_path, meta={"every": every})
     while True:
         ok, frame = cap.read()
         if not ok:
@@ -72,6 +73,7 @@ def dense_detections(video, cache_path, every):
         "video": video, "every": every, "fps": fps,
         "frames": {str(k): v for k, v in out.items()},
     }))
+    prog.done(note=f"{len(out)} frames cached")
     print(f"cached {len(out)} frames to {cache_path}")
     return out, fps
 
