@@ -693,3 +693,54 @@ added gates for; the notebook does not detect them, let alone fix them.
 
 The conclusion for tracklet association: there is nothing to copy. It is work
 beyond the baseline, not a step of it we skipped.
+
+## Tracklet association by jersey number (2026-08-13)
+
+Re-seeding gave one player several ids and the roster matching turned that into
+an invented name. The association step closes it: two tracks that never coexist
+and read the same number are one player, merged before the matching runs. This
+is what GTA and SportsSUSHI do with ReID embeddings; a jersey number is the
+stronger feature of the two, because teammates in one kit look alike to a ReID
+model and never share a number.
+
+Three conditions, all necessary. Same top number on at least `--min-votes`
+each, the evidence. Lifetimes that do not overlap -- two ids on the floor at
+once reading one number is the duplicate fault, which has its own fix. And not
+two decisively opposed team clusters, since Cunningham is Pistons 2 and
+McBride is Knicks 2; a cluster vote that splits 11-10 has no opinion and
+abstains rather than blocks.
+
+Measured on identical re-seeded tracks for seg_01m10.87s_19s, so the only
+variable is the association step:
+
+| | prompt once | re-seed 3s | re-seed 3s + merge |
+|---|---|---|---|
+| names | 10, all correct | 11, one invented | **10, all correct** |
+| Harris | one track | split 5 and 12 | **12 merged back into 5, 40 votes** |
+| Beasley | undrawn from 11.9s | back at 15.0s | **back at 15.0s** |
+| Brunson | undrawn from 11.9s | undrawn from 11.9s | undrawn from 11.9s |
+
+`#7 Paul Reed` -- a man who did not play -- was blocked twice over, by
+different gates, because it arose two different ways. Without merging it went
+to track 5 on four reads of `7`, which is a *confirmed* assignment; merging
+gives track 5 its real number and the fabrication moves to track 11 on a
+*single* read of `7`, which the maximum-weight matching hands out because
+something is always left over. So a second gate: an assignment below
+`--min-votes` keeps its number for the review queue and gets no name, and is
+marked `ignored` so the render draws neither. A number on one read is a claim
+like any other, and `#7` on Brunson is wrong whether or not a name sits beside
+it.
+
+Brunson is the case association cannot reach, and the reason is exact. His
+recovered track was born at 9.0s, while his original was still alive until
+11.9s, so the two overlap and merging them would be the duplicate fault. Track
+11 is two people -- a man behind the basket until the 15.0s re-seed, Brunson
+after it -- which is also why its team vote split 11-10. Splitting it at the
+re-seed boundaries would leave a tail that is disjoint from track 8 and reads
+the same number, and Brunson would keep his name through the clip. That is
+GTA's other half, the splitter, and the boundaries are already recorded in the
+tracks sidecar as `reseeds`.
+
+Caveat on the record: the `ignored: "tentative"` flag is committed but its
+verification run was stopped before it wrote, so it is unverified end to end.
+Everything above it in this section was measured.

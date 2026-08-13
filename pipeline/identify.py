@@ -76,6 +76,75 @@ def ios(number_box, player_box):
     return (iw * ih) / area if area > 0 else 0.0
 
 
+def decisive(counter, floor=2, share=0.2):
+    """Does this vote actually have an opinion?
+
+    A fragment whose team crops split 11 to 10 has none, and must not be
+    allowed to veto a merge on the strength of a coin toss.
+    """
+    if not counter:
+        return False
+    top = counter.most_common(2)
+    second = top[1][1] if len(top) > 1 else 0
+    return top[0][1] - second >= max(floor, share * sum(counter.values()))
+
+
+def merge_tracklets(life, number_votes, team_votes, min_votes):
+    """Tracks that are one player wearing several ids: {tid: canonical}.
+
+    Three conditions, all necessary:
+
+      same number     the top read agrees, on at least min_votes each. This is
+                      the evidence; everything else is a veto.
+      never together  their lifetimes do not overlap. Two ids on the floor at
+                      once reading the same number is the duplicate case, which
+                      is a different fault with a different fix.
+      not clearly
+      opposed teams   both team votes decisive and disagreeing means two men
+                      who happen to share a number across the two rosters --
+                      Cunningham is Pistons 2, McBride is Knicks 2. An
+                      undecided vote abstains rather than blocks.
+
+    Chained carefully: a third track joins a group only if it clears the whole
+    group's span, so A-B and B-C disjoint but A-C overlapping cannot sneak
+    through.
+    """
+    top = {}
+    for tid, counter in number_votes.items():
+        if not counter:
+            continue
+        best = counter.most_common(1)[0]
+        if best[1] >= min_votes:
+            top[tid] = best[0]
+
+    by_number = defaultdict(list)
+    for tid, num in top.items():
+        by_number[num].append(tid)
+
+    alias = {}
+    for num, tids in sorted(by_number.items()):
+        if len(tids) < 2:
+            continue
+        # strongest first: it becomes the canonical id and the others join it
+        tids.sort(key=lambda t: -sum(number_votes[t].values()))
+        groups = []           # [(canonical, first, last)]
+        for tid in tids:
+            a, b = life[tid]
+            for g in groups:
+                canon, lo, hi = g
+                if b < lo or a > hi:          # clear of everything so far
+                    ca, cb = team_votes.get(canon), team_votes.get(tid)
+                    if (decisive(ca) and decisive(cb)
+                            and ca.most_common(1)[0][0] != cb.most_common(1)[0][0]):
+                        continue              # two clubs, same number
+                    alias[tid] = canon
+                    g[1], g[2] = min(lo, a), max(hi, b)
+                    break
+            else:
+                groups.append([tid, a, b])
+    return alias
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--video", default="web/media/nba.mp4")
@@ -122,6 +191,10 @@ def main():
                     help="a track collapsed onto another for more than this "
                          "fraction of its life gets no name at all -- there is "
                          "not enough of it left to say whose track it is")
+    ap.add_argument("--no-merge", action="store_true",
+                    help="skip tracklet association -- treat every track id as "
+                         "a different player, even two that never coexist and "
+                         "read the same number")
     ap.add_argument("--no-overlap", action="store_true",
                     help="trust every track everywhere, the way this ran before "
                          "the collapse on seg_01m10.87s_19s was found")
@@ -287,6 +360,50 @@ def main():
     if blocked:
         print(f"{blocked} number regions ignored inside collapsed spans")
 
+    print(f"fitting team classifier on {len(team_crops)} crops...")
+    import torch
+    team_classifier = TeamClassifier(device="cuda" if torch.cuda.is_available() else "cpu")
+    team_classifier.fit(team_crops)
+    crop_teams = team_classifier.predict(team_crops)
+    votes = defaultdict(Counter)
+    for tid, team in zip(team_crop_tids, crop_teams):
+        votes[tid][int(team)] += 1
+
+    # Tracklet association. Re-seeding the tracker can hand one player several
+    # ids over a clip -- measured on seg_01m10.87s_19s at 3s re-seeds, Harris
+    # ran as track 5 until 15s and as track 12 from 18s, both reading '12'. The
+    # roster matching gives one number per track, so the weaker was pushed onto
+    # the only number left and became '#7 Paul Reed', who did not play. Two
+    # tracks that never coexist and read the same number are one player.
+    #
+    # This is the step GTA and SportsSUSHI perform with ReID embeddings. A
+    # jersey number is the stronger feature of the two: teammates in the same
+    # kit look alike to a ReID model and never share a number.
+    life = overlap.lifetimes(frames)
+    alias = {} if args.no_merge else merge_tracklets(
+        life, number_votes, votes, args.min_votes)
+    for tid, canon in alias.items():
+        print(f"MERGED: track {tid} is track {canon} again "
+              f"(#{number_votes[tid].most_common(1)[0][0]}, "
+              f"{life[tid][0]}-{life[tid][1]} after {life[canon][0]}-"
+              f"{life[canon][1]})")
+        number_votes[canon].update(number_votes.pop(tid))
+        votes[canon].update(votes.pop(tid, Counter()))
+        # the merged track owns every frame either half was alive for, and is
+        # distrusted wherever either half was
+        life[canon] = (min(life[canon][0], life[tid][0]),
+                       max(life[canon][1], life[tid][1]))
+        if tid in collapse:
+            collapse[canon] = sorted(collapse.get(canon, []) + collapse.pop(tid))
+    if alias:
+        dupes = sorted({tuple(sorted((alias.get(a, a), alias.get(b, b))))
+                        for a, b in dupes} - {(a, a) for a in life})
+        dupes = [p for p in dupes if p[0] != p[1]]
+        all_tids = [t for t in all_tids if t not in alias]
+        print(f"{len(alias)} tracklets merged into "
+              f"{len(set(alias.values()))} players")
+    cluster = {tid: c.most_common(1)[0][0] for tid, c in votes.items()}
+
     # A duplicate pair is one man wearing two track ids from the first frame
     # on. Unlike a collapse there is nothing to distrust -- the reads are of a
     # real player and they are right -- so the fix is to retire one id. The
@@ -312,10 +429,9 @@ def main():
     # wrong on purpose is not an improvement. Below half a life, the pre-
     # contact evidence still stands and the track keeps its name (it simply
     # goes unmarked inside the span); above it, there is no track left to name.
-    life = overlap.lifetimes(frames)
     unvouched = {}
     for tid, spans in collapse.items():
-        if tid in retired:
+        if tid in retired or tid in alias:
             continue
         span = sum(e - s + 1 for s, e in spans)
         whole = life[tid][1] - life[tid][0] + 1
@@ -329,10 +445,12 @@ def main():
 
     if args.confirm in ("majority", "roster"):
         confirmed = {}
-        for tid, votes in number_votes.items():
+        # not `votes` -- that name holds the team-cluster votes, and shadowing
+        # it here emptied every team_votes field in the output
+        for tid, counts in number_votes.items():
             if tid in retired or tid in unvouched:
                 continue
-            top = votes.most_common(2)
+            top = counts.most_common(2)
             # at least two votes, and a strict winner -- a lone read or a tie
             # stays unconfirmed rather than guessed
             if top[0][1] >= 2 and (len(top) == 1 or top[0][1] > top[1][1]):
@@ -346,16 +464,6 @@ def main():
         confirmed = {tid: v for tid in live_tids
                      if (v := validator.get_validated(tid)) is not None}
     print(f"{reads} OCR reads -> {len(confirmed)} tracks with a confirmed number")
-
-    print(f"fitting team classifier on {len(team_crops)} crops...")
-    import torch
-    team_classifier = TeamClassifier(device="cuda" if torch.cuda.is_available() else "cpu")
-    team_classifier.fit(team_crops)
-    crop_teams = team_classifier.predict(team_crops)
-    votes = defaultdict(Counter)
-    for tid, team in zip(team_crop_tids, crop_teams):
-        votes[tid][int(team)] += 1
-    cluster = {tid: c.most_common(1)[0][0] for tid, c in votes.items()}
 
     # clusters -> clubs, by which roster the confirmed numbers belong to
     rosters = json.loads(Path(args.rosters).read_text())
@@ -435,9 +543,22 @@ def main():
         weak = tentative.get(tid)
         if num is None and weak:
             num = weak[0]
-        name = club_names.get(club, {}).get(num) if num else None
+        # A tentative number is one the matching had to give this track because
+        # nothing else was left, on reads that barely support it. Keeping the
+        # number for review was always the intent; attaching a name to it was
+        # not, and that is how a single stray read of '7' put `#7 Paul Reed` on
+        # screen -- a man who did not play. Below min-votes: number yes, name
+        # no, exactly as the duplicate gate does it.
+        name = (club_names.get(club, {}).get(num)
+                if num and not weak else None)
         identities[tid] = {"number": num, "club": club, "name": name,
-                           **({"needs_review": weak[1]} if weak else {}),
+                           # kept in the file for the review queue, kept off
+                           # the screen: a number the matching had to invent
+                           # from one read is a claim like any other, and '#7'
+                           # drawn on Brunson is wrong whether or not Paul
+                           # Reed's name is next to it
+                           **({"needs_review": weak[1],
+                               "ignored": "tentative"} if weak else {}),
                            # the render skips these outright: a retired track
                            # is a second box on a player who already has one
                            **({"ignored": "duplicate-track",
@@ -456,7 +577,7 @@ def main():
         if num:
             labels[tid] = f"#{num} {name}" if name else f"#{num}"
     named = sum(1 for v in identities.values() if v["name"])
-    print(f"{named} tracks carry a full name, "
+    print(f"{named} players carry a full name, "
           f"{len(confirmed) - named} a number the roster does not list")
 
     # GATE. Two live tracks confirmed to the same club and number is one player
@@ -487,6 +608,16 @@ def main():
         named = sum(1 for v in identities.values() if v["name"])
         print(f"{named} tracks now carry a full name")
 
+    # Only now do the merged halves get entries of their own, copied from the
+    # canonical, so render_final can go on looking a box up by whatever id the
+    # tracker gave it. Any earlier and the duplicate gate above would see the
+    # two halves as two players on one number and demote the one it just spent
+    # the association step deciding was the same man.
+    for tid, canon in alias.items():
+        identities[tid] = {**identities[canon], "merged_into": canon}
+        if canon in labels:
+            labels[tid] = labels[canon]
+
     Path(args.out).parent.mkdir(parents=True, exist_ok=True)
     Path(args.out).write_text(json.dumps({
         "video": args.video, "boxes": args.boxes,
@@ -502,6 +633,7 @@ def main():
             "retired": {str(k): v for k, v in retired.items()},
             "unvouched": {str(k): round(v, 3) for k, v in unvouched.items()},
         },
+        "merged": {str(k): v for k, v in alias.items()},
         "identities": {str(k): v for k, v in identities.items()},
         "labels": {str(k): v for k, v in labels.items()},
     }))
