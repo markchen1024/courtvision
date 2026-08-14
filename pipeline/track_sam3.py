@@ -21,6 +21,41 @@ import numpy as np
 from progress import Progress
 
 
+def _fix_clip_tokenizer():
+    """Work around an ultralytics bug that stops SAM3 loading at all.
+
+    build_sam3.py hands the text encoder a `clip.simple_tokenizer
+    .SimpleTokenizer()` instance, and text_encoder_ve.py then calls it:
+
+        tokenized = self.tokenizer(text, context_length=self.context_length)
+
+    That object is not callable. It has bpe/encode/decode; the callable is the
+    module-level `clip.tokenize(texts, context_length=77, truncate=False)`,
+    whose signature is exactly what the caller passes. True of the `clip` this
+    environment has -- rf-clip 1.1, pulled in by `inference` -- and of OpenAI's
+    own CLIP, so it is ultralytics' bug rather than a wrong package here.
+    Measured: SAM3 dies with `TypeError: 'SimpleTokenizer' object is not
+    callable` before a single frame is read.
+
+    Rather than edit site-packages, give the class the __call__ it is being
+    used as. Delegating keeps clip's own tokenizer, so nothing about the
+    encoding changes.
+    """
+    try:
+        import clip
+        from clip.simple_tokenizer import SimpleTokenizer
+    except ImportError:
+        return False
+    if callable(SimpleTokenizer()):
+        return False
+    SimpleTokenizer.__call__ = (
+        lambda self, texts, context_length=77, truncate=True:
+        clip.tokenize(texts, context_length=context_length, truncate=truncate))
+    print("patched clip.SimpleTokenizer.__call__ -> clip.tokenize "
+          "(ultralytics build_sam3 passes an object it then calls)")
+    return True
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--video", required=True)
@@ -31,6 +66,7 @@ def main():
     ap.add_argument("--out", required=True)
     args = ap.parse_args()
 
+    _fix_clip_tokenizer()
     from ultralytics.models.sam import SAM3VideoSemanticPredictor
 
     predictor = SAM3VideoSemanticPredictor(overrides=dict(
@@ -45,7 +81,7 @@ def main():
 
     tracks = {}
     n = 0
-    prog = Progress("sam3", total=total)
+    prog = Progress("sam3", total=total, video=args.video)
     partial = Path(args.out).with_suffix(".partial.json")
     # stream=True for the same reason as track_sam2.py: without it every
     # result buffers until the end and nothing below runs during inference.

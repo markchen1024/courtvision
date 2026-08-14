@@ -34,6 +34,11 @@ the visible court, so the hull put five of nine real players outside on the
 14s frame. Not usable.
 """
 
+import argparse
+import json
+import sys
+from pathlib import Path
+
 import numpy as np
 
 KEYPOINT_MODEL_ID = "basketball-court-detection-2/14"   # notebook cell 76
@@ -97,6 +102,61 @@ def court_transformer(frame, model=None, max_residual_m=MAX_RESIDUAL_M):
     return transformer, length_m, width_m, f"{n} landmarks, fit {residual:.2f}m"
 
 
+def filter_tracks(video, frames, every=15, margin_m=MARGIN_M, progress=None):
+    """Drop boxes that are not standing on the floor, frame by frame.
+
+    For SAM2 this only matters on the prompt frame. A concept tracker detects
+    afresh every frame, so it keeps re-admitting the bench and the courtside
+    seats: measured on seg_01m10.87s_19s, SAM3 returns a median of 17 boxes per
+    frame where ten players are on court, and the team crops that come off
+    those boxes collapse the SigLIP clustering into a single cluster -- after
+    which cluster-to-club is a structural 11-11 tie and nobody gets named.
+
+    The court is solved every `every` frames and the nearest solve reused;
+    broadcast cameras pan slowly enough for that, and a per-frame solve would
+    cost more than the tracking did. Frames whose solve fails keep every box,
+    the same falling-open rule as everywhere else here.
+
+    Returns (filtered_frames, stats).
+    """
+    import cv2
+
+    model = keypoint_model()
+    cap = cv2.VideoCapture(str(video))
+    out, kept_n, dropped_n, unsolved = {}, 0, 0, 0
+    transformer = length_m = width_m = None
+    idx = 0
+    while True:
+        ok, frame = cap.read()
+        if not ok:
+            break
+        rows = frames.get(idx, [])
+        if idx % every == 0:
+            transformer, length_m, width_m, _ = court_transformer(frame, model)
+        if rows and transformer is not None:
+            boxes = np.asarray([r["box"] for r in rows], dtype=np.float32)
+            feet = np.stack([(boxes[:, 0] + boxes[:, 2]) / 2.0, boxes[:, 3]], axis=1)
+            xy = transformer.transform_points(points=feet.astype(np.float32))
+            inside = (np.isfinite(xy).all(axis=1)
+                      & (xy[:, 0] >= -margin_m) & (xy[:, 0] <= length_m + margin_m)
+                      & (xy[:, 1] >= -margin_m) & (xy[:, 1] <= width_m + margin_m))
+            keep = [r for r, v in zip(rows, inside) if v]
+            dropped_n += len(rows) - len(keep)
+            kept_n += len(keep)
+            out[idx] = keep
+        else:
+            if rows and transformer is None:
+                unsolved += 1
+            kept_n += len(rows)
+            out[idx] = rows
+        idx += 1
+        if progress:
+            progress.step(note=f"frame {idx}, {dropped_n} dropped")
+    cap.release()
+    return out, {"frames": idx, "kept": kept_n, "dropped": dropped_n,
+                 "unsolved_frames": unsolved}
+
+
 def feet_on_court(frame, boxes, margin_m=MARGIN_M, model=None):
     """Which boxes are standing on the floor.
 
@@ -123,3 +183,56 @@ def feet_on_court(frame, boxes, margin_m=MARGIN_M, model=None):
             f"(NBA {length_m:.2f}x{width_m:.2f}m plus {margin_m:.0f}m; {why})"
             if off else f"all {len(boxes)} detections are on the court ({why})")
     return inside, xy, note
+
+
+def main():
+    ap = argparse.ArgumentParser(
+        description="Strip off-court boxes from a tracker's output.")
+    ap.add_argument("--boxes", required=True, help="tracks JSON to filter")
+    ap.add_argument("--video", required=True)
+    ap.add_argument("--out", required=True)
+    ap.add_argument("--every", type=int, default=15,
+                    help="frames between court solves")
+    ap.add_argument("--margin", type=float, default=MARGIN_M)
+    args = ap.parse_args()
+
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    import config
+    from progress import Progress
+    config.load_env()
+    config.inference_env()
+
+    root = Path(__file__).resolve().parent.parent
+
+    def path(p):
+        p = Path(p)
+        return p if p.is_absolute() else root / p
+
+    sidecar = json.loads(path(args.boxes).read_text(encoding="utf-8"))
+    frames = {int(k): v for k, v in sidecar["frames"].items()}
+    before = sum(len(v) for v in frames.values())
+    ids_before = len({r["tid"] for v in frames.values() for r in v})
+
+    prog = Progress("oncourt-filter", total=len(frames), video=args.video)
+    kept, stats = filter_tracks(path(args.video), frames, every=args.every,
+                                margin_m=args.margin, progress=prog)
+    prog.done(note=f"{stats['dropped']} dropped")
+
+    ids_after = len({r["tid"] for v in kept.values() for r in v})
+    sidecar["frames"] = {str(k): v for k, v in kept.items()}
+    sidecar["oncourt_filter"] = {**stats, "every": args.every,
+                                 "margin_m": args.margin}
+    path(args.out).write_text(json.dumps(sidecar))
+    print(f"wrote {args.out}")
+    print(f"  boxes  {before} -> {stats['kept']}  ({stats['dropped']} off court)")
+    print(f"  ids    {ids_before} -> {ids_after}")
+    print(f"  per frame  {before/max(1,len(frames)):.1f} -> "
+          f"{stats['kept']/max(1,len(frames)):.1f}")
+    if stats["unsolved_frames"]:
+        print(f"  {stats['unsolved_frames']} frames kept everything -- "
+              f"court not solved there")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

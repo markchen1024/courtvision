@@ -89,16 +89,22 @@ def decisive(counter, floor=2, share=0.2):
     return top[0][1] - second >= max(floor, share * sum(counter.values()))
 
 
-def merge_tracklets(life, number_votes, team_votes, min_votes):
+def merge_tracklets(life, number_votes, team_votes, min_votes, overlap_frames=15):
     """Tracks that are one player wearing several ids: {tid: canonical}.
 
     Three conditions, all necessary:
 
       same number     the top read agrees, on at least min_votes each. This is
                       the evidence; everything else is a veto.
-      never together  their lifetimes do not overlap. Two ids on the floor at
-                      once reading the same number is the duplicate case, which
-                      is a different fault with a different fix.
+      never together  their lifetimes do not overlap by more than
+                      `overlap_frames`. Two ids on the floor at once reading
+                      the same number is the duplicate case, a different fault
+                      with a different fix -- but a tracker hands over with a
+                      few frames of double report, and demanding a clean seam
+                      cost Beasley the end of seg_01m10.87s_19s: his fragments
+                      ran 0-941 and 935-1152, seven frames of overlap, 0.12s,
+                      so the second was refused and he went unlabelled from
+                      15.7s. Real coexistence lasts seconds, not frames.
       not clearly
       opposed teams   both team votes decisive and disagreeing means two men
                       who happen to share a number across the two rosters --
@@ -132,7 +138,9 @@ def merge_tracklets(life, number_votes, team_votes, min_votes):
             a, b = life[tid]
             for g in groups:
                 canon, lo, hi = g
-                if b < lo or a > hi:          # clear of everything so far
+                # measured against the whole group's span, not one member, so a
+                # third fragment cannot slip in between two that already merged
+                if min(b, hi) - max(a, lo) + 1 <= overlap_frames:
                     ca, cb = team_votes.get(canon), team_votes.get(tid)
                     if (decisive(ca) and decisive(cb)
                             and ca.most_common(1)[0][0] != cb.most_common(1)[0][0]):
@@ -191,6 +199,13 @@ def main():
                     help="a track collapsed onto another for more than this "
                          "fraction of its life gets no name at all -- there is "
                          "not enough of it left to say whose track it is")
+    ap.add_argument("--merge-overlap-frames", type=int, default=15,
+                    help="frames two tracklets may coexist and still be judged "
+                         "one player -- a tracker hands over with a few frames "
+                         "of double report. 0 demands a clean seam.")
+    ap.add_argument("--no-split-check", action="store_true",
+                    help="keep a name on a track whose reads are split between "
+                         "two clubs' numbers -- it has been on two players")
     ap.add_argument("--no-merge", action="store_true",
                     help="skip tracklet association -- treat every track id as "
                          "a different player, even two that never coexist and "
@@ -381,7 +396,7 @@ def main():
     # kit look alike to a ReID model and never share a number.
     life = overlap.lifetimes(frames)
     alias = {} if args.no_merge else merge_tracklets(
-        life, number_votes, votes, args.min_votes)
+        life, number_votes, votes, args.min_votes, args.merge_overlap_frames)
     for tid, canon in alias.items():
         print(f"MERGED: track {tid} is track {canon} again "
               f"(#{number_votes[tid].most_common(1)[0][0]}, "
@@ -449,6 +464,13 @@ def main():
         # it here emptied every team_votes field in the output
         for tid, counts in number_votes.items():
             if tid in retired or tid in unvouched:
+                continue
+            # number_votes is a defaultdict, and the duplicate check above
+            # reads number_votes[t] for tracks that were never read at all,
+            # which quietly creates an empty counter. Harmless until SAM3
+            # produced 189 fragments, most of them never read, and one that
+            # survived the duplicate check reached most_common() empty.
+            if not counts:
                 continue
             top = counts.most_common(2)
             # at least two votes, and a strict winner -- a lone read or a tie
@@ -607,6 +629,43 @@ def main():
         print(f"{len(duplicates)} duplicate identities demoted")
         named = sum(1 for v in identities.values() if v["name"])
         print(f"{named} tracks now carry a full name")
+
+    # GATE. A track that reads two numbers about equally often, where no single
+    # roster holds both, has been on two players. Measured on
+    # seg_00m30.68s_17s: track 6 read '0' thirty times and '32' thirty times --
+    # Duren is Pistons 0, Towns is Knicks 32 -- because it followed a Detroit
+    # player for the first seconds and Towns from about 8s. The render put
+    # `#32 TOWNS` on a Piston while the real Towns stood unmarked beside him.
+    #
+    # The majority rule would have refused this outright: it demands a strict
+    # winner. Roster mode replaces majority with the matching, which has no
+    # such requirement, and that is the hole. Only cross-club ties are refused,
+    # never same-club ones -- resolving those is the matching's whole value
+    # (track 7 tied 25 against 8, and 8 was already taken, so 25 was the only
+    # reading left).
+    split = {}
+    if not args.no_split_check:
+        for tid, v in identities.items():
+            if not v.get("name") or v.get("ignored"):
+                continue
+            counts = number_votes.get(tid) or Counter()
+            top = counts.most_common(2)
+            if len(top) < 2 or decisive(counts):
+                continue
+            (a, _), (b, _) = top
+            if any(a in club_numbers[c] and b in club_numbers[c] for c in clubs):
+                continue          # one roster holds both -- the matching's job
+            split[tid] = (a, b)
+            print(f"SPLIT IDENTITY: track {tid} reads #{a} and #{b} about "
+                  f"equally ({top[0][1]} vs {top[1][1]}), and no roster holds "
+                  f"both -- it has been on two players, so it gets no name")
+        for tid in split:
+            identities[tid]["name"] = None
+            identities[tid]["ignored"] = "split-identity"
+            identities[tid]["split_between"] = list(split[tid])
+    if split:
+        named = sum(1 for v in identities.values() if v["name"])
+        print(f"{len(split)} split identities dropped; {named} tracks named")
 
     # Only now do the merged halves get entries of their own, copied from the
     # canonical, so render_final can go on looking a box up by whatever id the

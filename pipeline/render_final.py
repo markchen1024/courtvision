@@ -156,6 +156,24 @@ def main():
         # collapse starts and ends part-way through a track's life
         draw = [r for r in rows
                 if not overlap.is_contaminated(collapse, r["tid"], f)]
+        # One label per player per frame. identify.py may have decided two
+        # track ids are the same man -- correctly, a tracker hands over with a
+        # few frames of double report -- and on those frames both halves are
+        # alive and both carry his name. Measured at 15.60s of the SAM3 run:
+        # tracks 107 and 163, boxes 1085,339,1158,480 and 1085,299,1160,480,
+        # two `#5 BEASLEY` chips on one player. Whose frame it is belongs here,
+        # not in another identity rule: keep the biggest box, which is the one
+        # whose mask actually covers him.
+        if len(draw) > 1:
+            one = {}
+            for r in draw:
+                v = idn.get(r["tid"]) or {}
+                who = v.get("merged_into", r["tid"])
+                x1, y1, x2, y2 = r["box"]
+                area = (x2 - x1) * (y2 - y1)
+                if who not in one or area > one[who][0]:
+                    one[who] = (area, r)
+            draw = [r for _, r in one.values()]
         if draw:
             boxes = np.array([r["box"] for r in draw], np.float32)
             res = sam(frame, bboxes=boxes.tolist(), verbose=False)[0]
