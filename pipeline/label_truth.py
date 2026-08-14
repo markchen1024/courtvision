@@ -80,6 +80,12 @@ def main():
     ap.add_argument("--min-frames", type=int, default=30,
                     help="skip tracks shorter than this -- a fragment of a few "
                          "frames is never drawn and cannot be read anyway")
+    ap.add_argument("--identities",
+                    help="label only the tracks this run actually draws. Both "
+                         "metrics need no more: precision judges drawn labels, "
+                         "and a track with no label contributes nothing to "
+                         "coverage either way. On the SAM3 output that is a "
+                         "dozen tracks instead of eighty-one.")
     args = ap.parse_args()
 
     import cv2
@@ -101,6 +107,11 @@ def main():
         v.sort()
 
     keep = {t: v for t, v in seen.items() if len(v) >= args.min_frames}
+    if args.identities:
+        idn = json.loads(path(args.identities).read_text())["identities"]
+        drawn = {int(k) for k, v in idn.items()
+                 if v.get("number") and not v.get("ignored")}
+        keep = {t: v for t, v in keep.items() if t in drawn}
     out = path(args.out)
     sheets = out.parent / "tracks" / Path(args.boxes).stem
     sheets.mkdir(parents=True, exist_ok=True)

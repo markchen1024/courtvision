@@ -744,3 +744,35 @@ tracks sidecar as `reseeds`.
 Caveat on the record: the `ignored: "tentative"` flag is committed but its
 verification run was stopped before it wrote, so it is unverified end to end.
 Everything above it in this section was measured.
+
+## The first measurement reverses the choice (2026-08-14)
+
+`pipeline/score.py` replays render_final.py's drawing rule against a per-track
+ground truth and reports precision (labels drawn on the right man) and
+coverage (of the ten on court, how many carry a correct label). The 19s
+segment, both routes:
+
+| | precision | coverage | right | wrong | unknown |
+|---|---|---|---|---|---|
+| SAM2, prompt once | 95.5% | 74.2% | 9706 | 462 | 480 |
+| SAM3 + on-court filter + merge | **100.0%** | **81.7%** | 10574 | **0** | 180 |
+
+Every wrong frame in the SAM2 run is one track: number 5 is Harris for four
+seconds and Towns after, and the render calls it Harris throughout, so two
+fifths of that clip carries Harris's name on Towns. It survived every frame
+cropped by hand over two days, including the check that answered "are Towns
+and Harris both labelled at 15s?" -- they were, and one of the labels was on
+the wrong man. Counting labels cannot see that; only checking them can.
+
+Worth recording because it was the wrong call, made twice: before the metric
+existed, SAM2 looked better on "share of frames showing all ten labels", 62%
+against 50%. That proxy rewards drawing a label whether or not it is right,
+and it inverted the answer. The eleven-label frame it also failed to flag was
+found by hand; the 462 wrong frames were not.
+
+Caveats on the sample. The two truths are separate files because track ids
+differ between trackers, and the SAM3 one covers only the fifteen tracks that
+run actually draws -- enough for both metrics, since a track with no label
+changes neither. Both were read off crop strips by eye; unreadable stretches
+are marked unknown and skipped rather than guessed, which is where the 480 and
+180 come from.

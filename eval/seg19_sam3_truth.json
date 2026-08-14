@@ -1,0 +1,314 @@
+{
+ "video": "out/segments/seg_01m10.87s_19s.mp4",
+ "boxes": "out/seg19_sam3_oncourt_tracks.json",
+ "fps": 59.94,
+ "legend": {
+  "<number>": "this track is that player throughout",
+  "mixed": "followed more than one man",
+  "not-player": "referee, coach, crowd",
+  "?": "unreadable; skipped by the scorer",
+  "segments": "[[player, from_frame, to_frame], ...]; frames outside every segment are unknown and skipped"
+ },
+ "tracks": {
+  "0": {
+   "player": "0",
+   "frames": [
+    0,
+    1152
+   ],
+   "seconds": [
+    0.0,
+    19.22
+   ],
+   "n_frames": 1153,
+   "note": "DUREN 0 at 691, PISTONS 0 at 1152",
+   "segments": [
+    [
+     "0",
+     0,
+     1152
+    ]
+   ]
+  },
+  "2": {
+   "player": "32",
+   "frames": [
+    0,
+    1152
+   ],
+   "seconds": [
+    0.0,
+    19.22
+   ],
+   "n_frames": 1153,
+   "note": "TOWNS 32 at 691, 922, 1152",
+   "segments": [
+    [
+     "32",
+     0,
+     1152
+    ]
+   ]
+  },
+  "4": {
+   "player": "8",
+   "frames": [
+    0,
+    1152
+   ],
+   "seconds": [
+    0.0,
+    19.22
+   ],
+   "n_frames": 1151,
+   "note": "ANUNOBY 8 at 230 and 922",
+   "segments": [
+    [
+     "8",
+     0,
+     1152
+    ]
+   ]
+  },
+  "6": {
+   "player": "25",
+   "frames": [
+    0,
+    831
+   ],
+   "seconds": [
+    0.0,
+    13.86
+   ],
+   "n_frames": 824,
+   "note": "BRIDGES 25 at 494 and 659",
+   "segments": [
+    [
+     "25",
+     0,
+     831
+    ]
+   ]
+  },
+  "7": {
+   "player": "2",
+   "frames": [
+    0,
+    1152
+   ],
+   "seconds": [
+    0.0,
+    19.22
+   ],
+   "n_frames": 1153,
+   "note": "PISTONS 2 at 922 and 1152",
+   "segments": [
+    [
+     "2",
+     0,
+     1152
+    ]
+   ]
+  },
+  "8": {
+   "player": "11",
+   "frames": [
+    1,
+    619
+   ],
+   "seconds": [
+    0.02,
+    10.33
+   ],
+   "n_frames": 556,
+   "note": "blue Knicks 11 at 508",
+   "segments": [
+    [
+     "11",
+     1,
+     619
+    ]
+   ]
+  },
+  "11": {
+   "player": "8",
+   "frames": [
+    0,
+    1152
+   ],
+   "seconds": [
+    0.0,
+    19.22
+   ],
+   "n_frames": 1151,
+   "note": "HARDAWAY JR. 8 at 690, PISTONS 8 at 1152",
+   "segments": [
+    [
+     "8",
+     0,
+     1152
+    ]
+   ]
+  },
+  "13": {
+   "player": "5",
+   "frames": [
+    0,
+    618
+   ],
+   "seconds": [
+    0.0,
+    10.31
+   ],
+   "n_frames": 619,
+   "note": "BEASLEY 5 at 494",
+   "segments": [
+    [
+     "5",
+     0,
+     618
+    ]
+   ]
+  },
+  "31": {
+   "player": "3",
+   "frames": [
+    91,
+    1152
+   ],
+   "seconds": [
+    1.52,
+    19.22
+   ],
+   "n_frames": 1062,
+   "note": "blue Knicks 3 at 303 and 515",
+   "segments": [
+    [
+     "3",
+     91,
+     1152
+    ]
+   ]
+  },
+  "58": {
+   "player": "12",
+   "frames": [
+    268,
+    756
+   ],
+   "seconds": [
+    4.47,
+    12.61
+   ],
+   "n_frames": 489,
+   "note": "PISTONS 12 at 366; last cell at 756 shows a distant white 5, so only 268-658 is claimed",
+   "segments": [
+    [
+     "12",
+     268,
+     658
+    ]
+   ]
+  },
+  "107": {
+   "player": "5",
+   "frames": [
+    632,
+    941
+   ],
+   "seconds": [
+    10.54,
+    15.7
+   ],
+   "n_frames": 310,
+   "note": "BEASLEY 5 at 756 and 817",
+   "segments": [
+    [
+     "5",
+     632,
+     941
+    ]
+   ]
+  },
+  "134": {
+   "player": "11",
+   "frames": [
+    775,
+    1152
+   ],
+   "seconds": [
+    12.93,
+    19.22
+   ],
+   "n_frames": 378,
+   "note": "blue Knicks 11 from 850 on; the first cell at 775 is a white Piston, so only 850-1152 is claimed",
+   "segments": [
+    [
+     "11",
+     850,
+     1152
+    ]
+   ]
+  },
+  "146": {
+   "player": "25",
+   "frames": [
+    837,
+    1152
+   ],
+   "seconds": [
+    13.96,
+    19.22
+   ],
+   "n_frames": 314,
+   "note": "25 at 964, 1027, 1089, 1152",
+   "segments": [
+    [
+     "25",
+     837,
+     1152
+    ]
+   ]
+  },
+  "161": {
+   "player": "12",
+   "frames": [
+    923,
+    1152
+   ],
+   "seconds": [
+    15.4,
+    19.22
+   ],
+   "n_frames": 230,
+   "note": "PISTONS 12 at 1060, 1106, 1152",
+   "segments": [
+    [
+     "12",
+     923,
+     1152
+    ]
+   ]
+  },
+  "163": {
+   "player": "5",
+   "frames": [
+    935,
+    1152
+   ],
+   "seconds": [
+    15.6,
+    19.22
+   ],
+   "n_frames": 218,
+   "note": "white Pistons 5 at 1022 and 1065",
+   "segments": [
+    [
+     "5",
+     935,
+     1152
+    ]
+   ]
+  }
+ }
+}
