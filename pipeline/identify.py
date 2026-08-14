@@ -655,6 +655,17 @@ def main():
             (a, _), (b, _) = top
             if any(a in club_numbers[c] and b in club_numbers[c] for c in clubs):
                 continue          # one roster holds both -- the matching's job
+            # A clipped crop drops a digit, so '25' comes back as '5'. Two
+            # readings where one is the head or tail of the other are one
+            # number read twice, not two men -- measured on seg_02m44.15s_10s,
+            # where Bridges read '5' 29 times and '25' 20 times and this gate
+            # threw away an assignment the roster matching had already got
+            # right (#5 was taken, so #25 was the only reading left). Two
+            # genuinely different players do not produce substrings of each
+            # other: the case this gate exists for read '0' and '32'.
+            short, long = sorted((a, b), key=len)
+            if long.startswith(short) or long.endswith(short):
+                continue
             split[tid] = (a, b)
             print(f"SPLIT IDENTITY: track {tid} reads #{a} and #{b} about "
                   f"equally ({top[0][1]} vs {top[1][1]}), and no roster holds "

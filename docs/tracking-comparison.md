@@ -804,3 +804,42 @@ footage: no two players make sustained contact, so no track ever has to be
 re-acquired. The 19s segment loses Brunson for 2.6s to an occlusion where the
 detector returns nine boxes for ten men -- nothing downstream can recover a
 player who has no box.
+
+## The eighth gate broke the first new clip it met (2026-08-14)
+
+`seg_02m44.15s_10s` came back with Bridges missing from the first frame. The
+log named the culprit:
+
+    SPLIT IDENTITY: track 8 reads #5 and #25 about equally (29 vs 20), and no
+    roster holds both -- it has been on two players, so it gets no name
+
+Track 8 is Bridges throughout -- blue Knicks at 0.5s, 3s, 6s, and the number
+legible as 25 at 9s. The twenty-nine reads of `5` are `25` with the leading
+digit clipped off by the crop, which is an OCR failure mode, not an identity
+change. The gate compared raw strings and could not tell the two apart.
+
+Worse, the roster matching had already got it right: `#5` was taken by track 2
+on 36 votes, so `#25` was the only reading left for track 8. A gate applied
+after the assignment threw away an answer that earlier evidence had settled.
+That is the structural fault, not the particular rule: a late veto sees less
+than the stage it overrules.
+
+The fix exempts pairs where one reading is the head or tail of the other. Two
+genuinely different players do not produce substrings of each other -- the
+case this gate exists for read `0` and `32`. Checked against every case it
+must get right: the 10s track is kept as a clipped read, the 17s track that
+really did follow two men is still dropped, and decisive tracks are untouched.
+
+Measured after the fix, on four segments with ground truth:
+
+| segment | precision | coverage | wrong |
+|---|---|---|---|
+| seg_02m28.00s_13s | 100.0% | 100.0% | 0 |
+| seg_02m44.15s_10s | 100.0% | 99.8% | 0 |
+| seg_01m10.87s_19s SAM3 | 100.0% | 91.7% | 0 |
+| seg_01m10.87s_19s SAM2 | 95.5% | 84.2% | 462 |
+
+Two clips are demo-ready by measurement rather than by eye. The lesson stands
+on its own: this gate was written against one clip and shipped without being
+run against any other, and the next clip it saw was the one it broke. Nothing
+new ships now without a re-score across every labelled segment.

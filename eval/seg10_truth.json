@@ -1,0 +1,234 @@
+{
+ "video": "out/segments/seg_02m44.15s_10s.mp4",
+ "boxes": "out/seg_02m44.15s_10s_tracks.json",
+ "fps": 59.94,
+ "legend": {
+  "<number>": "this track is that player throughout",
+  "mixed": "followed more than one man",
+  "not-player": "referee, coach, crowd",
+  "?": "unreadable; skipped by the scorer",
+  "segments": "[[player, from, to, club], ...]"
+ },
+ "tracks": {
+  "1": {
+   "player": "2",
+   "frames": [
+    0,
+    599
+   ],
+   "seconds": [
+    0.0,
+    9.99
+   ],
+   "n_frames": 600,
+   "club": "pistons",
+   "note": "CUNNINGHAM 2 at 359",
+   "segments": [
+    [
+     "2",
+     0,
+     599,
+     "pistons"
+    ]
+   ]
+  },
+  "2": {
+   "player": "5",
+   "frames": [
+    0,
+    599
+   ],
+   "seconds": [
+    0.0,
+    9.99
+   ],
+   "n_frames": 600,
+   "club": "pistons",
+   "note": "PISTONS 5 at 240",
+   "segments": [
+    [
+     "5",
+     0,
+     599,
+     "pistons"
+    ]
+   ]
+  },
+  "3": {
+   "player": "3",
+   "frames": [
+    0,
+    599
+   ],
+   "seconds": [
+    0.0,
+    9.99
+   ],
+   "n_frames": 600,
+   "club": "knicks",
+   "note": "3 at 240, 359, 599",
+   "segments": [
+    [
+     "3",
+     0,
+     599,
+     "knicks"
+    ]
+   ]
+  },
+  "4": {
+   "player": "32",
+   "frames": [
+    0,
+    599
+   ],
+   "seconds": [
+    0.0,
+    9.99
+   ],
+   "n_frames": 600,
+   "club": "knicks",
+   "note": "NEW YORK 32 at 240",
+   "segments": [
+    [
+     "32",
+     0,
+     599,
+     "knicks"
+    ]
+   ]
+  },
+  "5": {
+   "player": "0",
+   "frames": [
+    0,
+    599
+   ],
+   "seconds": [
+    0.0,
+    9.99
+   ],
+   "n_frames": 600,
+   "club": "pistons",
+   "note": "PISTONS 0 at 240 and 359",
+   "segments": [
+    [
+     "0",
+     0,
+     599,
+     "pistons"
+    ]
+   ]
+  },
+  "6": {
+   "player": "11",
+   "frames": [
+    0,
+    599
+   ],
+   "seconds": [
+    0.0,
+    9.99
+   ],
+   "n_frames": 600,
+   "club": "knicks",
+   "note": "BRUNSON 11 at 479 and 599",
+   "segments": [
+    [
+     "11",
+     0,
+     599,
+     "knicks"
+    ]
+   ]
+  },
+  "7": {
+   "player": "8",
+   "frames": [
+    0,
+    599
+   ],
+   "seconds": [
+    0.0,
+    9.99
+   ],
+   "n_frames": 600,
+   "club": "pistons",
+   "note": "white Pistons 8 at 120",
+   "segments": [
+    [
+     "8",
+     0,
+     599,
+     "pistons"
+    ]
+   ]
+  },
+  "8": {
+   "player": "25",
+   "frames": [
+    0,
+    599
+   ],
+   "seconds": [
+    0.0,
+    9.99
+   ],
+   "n_frames": 600,
+   "club": "knicks",
+   "note": "BRIDGES 25 at 599, 25 at 120 and 240 -- the track the split gate wrongly dropped before the clipped-read fix",
+   "segments": [
+    [
+     "25",
+     0,
+     599,
+     "knicks"
+    ]
+   ]
+  },
+  "9": {
+   "player": "12",
+   "frames": [
+    0,
+    599
+   ],
+   "seconds": [
+    0.0,
+    9.99
+   ],
+   "n_frames": 600,
+   "club": "pistons",
+   "note": "PISTONS 12 at 359 and 479",
+   "segments": [
+    [
+     "12",
+     0,
+     599,
+     "pistons"
+    ]
+   ]
+  },
+  "10": {
+   "player": "8",
+   "frames": [
+    0,
+    599
+   ],
+   "seconds": [
+    0.0,
+    9.99
+   ],
+   "n_frames": 600,
+   "club": "knicks",
+   "note": "blue Knicks 8 at 120, red arm band",
+   "segments": [
+    [
+     "8",
+     0,
+     599,
+     "knicks"
+    ]
+   ]
+  }
+ }
+}
