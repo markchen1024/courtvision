@@ -81,7 +81,8 @@ def main():
 
     counts = Counter()
     idx = 0
-    prog = Progress("review-detection", total=total, video=args.video)
+    prog = Progress("review-detection", total=total, video=args.video,
+                    artifact=args.out)
     while True:
         ok, frame = cap.read()
         if not ok:

@@ -58,7 +58,8 @@ def main():
     )
 
     events = []
-    prog = Progress("shot-events", total=total // args.every)
+    prog = Progress("shot-events", total=total // args.every, video=args.video,
+                    artifact=args.out, meta={"every": args.every})
     idx = 0
     while True:
         ok, frame = cap.read()

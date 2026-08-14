@@ -441,7 +441,8 @@ PAGE = """<!doctype html>
          border-radius:.45rem; border:1px solid var(--line);
          background:var(--inset); display:block; }
   .artlab { grid-column:1/-1; font:400 10.5px/1.4 var(--font-mono);
-            color:var(--line-strong); margin-top:.3rem; }
+            color:var(--muted); margin-top:.35rem; }
+  .artlab b { color:var(--subtle); font-weight:400; }
   .trace { grid-column:1/-1; margin-top:.5rem; padding:.7rem .8rem;
            background:var(--inset); border:1px solid #3d1b1b; border-radius:.45rem;
            font:400 10.5px/1.5 var(--font-mono); color:var(--red);
@@ -625,11 +626,16 @@ function runRow(r) {
   // Only what this stage produced. Falling back to the source clip put four
   // identical players in one clip's fold -- the source belongs to the clip, and
   // is shown once, at the top of the fold.
-  const player = /\\.(mp4|webm)$/i.test(r.artifact || "") ? `
-    <video class="art" controls preload="none"
-      poster="/thumb?run=${encodeURIComponent(r.run)}"
-      src="/file?run=${encodeURIComponent(r.run)}&what=artifact"></video>
-    <div class="artlab">produced · ${clipName(r.artifact)}</div>` : "";
+  // Most stages produce json or a folder of crops rather than video. Those get
+  // the line without the player: naming what a stage left behind is the point,
+  // and only some of it happens to be watchable.
+  const player = !r.artifact ? ""
+    : /\\.(mp4|webm)$/i.test(r.artifact) ? `
+        <video class="art" controls preload="none"
+          poster="/thumb?run=${encodeURIComponent(r.run)}"
+          src="/file?run=${encodeURIComponent(r.run)}&what=artifact"></video>
+        <div class="artlab"><b>produced</b> ${clipName(r.artifact)}</div>`
+    : `<div class="artlab"><b>produced</b> ${clipName(r.artifact)}</div>`;
   return `<div class="srow">
     <div class="srowtop"><span class="srowname">${r.job}</span>
       <span class="chip ${cls}">${r.state}</span></div>
@@ -875,8 +881,13 @@ def serve(port):
             if u.path == "/thumb":
                 d = lookup(parse_qs(u.query))
                 video = _under_root(d.get("video")) if d else None
-                frac = (d["done"] / d["total"]
-                        if d and d.get("total") and d["done"] else 0.0)
+                # A running job wants the frame it has reached. A finished one
+                # has "reached" the last frame, which is the worst possible
+                # still: the end of a clip is a cut, a fade, or the garbage
+                # half-frame that made the first history covers unreadable.
+                # Once a run is over, the middle represents it.
+                frac = 0.5 if (not d or d.get("state") != "running") else (
+                    d["done"] / d["total"] if d.get("total") and d["done"] else 0.0)
                 jpeg = _thumbnail(video, frac) if video and video.exists() else None
                 if not jpeg:
                     return self._empty(404)

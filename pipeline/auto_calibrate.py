@@ -67,7 +67,10 @@ def fetch_keypoints(cache_path, video, version, every, limit, api_key, box_conf,
     total = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
     targets = list(range(0, total, every))[:limit]
     print(f"querying {PROJECT}/{version} for {len(targets)} frames...")
-    prog = Progress("keypoints", total=len(targets))
+    prog = Progress("keypoints", total=len(targets), video=video,
+                    artifact=cache_path,
+                    meta={"project": f"{PROJECT}/{version}", "every": every,
+                          "box_conf": box_conf, "kp_conf": kp_conf})
 
     out = {}
     for n, idx in enumerate(targets):

@@ -77,7 +77,8 @@ def main():
     w_img = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
 
     tracks = []
-    prog = Progress("review-build", total=len(doc["players"]))
+    prog = Progress("review-build", total=len(doc["players"]),
+                    video=args.video, artifact=args.out)
     for p in doc["players"]:
         tid = p["id"]
         occ = by_track.get(tid, [])

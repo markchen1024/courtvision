@@ -80,7 +80,8 @@ def main():
 
     reads = []
     idx = 0
-    prog = Progress("legibility", total=len(grid))
+    prog = Progress("legibility", total=len(grid), video=args.video,
+                    artifact=args.out, meta={"stride": args.stride})
     want = set(grid)
     while True:
         ok, frame = cap.read()

@@ -66,7 +66,8 @@ def main():
 
     images, annotations = [], []
     ann_id, kept, empties = 1, 0, 0
-    prog = Progress("harvest", total=min(args.max_frames, (total - start) // step))
+    prog = Progress("harvest", total=min(args.max_frames, (total - start) // step),
+                    video=args.video, artifact=args.out)
     for f in range(start, total, step):
         if kept >= args.max_frames:
             break
