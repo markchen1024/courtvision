@@ -1,0 +1,244 @@
+{
+ "video": "out/segments/seg_01m10.87s_19s.mp4",
+ "boxes": "out/seg_01m10.87s_19s_tracks.json",
+ "fps": 59.94,
+ "legend": {
+  "<number>": "this track is that player throughout",
+  "mixed": "followed more than one man",
+  "not-player": "referee, coach, crowd",
+  "?": "unreadable; skipped by the scorer",
+  "segments": "[[player, from_frame, to_frame], ...] for a track that changed man; frames outside every segment are unknown and the scorer skips them"
+ },
+ "tracks": {
+  "1": {
+   "player": "32",
+   "frames": [
+    0,
+    1152
+   ],
+   "seconds": [
+    0.0,
+    19.22
+   ],
+   "n_frames": 1153,
+   "note": "TOWNS 32 legible at 691, 922, 1152",
+   "segments": [
+    [
+     "32",
+     0,
+     1152
+    ]
+   ]
+  },
+  "2": {
+   "player": "25",
+   "frames": [
+    0,
+    1152
+   ],
+   "seconds": [
+    0.0,
+    19.22
+   ],
+   "n_frames": 1153,
+   "note": "BRIDGES 25 legible at 461, 691, 922, 1152",
+   "segments": [
+    [
+     "25",
+     0,
+     1152
+    ]
+   ]
+  },
+  "3": {
+   "player": "2",
+   "frames": [
+    0,
+    1152
+   ],
+   "seconds": [
+    0.0,
+    19.22
+   ],
+   "n_frames": 1153,
+   "note": "white Pistons, PISTONS 2 at 922",
+   "segments": [
+    [
+     "2",
+     0,
+     1152
+    ]
+   ]
+  },
+  "4": {
+   "player": "8",
+   "frames": [
+    0,
+    1152
+   ],
+   "seconds": [
+    0.0,
+    19.22
+   ],
+   "n_frames": 1153,
+   "note": "ANUNOBY 8 at 230 and 922",
+   "segments": [
+    [
+     "8",
+     0,
+     1152
+    ]
+   ]
+  },
+  "5": {
+   "player": "mixed",
+   "frames": [
+    0,
+    1152
+   ],
+   "seconds": [
+    0.0,
+    19.22
+   ],
+   "n_frames": 1153,
+   "note": "white Pistons (Harris) at 0-461, then blue TOWNS 32 at 691, 922, 1152 -- switches to Towns",
+   "segments": [
+    [
+     "12",
+     0,
+     461
+    ],
+    [
+     "32",
+     691,
+     1152
+    ]
+   ]
+  },
+  "6": {
+   "player": "5",
+   "frames": [
+    0,
+    1152
+   ],
+   "seconds": [
+    0.0,
+    19.22
+   ],
+   "n_frames": 1153,
+   "note": "BEASLEY 5 legible at 461 and 922",
+   "segments": [
+    [
+     "5",
+     0,
+     1152
+    ]
+   ]
+  },
+  "7": {
+   "player": "8",
+   "frames": [
+    0,
+    1152
+   ],
+   "seconds": [
+    0.0,
+    19.22
+   ],
+   "n_frames": 1153,
+   "note": "HARDAWAY JR. 8 at 691",
+   "segments": [
+    [
+     "8",
+     0,
+     1152
+    ]
+   ]
+  },
+  "8": {
+   "player": "mixed",
+   "frames": [
+    0,
+    1152
+   ],
+   "seconds": [
+    0.0,
+    19.22
+   ],
+   "n_frames": 1152,
+   "note": "blue Knicks 11 at 0-460, white Pistons at 922 and 1152 -- the measured collapse onto Beasley",
+   "segments": [
+    [
+     "11",
+     0,
+     460
+    ],
+    [
+     "5",
+     922,
+     1152
+    ]
+   ]
+  },
+  "9": {
+   "player": "0",
+   "frames": [
+    0,
+    1152
+   ],
+   "seconds": [
+    0.0,
+    19.22
+   ],
+   "n_frames": 1153,
+   "note": "DUREN 0 at 691 and 1152; same man as track 10",
+   "segments": [
+    [
+     "0",
+     0,
+     1152
+    ]
+   ]
+  },
+  "10": {
+   "player": "0",
+   "frames": [
+    0,
+    1152
+   ],
+   "seconds": [
+    0.0,
+    19.22
+   ],
+   "n_frames": 1153,
+   "note": "DUREN 0 at 691 and 1152",
+   "segments": [
+    [
+     "0",
+     0,
+     1152
+    ]
+   ]
+  },
+  "11": {
+   "player": "3",
+   "frames": [
+    0,
+    1152
+   ],
+   "seconds": [
+    0.0,
+    19.22
+   ],
+   "n_frames": 1153,
+   "note": "HART 3 at 691",
+   "segments": [
+    [
+     "3",
+     0,
+     1152
+    ]
+   ]
+  }
+ }
+}
