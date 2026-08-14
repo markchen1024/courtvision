@@ -7,7 +7,8 @@
   "mixed": "followed more than one man",
   "not-player": "referee, coach, crowd",
   "?": "unreadable; skipped by the scorer",
-  "segments": "[[player, from_frame, to_frame], ...]; frames outside every segment are unknown and skipped"
+  "segments": "[[player, from_frame, to_frame], ...]; frames outside every segment are unknown and skipped",
+  "club": "kit colour read off the same crops; identity is (club, number) because #8 is worn by Anunoby for the Knicks and Hardaway Jr. for the Pistons"
  },
  "tracks": {
   "0": {
@@ -26,7 +27,8 @@
     [
      "0",
      0,
-     1152
+     1152,
+     "pistons"
     ]
    ]
   },
@@ -46,7 +48,8 @@
     [
      "32",
      0,
-     1152
+     1152,
+     "knicks"
     ]
    ]
   },
@@ -66,7 +69,8 @@
     [
      "8",
      0,
-     1152
+     1152,
+     "knicks"
     ]
    ]
   },
@@ -86,7 +90,8 @@
     [
      "25",
      0,
-     831
+     831,
+     "knicks"
     ]
    ]
   },
@@ -106,7 +111,8 @@
     [
      "2",
      0,
-     1152
+     1152,
+     "pistons"
     ]
    ]
   },
@@ -126,7 +132,8 @@
     [
      "11",
      1,
-     619
+     619,
+     "knicks"
     ]
    ]
   },
@@ -146,7 +153,8 @@
     [
      "8",
      0,
-     1152
+     1152,
+     "pistons"
     ]
    ]
   },
@@ -166,7 +174,8 @@
     [
      "5",
      0,
-     618
+     618,
+     "pistons"
     ]
    ]
   },
@@ -186,7 +195,8 @@
     [
      "3",
      91,
-     1152
+     1152,
+     "knicks"
     ]
    ]
   },
@@ -206,7 +216,8 @@
     [
      "12",
      268,
-     658
+     658,
+     "pistons"
     ]
    ]
   },
@@ -226,7 +237,8 @@
     [
      "5",
      632,
-     941
+     941,
+     "pistons"
     ]
    ]
   },
@@ -246,7 +258,8 @@
     [
      "11",
      850,
-     1152
+     1152,
+     "knicks"
     ]
    ]
   },
@@ -266,7 +279,8 @@
     [
      "25",
      837,
-     1152
+     1152,
+     "knicks"
     ]
    ]
   },
@@ -286,7 +300,8 @@
     [
      "12",
      923,
-     1152
+     1152,
+     "pistons"
     ]
    ]
   },
@@ -306,7 +321,8 @@
     [
      "5",
      935,
-     1152
+     1152,
+     "pistons"
     ]
    ]
   }

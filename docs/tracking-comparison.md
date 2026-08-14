@@ -776,3 +776,31 @@ run actually draws -- enough for both metrics, since a track with no label
 changes neither. Both were read off crop strips by eye; unreadable stretches
 are marked unknown and skipped rather than guessed, which is where the 480 and
 180 come from.
+
+## A segment that measures 100% (2026-08-14)
+
+`seg_02m28.00s_13s` -- the re-cut that put Cunningham back on the floor --
+scores perfectly:
+
+| segment | precision | coverage | right | wrong | unknown |
+|---|---|---|---|---|---|
+| **seg_02m28.00s_13s** | **100.0%** | **100.0%** | 7500 | 0 | 0 |
+| seg_01m10.87s_19s, SAM3 route | 100.0% | 91.7% | 10574 | 0 | 180 |
+| seg_01m10.87s_19s, SAM2 route | 95.5% | 84.2% | 9706 | 462 | 480 |
+
+Ten players, 750 frames, 7500 labels, every one on the right man and none
+missing. All ten of its tracks hold a single identity for the whole clip --
+no switch, no collapse, nothing for the gates to catch.
+
+Found while fixing the scorer, which had been keying identity on the jersey
+number alone. #8 is Anunoby for the Knicks and Hardaway Jr. for the Pistons,
+so the two of them counted as one man and the 13s segment reported 90%
+coverage while labelling all ten correctly on every frame. Identity is (club,
+number); the truth files now record the kit colour and the scorer checks both.
+The 19s figures moved with it, 74.2% to 84.2% and 81.7% to 91.7%.
+
+What separates this clip from the 19s one is not the pipeline, it is the
+footage: no two players make sustained contact, so no track ever has to be
+re-acquired. The 19s segment loses Brunson for 2.6s to an occlusion where the
+detector returns nine boxes for ten men -- nothing downstream can recover a
+player who has no box.

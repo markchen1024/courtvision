@@ -7,7 +7,8 @@
   "mixed": "followed more than one man",
   "not-player": "referee, coach, crowd",
   "?": "unreadable; skipped by the scorer",
-  "segments": "[[player, from_frame, to_frame], ...] for a track that changed man; frames outside every segment are unknown and the scorer skips them"
+  "segments": "[[player, from_frame, to_frame], ...] for a track that changed man; frames outside every segment are unknown and the scorer skips them",
+  "club": "kit colour read off the same crops; identity is (club, number) because #8 is worn by Anunoby for the Knicks and Hardaway Jr. for the Pistons"
  },
  "tracks": {
   "1": {
@@ -26,7 +27,8 @@
     [
      "32",
      0,
-     1152
+     1152,
+     "knicks"
     ]
    ]
   },
@@ -46,7 +48,8 @@
     [
      "25",
      0,
-     1152
+     1152,
+     "knicks"
     ]
    ]
   },
@@ -66,7 +69,8 @@
     [
      "2",
      0,
-     1152
+     1152,
+     "pistons"
     ]
    ]
   },
@@ -86,7 +90,8 @@
     [
      "8",
      0,
-     1152
+     1152,
+     "knicks"
     ]
    ]
   },
@@ -106,12 +111,14 @@
     [
      "12",
      0,
-     461
+     461,
+     "pistons"
     ],
     [
      "32",
      691,
-     1152
+     1152,
+     "knicks"
     ]
    ]
   },
@@ -131,7 +138,8 @@
     [
      "5",
      0,
-     1152
+     1152,
+     "pistons"
     ]
    ]
   },
@@ -151,7 +159,8 @@
     [
      "8",
      0,
-     1152
+     1152,
+     "pistons"
     ]
    ]
   },
@@ -171,12 +180,14 @@
     [
      "11",
      0,
-     460
+     460,
+     "knicks"
     ],
     [
      "5",
      922,
-     1152
+     1152,
+     "pistons"
     ]
    ]
   },
@@ -196,7 +207,8 @@
     [
      "0",
      0,
-     1152
+     1152,
+     "pistons"
     ]
    ]
   },
@@ -216,7 +228,8 @@
     [
      "0",
      0,
-     1152
+     1152,
+     "pistons"
     ]
    ]
   },
@@ -236,7 +249,8 @@
     [
      "3",
      0,
-     1152
+     1152,
+     "knicks"
     ]
    ]
   }

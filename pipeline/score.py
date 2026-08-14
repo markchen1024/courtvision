@@ -38,10 +38,19 @@ ON_COURT = 10
 
 
 def truth_at(segments, frame):
-    """Who this track was on at this frame, or None when unlabelled."""
-    for player, a, b in segments or ():
+    """Who this track was on at this frame, as (number, club), or None.
+
+    Identity is the pair, not the number. #8 is Anunoby for the Knicks and
+    Hardaway Jr. for the Pistons, and keying coverage on the number alone
+    counted the two of them as one man -- the 13s segment scored 90% when
+    every one of its ten players was labelled correctly on every frame.
+    Segments written before clubs were recorded carry three fields; those
+    match on number alone.
+    """
+    for seg in segments or ():
+        player, a, b = seg[0], seg[1], seg[2]
         if a <= frame <= b:
-            return player
+            return player, (seg[3] if len(seg) > 3 else None)
     return None
 
 
@@ -82,17 +91,19 @@ def score(truth_path, identities_path, boxes_path=None):
         for r in drawn(frames, idn, collapse, f):
             tid = r["tid"]
             said = (idn.get(tid) or {}).get("number")
-            want = truth_at((tt.get(tid) or {}).get("segments"), f)
-            if want is None or want in ("?", "not-player"):
+            got = truth_at((tt.get(tid) or {}).get("segments"), f)
+            if got is None or got[0] in ("?", "not-player"):
                 unknown += 1
                 continue
-            if str(said) == str(want):
+            want, club = got
+            said_club = (idn.get(tid) or {}).get("club")
+            if str(said) == str(want) and (club is None or said_club == club):
                 right += 1
-                here.add(want)
+                here.add((want, club))
             else:
                 wrong += 1
-                culprits[(tid, str(said), str(want))] = \
-                    culprits.get((tid, str(said), str(want)), 0) + 1
+                key = (tid, f"{said_club}#{said}", f"{club}#{want}")
+                culprits[key] = culprits.get(key, 0) + 1
         covered += len(here)
 
     judged = right + wrong
@@ -120,7 +131,7 @@ def main():
               f"{s['right']:>7} {s['wrong']:>6} {s['unknown']:>8}")
         for (tid, said, want), n in sorted(s["culprits"].items(),
                                            key=lambda x: -x[1]):
-            print(f"    track {tid}: drew #{said}, truth #{want}  "
+            print(f"    track {tid}: drew {said}, truth {want}  "
                   f"({n} frames, {n / s['frames']:.0%} of the clip)")
     return 0
 

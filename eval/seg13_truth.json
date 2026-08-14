@@ -1,0 +1,225 @@
+{
+ "video": "out/segments/seg_02m28.00s_13s.mp4",
+ "boxes": "out/seg_02m28.00s_13s_tracks.json",
+ "fps": 59.94,
+ "legend": {
+  "<number>": "this track is that player throughout",
+  "mixed": "followed more than one man",
+  "not-player": "referee, coach, crowd",
+  "?": "unreadable; skipped by the scorer",
+  "segments": "[[player, from, to], ...]; outside = unknown, skipped",
+  "club": "kit colour read off the same crops; identity is (club, number) because #8 is worn by Anunoby for the Knicks and Hardaway Jr. for the Pistons"
+ },
+ "tracks": {
+  "1": {
+   "player": "11",
+   "frames": [
+    0,
+    749
+   ],
+   "seconds": [
+    0.0,
+    12.5
+   ],
+   "n_frames": 750,
+   "note": "BRUNSON 11 at 599, 11 at 300; blue Knicks throughout",
+   "segments": [
+    [
+     "11",
+     0,
+     749,
+     "knicks"
+    ]
+   ]
+  },
+  "2": {
+   "player": "32",
+   "frames": [
+    0,
+    749
+   ],
+   "seconds": [
+    0.0,
+    12.5
+   ],
+   "n_frames": 750,
+   "note": "32 at 300, 449, 599",
+   "segments": [
+    [
+     "32",
+     0,
+     749,
+     "knicks"
+    ]
+   ]
+  },
+  "3": {
+   "player": "3",
+   "frames": [
+    0,
+    749
+   ],
+   "seconds": [
+    0.0,
+    12.5
+   ],
+   "n_frames": 750,
+   "note": "3 at 300",
+   "segments": [
+    [
+     "3",
+     0,
+     749,
+     "knicks"
+    ]
+   ]
+  },
+  "4": {
+   "player": "25",
+   "frames": [
+    0,
+    749
+   ],
+   "seconds": [
+    0.0,
+    12.5
+   ],
+   "n_frames": 750,
+   "note": "BRIDGES 25 at 150, 300, 599",
+   "segments": [
+    [
+     "25",
+     0,
+     749,
+     "knicks"
+    ]
+   ]
+  },
+  "5": {
+   "player": "12",
+   "frames": [
+    0,
+    749
+   ],
+   "seconds": [
+    0.0,
+    12.5
+   ],
+   "n_frames": 750,
+   "note": "12 at 0 and 150; white Pistons throughout",
+   "segments": [
+    [
+     "12",
+     0,
+     749,
+     "pistons"
+    ]
+   ]
+  },
+  "6": {
+   "player": "5",
+   "frames": [
+    0,
+    749
+   ],
+   "seconds": [
+    0.0,
+    12.5
+   ],
+   "n_frames": 750,
+   "note": "5 on the chest at 148 and 185",
+   "segments": [
+    [
+     "5",
+     0,
+     749,
+     "pistons"
+    ]
+   ]
+  },
+  "7": {
+   "player": "0",
+   "frames": [
+    0,
+    749
+   ],
+   "seconds": [
+    0.0,
+    12.5
+   ],
+   "n_frames": 750,
+   "note": "DUREN 0 at 599, PISTONS 0 at 300",
+   "segments": [
+    [
+     "0",
+     0,
+     749,
+     "pistons"
+    ]
+   ]
+  },
+  "8": {
+   "player": "8",
+   "frames": [
+    0,
+    749
+   ],
+   "seconds": [
+    0.0,
+    12.5
+   ],
+   "n_frames": 750,
+   "note": "PISTONS 8 at 300",
+   "segments": [
+    [
+     "8",
+     0,
+     749,
+     "pistons"
+    ]
+   ]
+  },
+  "9": {
+   "player": "8",
+   "frames": [
+    0,
+    749
+   ],
+   "seconds": [
+    0.0,
+    12.5
+   ],
+   "n_frames": 750,
+   "note": "number never faces the camera. Identified by the red right-arm band, the same man read as ANUNOBY 8 on the 19s segment where the number is legible -- appearance carried across clips, not the pipeline's own answer",
+   "segments": [
+    [
+     "8",
+     0,
+     749,
+     "knicks"
+    ]
+   ]
+  },
+  "10": {
+   "player": "2",
+   "frames": [
+    0,
+    749
+   ],
+   "seconds": [
+    0.0,
+    12.5
+   ],
+   "n_frames": 750,
+   "note": "number never legible. The curly-haired bearded Piston read as PISTONS 2 on the 19s segment",
+   "segments": [
+    [
+     "2",
+     0,
+     749,
+     "pistons"
+    ]
+   ]
+  }
+ }
+}
