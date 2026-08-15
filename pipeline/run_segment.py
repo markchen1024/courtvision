@@ -11,7 +11,9 @@ not repeat an hour of SAM2.
 
 Stages, in order:
 
-  1  check_lineup       refuses the run if the prompt frame is short
+  1  check_lineup       refuses the run if the prompt frame is short;
+                        a headless Claude then audits the same image for the
+                        thing counting cannot see -- one player boxed twice
   2  track_sam2_tutorial   SAM2, tutorial-aligned
   3  identify           OCR + teams + roster-constrained assignment
   4  render_final       club-tinted masks, name chips
@@ -62,6 +64,9 @@ def main():
                     help="rerun stages whose output already exists")
     ap.add_argument("--skip-gate", action="store_true",
                     help="run even if the prompt frame is short")
+    ap.add_argument("--strict-audit", action="store_true",
+                    help="stop when the vlm audit says the prompts cover fewer "
+                         "than ten distinct players; default is advisory")
     args = ap.parse_args()
 
     video = Path(args.video)
@@ -83,6 +88,20 @@ def main():
     if rc and not args.skip_gate:
         print("\nstopping: the prompt frame is short, and everything after "
               "this costs an hour. --skip-gate overrides.")
+        return 1
+
+    # The lineup gate counts boxes; it cannot tell two players from one player
+    # boxed twice. That cost seg_g6206_43s its fifth Piston: ten prompts, nine
+    # men, and the render was the first place anyone noticed. A headless
+    # Claude reads the lineup image and answers what a human answers at a
+    # glance. Advisory: a bad verdict is printed, recorded next to the other
+    # artifacts, and does not stop the run (--strict-audit makes it fatal).
+    rc = run("gate: vlm audit", [PY, "pipeline/vlm_check.py",
+                                 "--image", str(out / f"{stem}_lineup.jpg")]
+                                + (["--strict"] if args.strict_audit else []))
+    if rc and args.strict_audit:
+        print("\nstopping: the audit says these prompts do not cover ten "
+              "distinct players.")
         return 1
 
     if tracks.exists() and not args.force:
