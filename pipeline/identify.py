@@ -257,7 +257,7 @@ def main():
     dupes = overlap.duplicate_pairs(overlaps)
     for o in overlaps:
         a, b = o["pair"]
-        seen = f"  {o['players']:.0f} in the box" if "players" in o else ""
+        seen = f"  {o['players']:.1f} in the box" if "players" in o else ""
         print(f"  {o['kind']:9} tracks {a} and {b}: "
               f"{o['start'] / fps:6.2f}s - {o['end'] / fps:6.2f}s{seen}")
 

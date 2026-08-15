@@ -74,6 +74,27 @@ def main():
     ap.add_argument("--checkpoint",
                     default=str(SAM2_REPO / "checkpoints" / "sam2.1_hiera_large.pt"))
     ap.add_argument("--sam2-config", default="configs/sam2.1/sam2.1_hiera_l.yaml")
+    ap.add_argument("--reverse", action="store_true",
+                    help="walk the clip backwards, prompting on the last frame. "
+                         "SAM2's memory is causal, so this is genuinely "
+                         "different evidence rather than the same run twice -- "
+                         "a player it loses into an occlusion going forward may "
+                         "be held coming the other way. Rows keep the video's "
+                         "own frame numbers so the two sidecars can be fused.")
+    ap.add_argument("--prompt-at", type=int,
+                    help="frame to prompt from; the run then walks away from it "
+                         "in whichever direction --reverse selects. The last "
+                         "frame is often a bad choice going backwards: on "
+                         "seg_01m10.87s_19s it held a courtside spectator who "
+                         "projects 0.04m inside the sideline, so he passed the "
+                         "court test, took a prompt slot, and Brunson was never "
+                         "tracked at all.")
+    ap.add_argument("--prompt-margin", type=float, default=oncourt.MARGIN_M,
+                    help="metres past the lines a prompt may stand. 3 is right "
+                         "for frame 0, where being generous costs nothing; a "
+                         "NEGATIVE value demands the feet be that far INSIDE "
+                         "the court, which is how a man sitting on the line "
+                         "gets excluded without touching real players.")
     ap.add_argument("--no-court-filter", action="store_true",
                     help="prompt with every frame-0 detection, the notebook's "
                          "behaviour, including anyone in the crowd")
@@ -119,9 +140,29 @@ def main():
     fps = cap.get(cv2.CAP_PROP_FPS) or 30.0
     total = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
 
-    ok, frame = cap.read()
-    if not ok:
+    # Which frame the run starts from, and which way it walks. SAM2's memory is
+    # causal, so a backward pass is not the same run played twice: at a merge
+    # it arrives with a different history, and it prompts from a frame where
+    # the players it will meet are still apart. Rows are still written under
+    # the video's own frame numbers, so a forward and a backward sidecar line
+    # up and can be fused.
+    start = args.prompt_at if args.prompt_at is not None else (
+        total - 1 if args.reverse else 0)
+    start = max(0, min(start, total - 1))
+    order = (list(range(start, -1, -1)) if args.reverse
+             else list(range(start, total)))
+
+    def read_at(i):
+        cap.set(cv2.CAP_PROP_POS_FRAMES, i)
+        ok, fr = cap.read()
+        return fr if ok else None
+
+    frame = read_at(order[0])
+    if frame is None:
         raise SystemExit("empty video")
+    print(f"{'reverse' if args.reverse else 'forward'} pass: prompting on "
+          f"frame {order[0]} ({order[0] / fps:.2f}s), "
+          f"{len(order)} frames to {order[-1]}")
 
     kp_model = None if args.no_court_filter else oncourt.keypoint_model()
 
@@ -140,7 +181,8 @@ def main():
         # player. The test falls open when the court cannot be solved, so a
         # frame without landmarks still prompts with everything.
         if kp_model is not None and len(det):
-            on, _, note = oncourt.feet_on_court(frame, det.xyxy, model=kp_model)
+            on, _, note = oncourt.feet_on_court(frame, det.xyxy, model=kp_model,
+                                                margin_m=args.prompt_margin)
             if announce:
                 print(f"court check: {note}")
             det = det[on]
@@ -222,7 +264,7 @@ def main():
         return assigned, taken
 
     tracks = {}
-    idx = 0
+    idx, prev_idx, step = order[0], None, 0
     next_id = int(detections.tracker_id.max()) + 1
     reprompt_every = (int(round(fps * args.reprompt_seconds))
                       if args.reprompt_seconds > 0 else 0)
@@ -230,9 +272,18 @@ def main():
         print(f"re-seeding every {reprompt_every} frames "
               f"({args.reprompt_seconds}s)")
     reseeds = []
-    prog = Progress("sam2-tutorial", total=total or None, video=args.video)
+    # The direction is part of the job's identity, not a detail inside it. Both
+    # passes writing out/progress/sam2-tutorial.json meant the second clobbered
+    # the first's live file, and in the archive the two runs this stage exists
+    # to fuse arrived as two rows with the same name, told apart only by their
+    # timestamps. "sam2" is still the matched prefix, so the stage is unchanged.
+    prog = Progress("sam2-tutorial-reverse" if args.reverse else "sam2-tutorial",
+                    total=total or None, video=args.video, artifact=args.out,
+                    meta={"direction": "reverse" if args.reverse else "forward",
+                          "prompt_frame": order[0],
+                          "reprompt_s": args.reprompt_seconds})
     while True:
-        if reprompt_every and idx and idx % reprompt_every == 0:
+        if reprompt_every and step and step % reprompt_every == 0:
             # DEVIATION from the notebook, which prompts once and lets SAM2's
             # appearance memory carry the rest of the clip. It cannot recover
             # from a merge: on seg_01m10.87s_19s, Brunson and Beasley made
@@ -241,7 +292,7 @@ def main():
             # of those frames. So ask it again, every few seconds, and hand the
             # answers back to the tracks that own them.
             fresh = detect(frame)
-            previous = {r["tid"]: r["box"] for r in tracks.get(idx - 1, [])}
+            previous = {r["tid"]: r["box"] for r in tracks.get(prev_idx, [])}
             assigned, taken = stitch(previous, fresh.xyxy.tolist())
             born = []
             for j, tid in enumerate(assigned):
@@ -284,12 +335,19 @@ def main():
                 rows.append({"tid": int(tid), "box": [float(v) for v in box]})
         tracks[idx] = rows
 
-        idx += 1
-        prog.step(note=f"frame {idx}, {len(rows)} objects")
-        if idx % 200 == 0:
-            print(f"  {idx} frames...", flush=True)
-        ok, frame = cap.read()
-        if not ok:
+        prev_idx, step = idx, step + 1
+        # `at` is where in the clip this frame sits, which on a reverse pass
+        # runs the opposite way to the step count. The watcher's still follows
+        # `at`; without it a backward run showed the far end of the footage.
+        prog.step(note=f"frame {idx}, {len(rows)} objects",
+                  at=(idx / (total - 1)) if total > 1 else 0.0)
+        if step % 200 == 0:
+            print(f"  {step} frames...", flush=True)
+        if step >= len(order):
+            break
+        idx = order[step]
+        frame = read_at(idx)
+        if frame is None:
             break
     cap.release()
 
@@ -298,7 +356,7 @@ def main():
         for r in rows:
             a, b = lifetimes.get(r["tid"], (i, i))
             lifetimes[r["tid"]] = (min(a, i), max(b, i))
-    prog.done(note=f"{idx} frames, {len(lifetimes)} objects")
+    prog.done(note=f"{step} frames, {len(lifetimes)} objects")
 
     out = Path(args.out)
     if not out.is_absolute():
@@ -311,15 +369,16 @@ def main():
         "detector": DETECTION_MODEL_ID,
         "prompted": len(detections),
         "reprompt_seconds": args.reprompt_seconds,
+        "reverse": bool(args.reverse),
         "reseeds": reseeds,
         "frames": {str(k): v for k, v in tracks.items()},
     }))
     spans = [(b - a) / fps for a, b in lifetimes.values()]
-    print(f"wrote {out}: {idx} frames, {len(lifetimes)} of {len(detections)} "
+    print(f"wrote {out}: {step} frames, {len(lifetimes)} of {len(detections)} "
           f"prompted objects ever seen")
     if spans:
         print(f"  lifetime median {sorted(spans)[len(spans)//2]:.1f}s  "
-              f"max {max(spans):.1f}s (clip is {idx/fps:.0f}s)")
+              f"max {max(spans):.1f}s (clip is {step/fps:.0f}s)")
 
 
 if __name__ == "__main__":

@@ -275,7 +275,7 @@ def main():
         for o in rows:
             a, b = o["pair"]
             s, e = o["start"], o["end"]
-            seen = f", {o['players']:.0f} in the box" if "players" in o else ""
+            seen = f", {o['players']:.1f} in the box" if "players" in o else ""
             print(f"  tracks {a} and {b}: {s / fps:6.2f}s - {e / fps:6.2f}s "
                   f"({(e - s + 1) / fps:5.1f}s, {o['coverage']:.0%} of the "
                   f"shorter track{seen})")
