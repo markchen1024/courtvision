@@ -104,8 +104,9 @@ export function initHome() {
         markers: DATA ? { enabled: true, points: [{ time: DATA.video.duration, label: 'tracking ends' }] } : undefined,
       });
 
-      // AI view <-> broadcast. Same 8s timeline in both files, so the swap
-      // only has to carry the clock across; the court canvas never notices.
+      // AI view <-> broadcast. Same 42.6s timeline in both files (17ms apart),
+      // so the swap only carries the clock across; the court canvas never
+      // notices.
       for (const b of document.querySelectorAll('.viewtoggle button')) {
         b.addEventListener('click', () => {
           if (b.classList.contains('on')) return;

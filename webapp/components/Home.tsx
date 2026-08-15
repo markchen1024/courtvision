@@ -46,7 +46,7 @@ export default function Home() {
     <a className="btn primary lg" href="#product">Open the demo <span className="arrow">→</span></a>
     <a className="btn lg" href="#method">See how it works</a>
   </div>
-  <p className="fine">No account. Eight seconds of NYK @ DET, game 4 of the 2025 East first round, already processed.</p>
+  <p className="fine">No account. A full 42.6-second possession of NYK @ DET, game 4 of the 2025 East first round, already processed — every label measured at 100% precision against hand ground truth.</p>
 
   {/* The product shot is the product. */}
   <div className="frame" id="product">
@@ -129,19 +129,19 @@ export default function Home() {
   </div>
 
   <p className="tabnote">
-    Positions and shot locations are measured by the pipeline, and the names in the
-    AI view are read off the jerseys — number OCR plus team clustering, with
-    unresolved tracks left anonymous rather than guessed. The box score is the
-    official ESPN box for this game, standing in until tracked stats are labelled; the
-    event labels are hand-tagged — see
-    <a href="#limits">Limits</a>.
+    Positions are measured by the pipeline, and the names in the AI view are read
+    off the jerseys — number OCR plus team clustering, with unresolved tracks left
+    anonymous rather than guessed; on this possession that measures 100% precision
+    and 98.8% coverage against hand ground truth. The box score is the official
+    ESPN box for this game; the shot chart is illustrative and the event labels
+    are hand-tagged — see <a href="#limits">Limits</a>.
   </p>
 
   <div className="figures">
     <div><div className="n" id="figCourt">28 × 15</div><div className="k">metre court model</div></div>
-    <div><div className="n" id="figHz">6 Hz</div><div className="k">positions sampled per second</div></div>
+    <div><div className="n" id="figHz">5 Hz</div><div className="k">positions sampled per second</div></div>
     <div><div className="n">0</div><div className="k">human clicks in the calibration</div></div>
-    <div><div className="n">16</div><div className="k">court landmarks decoded for the solver</div></div>
+    <div><div className="n">213/213</div><div className="k">frames court-solved on this clip</div></div>
   </div>
 </div></header>
 
@@ -169,9 +169,11 @@ export default function Home() {
     <div className="cell">
       <span className="mark">D</span>
       <h3>Detection &amp; tracking</h3>
-      <p>RF-DETR for players. Identity is associated <em>after</em> the homography, in
-      court space, where the camera's motion is already divided out. Raced against
-      ByteTrack on the same detections: 12.2 s median identity against 7.0 s.</p>
+      <p>RF-DETR finds the players; SAM2 carries them, prompted once on a frame
+      chosen because all ten stand clear of each other. On the possession above,
+      every prompted track survives the full 42.6 seconds — and identity comes
+      from the shirts, not the tracker: jersey OCR voted over each track,
+      constrained by the real roster.</p>
     </div>
     <div className="cell">
       <span className="mark">C</span>
@@ -183,9 +185,10 @@ export default function Home() {
     <div className="cell">
       <span className="mark">T</span>
       <h3>Teams without labelling</h3>
-      <p>A vision-language model scores every shirt against colour words, and the pair
-      that splits the players best decides the sides. Nobody types in a roster — on this
-      clip it picked the two kits unprompted.</p>
+      <p>Every torso crop becomes a SigLIP embedding; UMAP flattens them and
+      K-means splits the two kits. Nobody types in a roster — on this clip the
+      two sides separate unprompted, and the roster only enters afterwards, to
+      turn numbers into names.</p>
     </div>
     <div className="cell">
       <span className="mark">S</span>
@@ -215,20 +218,21 @@ export default function Home() {
       <span className="n">01</span>
       <h3>Upload the film</h3>
       <p>Any fixed camera that pans and zooms. Phone on a tripod at half court is the
-      common case and it is fine.<code>ffmpeg → frames @ 6 Hz</code></p>
+      common case and it is fine.<code>ffmpeg → frames @ 5 Hz</code></p>
     </div>
     <div className="step">
       <span className="n">02</span>
       <h3>Detect and track</h3>
       <p>Every player boxed on every sampled frame, then linked into tracks that survive
-      crossings and occlusion.<code>rf-detr → deep-eiou → tracks</code></p>
+      crossings and occlusion.<code>rf-detr → sam2 → tracks</code></p>
     </div>
     <div className="step">
       <span className="n">03</span>
       <h3>Register and calibrate</h3>
-      <p>One reference frame is calibrated against the court plan. Every other frame is
-      registered back to it with ORB/SIFT + RANSAC, and the two homographies
-      compose.<code>H_court ∘ H_frame→ref</code></p>
+      <p>A keypoint model reads the court markings in every frame, so every frame
+      gets its own homography and nobody clicks anything. Floors the model does
+      not know fall back to one hand-calibrated reference carried by feature
+      matching.<code>keypoints → H, per frame</code></p>
     </div>
     <div className="step">
       <span className="n">04</span>
