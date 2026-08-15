@@ -986,3 +986,51 @@ looks like from the inside, and this project has already shipped one of those.
 Screening still works, just not for free: `track_sam2_tutorial.py` then
 `overlap.py --video`, about seven minutes against twenty-five, because those
 two measure the fault itself rather than a correlate of it.
+
+## The 42.6-second possession, brought to 100/98.8 (2026-08-15)
+
+Mark spotted what the headline number hid: Pistons #5 was never labelled in
+seg_g6206_43s. The 100% was precision -- every drawn label correct -- and the
+absence lived in the coverage figure and the five-a-side FAIL, reported but
+under-emphasised. The lesson for reporting: name who is missing first, then
+say how right the rest is.
+
+The cause sat in frame 0, a transition with everyone in motion: Hart detected
+as two well-separated boxes (both survived NMS, so he took two prompt slots)
+while Beasley overlapped a teammate and was struck as a duplicate. Ten
+prompts, nine men. Every later frame shows Beasley clearly; SAM2 takes
+prompts once, so there was no way back in.
+
+The fix used the pieces already on the shelf:
+
+1. Scan the first seconds for a frame where ten detections stand apart --
+   frame 90 (1.5s): closest pair at IoS 0.04, against 0.86 on frame 0.
+2. Prompt there, track forward to the end and backward to frame 0. Both
+   passes share the prompt boxes, so their track ids agree by construction
+   and stitching is a dict merge -- none of the identity-matching that made
+   the 19s fusion dangerous.
+3. That run named all ten (Beasley 100%) but lost Anunoby at 22.4s -- a
+   different prompt frame walks a different path through the same occlusions.
+   The frame-0 run held Anunoby throughout. Complementary failures, both runs
+   individually clean, so label-level fusion of the two:
+
+| route | labels/frame | precision | coverage |
+|---|---|---|---|
+| frame-0 prompt | 8.86 | 100.0% | 88.6% (no Beasley) |
+| frame-90, bidirectional | 9.44 | - | (Anunoby dies at 22.4s) |
+| fused | 9.89 | **100.0%** | **98.8%** |
+
+25230 labels, zero wrong, 24 unknown. The missing 1.2% is Cunningham walking
+off the left edge of frame at 41.4s -- the camera pans with the ball, he is
+genuinely not in the picture, and the 16px sliver his mask leaves behind dies
+thirty frames later. That is a property of broadcast footage, not a defect.
+
+Also new: `pipeline/vlm_check.py`, stage 1.5 of run_segment. A headless
+`claude -p` (the CLI already logged in on this machine -- no key, no new
+dependency) reads the lineup image and answers the question counting cannot:
+are these ten boxes ten DIFFERENT men? Validated on the three known cases
+before wiring in -- flags the Hart double on the 43s frame, passes both clean
+frames, and volunteered that the struck box on the 13s frame was "a fan in a
+Cunningham jersey". Verdict-level answers are stable across runs; fine details
+wobble, so the gate acts on the verdict alone. Advisory by default,
+--strict-audit to make it fatal.
