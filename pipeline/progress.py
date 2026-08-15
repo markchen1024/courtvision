@@ -529,7 +529,72 @@ const eta = s => s == null || s < 0 ? "-"
   : s < 5400 ? Math.round(s / 60) + "m"
   : (s / 3600).toFixed(1) + "h";
 
-function jobCard(d) {
+// --- Live view: one DOM, reconciled ------------------------------------------
+//
+// This view used to rebuild its entire innerHTML on every poll. Caching the
+// stills hid the worst symptom -- an <img> destroyed before its ffmpeg fetch
+// returned, so no still ever painted -- but throwing the DOM away once a
+// second also throws away text selection, scroll anchoring, focus, and any
+// control that might later live on a card. The stage rail is built once and
+// each poll writes only the fields that actually changed.
+
+const OTHER_STAGE = ["Other", "Jobs this page does not recognise yet.", []];
+const ALL_STAGES = STAGES.concat([OTHER_STAGE]);
+const CARDS = new Map();        // job name -> its .job element, kept across polls
+let SKELETON = null;
+
+function setText(el, text) {    // avoid touching the DOM when nothing moved
+  if (el.textContent !== text) el.textContent = text;
+}
+
+function buildSkeleton() {
+  const host = document.getElementById("jobs");
+  host.innerHTML = "";
+  SKELETON = ALL_STAGES.map(([name, desc], i) => {
+    const stage = document.createElement("div");
+    stage.className = "stage";
+    stage.innerHTML = `
+      <div class="rail"><div class="node">${i < STAGES.length ? i + 1 : "+"}</div>
+        <div class="railline"></div></div>
+      <div class="stagebody">
+        <div class="stagehead"><span class="stagename">${name}</span>
+          <span class="stagesum"></span></div>
+        <div class="stagedesc">${desc}</div>
+        <div class="cards"></div>
+        <div class="idle">idle</div>
+      </div>`;
+    host.appendChild(stage);
+    return {stage, sum: stage.querySelector(".stagesum"),
+            cards: stage.querySelector(".cards"),
+            idle: stage.querySelector(".idle"),
+            line: stage.querySelector(".railline")};
+  });
+}
+
+function cardShell(job) {
+  const el = document.createElement("div");
+  el.className = "job";
+  el.innerHTML = `
+    <div class="jobtop"><span class="jobname"></span>
+      <span class="chip"></span>
+      <span class="nums"></span>
+      <button class="dismiss folder" title="open this job's output">&#128193;</button>
+      <button class="dismiss close" title="remove this job file">&times;</button></div>
+    <div class="body">
+      <div class="bars">
+        <div class="track"><div class="fill"></div></div>
+        <div class="note"></div>
+        <div class="kvs"></div>
+        <div class="src"></div>
+      </div>
+    </div>`;
+  el.querySelector(".jobname").textContent = job;
+  el.querySelector(".folder").onclick = () => openFolder(job);
+  el.querySelector(".close").onclick = () => dismiss(job);
+  return el;
+}
+
+function updateCard(el, d) {
   const stale = d.state === "running" && d.silent > STALE_S;
   const quiet = !stale && d.state === "running" && d.silent > 90;
   const cls = stale ? "stale" : quiet ? "quiet" : d.state;
@@ -540,61 +605,102 @@ function jobCard(d) {
     : `${d.done} done · ${d.rate.toFixed(1)}/s · ${eta(d.elapsed)}`;
   const fill = d.state === "failed" ? "var(--red)" : (stale || quiet) ? "var(--amber)"
              : d.state === "done" ? "var(--teal)" : "var(--signal)";
-  const closable = stale || d.state !== "running";
-  // A still from where the run has got to. Bucketed so it refreshes about
-  // twenty times over a job instead of on every 1.5s poll -- enough to see the
-  // clip advance, cheap enough that ffmpeg is not called in a loop.
-  // Bucket on where the run is in the clip, which is only the same thing as
-  // its completion for a job that walks its source front to back.
+
+  el.classList.toggle("dim", stale);
+  const chip = el.querySelector(".chip");
+  chip.className = "chip " + cls;
+  setText(chip, label);
+  setText(el.querySelector(".nums"), nums);
+
+  const f = el.querySelector(".fill");
+  const w = (pct == null ? 100 : Math.max(pct, 1.5)).toFixed(2) + "%";
+  if (f.dataset.w !== w) { f.style.width = w; f.dataset.w = w; }
+  if (f.dataset.bg !== fill) { f.style.background = fill; f.dataset.bg = fill; }
+  f.classList.toggle("indet", pct == null && d.state === "running" && !stale);
+
+  setText(el.querySelector(".note"), d.note || "");
+
+  // .kvs is display:flex in the stylesheet, so the hidden attribute loses to it
+  const kvs = el.querySelector(".kvs");
+  const chips = metaChipsInner(d);
+  if (kvs.dataset.h !== chips) { kvs.innerHTML = chips; kvs.dataset.h = chips; }
+  kvs.style.display = chips ? "" : "none";
+
+  const src = el.querySelector(".src");
+  const name = d.video ? d.video.split(/[\\\\/]/).pop() : "";
+  setText(src, name);
+  src.title = d.video || "";
+  src.hidden = !name;
+
+  el.querySelector(".folder").hidden = !d.folder;
+  el.querySelector(".close").hidden = !(stale || d.state !== "running");
+
+  // A still from where the run has got to, bucketed so it refreshes about
+  // twenty times over a job rather than on every poll. Bucket on position in
+  // the clip, which equals completion only for a run that walks its source
+  // front to back. The element itself is reused; only the src moves, so the
+  // image on screen is never blanked while the next one loads.
   const bucket = d.at != null ? Math.floor(d.at * 20)
                : pct == null ? 0 : Math.floor(pct / 5);
-  // Only when the server has said it can produce one. Rendering it anyway and
-  // letting onerror clean up made the card grow and shrink on every poll.
-  // Not lazy: these are few and on screen, and deferring them across a
-  // re-render that happens every 1.5s means they never load at all.
-  const shot = d.thumb
-    ? `<img class="shot" alt=""
-         src="/thumb?job=${encodeURIComponent(d.job)}&b=${bucket}">`
-    : "";
-  return `<div class="job${stale ? " dim" : ""}">
-    <div class="jobtop"><span class="jobname">${d.job}</span>
-      <span class="chip ${cls}">${label}</span>
-      <span class="nums">${nums}</span>
-      ${d.folder ? `<button class="dismiss" title="open ${d.folder}"
-        onclick="openFolder('${d.job}')">&#128193;</button>` : ""}
-      ${closable ? `<button class="dismiss" title="remove this job file" onclick="dismiss('${d.job}')">&times;</button>` : ""}</div>
-    <div class="body">
-      ${shot}
-      <div class="bars">
-        <div class="track"><div class="fill${pct == null && d.state === "running" && !stale ? " indet" : ""}"
-          style="width:${pct == null ? 100 : Math.max(pct, 1.5)}%;background:${fill}"></div></div>
-        <div class="note">${d.note || ""}</div>
-        ${metaChips(d)}
-        ${d.video ? `<div class="src" title="${d.video}">${d.video.split(/[\\\\/]/).pop()}</div>` : ""}
-      </div>
-    </div>
-  </div>`;
+  let img = el.querySelector("img.shot");
+  if (d.thumb) {
+    const want = `/thumb?job=${encodeURIComponent(d.job)}&b=${bucket}`;
+    if (!img) {
+      img = new Image();
+      img.className = "shot";
+      img.alt = "";
+      el.querySelector(".body").prepend(img);
+    }
+    if (img.getAttribute("src") !== want) img.setAttribute("src", want);
+  } else if (img) {
+    img.remove();
+  }
 }
 
-function stageSection(no, name, desc, jobs, last) {
-  const staleN = jobs.filter(j => j.state === "running" && j.silent > STALE_S).length;
-  const running = jobs.filter(j => j.state === "running").length - staleN;
-  const done = jobs.filter(j => j.state === "done").length;
-  const failed = jobs.length - running - done - staleN;
-  const parts = [];
-  if (running) parts.push(running + " running");
-  if (done) parts.push(done + " done");
-  if (failed > 0) parts.push(failed + " failed");
-  if (staleN) parts.push(staleN + " stale");
-  const cls = running ? " active" : (jobs.length && done === jobs.length ? " done-all" : "");
-  return `<div class="stage${cls}">
-    <div class="rail"><div class="node">${no}</div>${last ? "" : '<div class="railline"></div>'}</div>
-    <div class="stagebody">
-      <div class="stagehead"><span class="stagename">${name}</span>
-        <span class="stagesum">${parts.join(" · ")}</span></div>
-      <div class="stagedesc">${desc}</div>
-      ${jobs.length ? jobs.map(jobCard).join("") : '<div class="idle">idle</div>'}
-    </div></div>`;
+function renderLive(jobs) {
+  if (!SKELETON) buildSkeleton();
+  const buckets = ALL_STAGES.map(() => []);
+  for (const d of jobs) {
+    const i = stageOf(d.job);
+    buckets[i < 0 ? ALL_STAGES.length - 1 : i].push(d);
+  }
+  const seen = new Set();
+  buckets.forEach((list, i) => {
+    const s = SKELETON[i];
+    // Place each card at its index, and only touch the DOM when a card is not
+    // already there. appendChild removes and re-inserts even a node that is
+    // already the last child, and re-inserting a node collapses any text
+    // selection inside it -- so the naive version quietly kept the old bug's
+    // worst symptom: you still could not select a note for three seconds.
+    list.forEach((d, k) => {
+      let el = CARDS.get(d.job);
+      if (!el) { el = cardShell(d.job); CARDS.set(d.job, el); }
+      updateCard(el, d);
+      if (s.cards.childNodes[k] !== el) {
+        s.cards.insertBefore(el, s.cards.childNodes[k] || null);
+      }
+      seen.add(d.job);
+    });
+    const staleN = list.filter(j => j.state === "running" && j.silent > STALE_S).length;
+    const running = list.filter(j => j.state === "running").length - staleN;
+    const done = list.filter(j => j.state === "done").length;
+    const failed = list.length - running - done - staleN;
+    const parts = [];
+    if (running) parts.push(running + " running");
+    if (done) parts.push(done + " done");
+    if (failed > 0) parts.push(failed + " failed");
+    if (staleN) parts.push(staleN + " stale");
+    setText(s.sum, parts.join(" · "));
+    s.stage.classList.toggle("active", running > 0);
+    s.stage.classList.toggle("done-all", !running && list.length > 0 && done === list.length);
+    s.idle.hidden = list.length > 0;
+    s.stage.hidden = i === ALL_STAGES.length - 1 && list.length === 0;
+  });
+  for (const [job, el] of CARDS) {
+    if (!seen.has(job)) { el.remove(); CARDS.delete(job); }
+  }
+  const shown = SKELETON.filter(s => !s.stage.hidden);
+  shown.forEach((s, k) => { s.line.hidden = k === shown.length - 1; });
 }
 
 async function dismiss(job) {
@@ -643,11 +749,16 @@ function groupRuns(runs) {
   return out;
 }
 
-function metaChips(r) {
+function metaChipsInner(r) {
   const kvs = Object.entries(r.meta || {}).map(([k, v]) =>
     `<span class="kv"><b>${k}</b> ${v}</span>`);
   if (r.commit) kvs.push(`<span class="kv commit"><b>commit</b> ${r.commit}</span>`);
-  return kvs.length ? `<div class="kvs">${kvs.join("")}</div>` : "";
+  return kvs.join("");
+}
+
+function metaChips(r) {
+  const inner = metaChipsInner(r);
+  return inner ? `<div class="kvs">${inner}</div>` : "";
 }
 
 function runRow(r) {
@@ -760,15 +871,8 @@ async function tick() {
       (await fetch("/jobs", {cache: "no-store"})).json(),
       (await fetch("/history", {cache: "no-store"})).json(),
     ]);
-    document.getElementById("clock").textContent = new Date().toLocaleTimeString();
-    const rest = jobs.filter(j => stageOf(j.job) < 0);
-    const sections = STAGES.map(([name, desc], i) =>
-      stageSection(i + 1, name, desc,
-                   jobs.filter(j => stageOf(j.job) === i),
-                   i === STAGES.length - 1 && !rest.length));
-    if (rest.length) sections.push(stageSection("+", "Other",
-      "Jobs this page does not recognise yet.", rest, true));
-    document.getElementById("jobs").innerHTML = sections.join("");
+    setText(document.getElementById("clock"), new Date().toLocaleTimeString());
+    renderLive(jobs);
     liveCount = jobs.filter(j => j.state === "running" && j.silent <= STALE_S).length;
     histCount = new Set(runs.map(r => clipName(r.video) || "-")).size;
     renderHistory(runs);
