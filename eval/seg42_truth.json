@@ -1,0 +1,234 @@
+{
+ "video": "out/segments/seg_g6149_42s.mp4",
+ "boxes": "out/seg_g6149_42s_tracks.json",
+ "fps": 59.94,
+ "legend": {
+  "<number>": "this track is that player throughout",
+  "mixed": "followed more than one man",
+  "not-player": "referee, coach, crowd",
+  "?": "unreadable; skipped by the scorer",
+  "segments": "[[number, from, to, club], ...]; unclaimed frames = unknown, skipped"
+ },
+ "tracks": {
+  "1": {
+   "player": "25",
+   "frames": [
+    0,
+    2510
+   ],
+   "seconds": [
+    0.0,
+    41.88
+   ],
+   "n_frames": 2511,
+   "club": "knicks",
+   "note": "BRIDGES 25 in most cells",
+   "segments": [
+    [
+     "25",
+     0,
+     2510,
+     "knicks"
+    ]
+   ]
+  },
+  "2": {
+   "player": "8",
+   "frames": [
+    0,
+    2510
+   ],
+   "seconds": [
+    0.0,
+    41.88
+   ],
+   "n_frames": 2511,
+   "club": "knicks",
+   "note": "blue 8 at 0, red arm band at 1506/2008; collapses onto Reed from 35.6s (suppressed there anyway)",
+   "segments": [
+    [
+     "8",
+     0,
+     2130,
+     "knicks"
+    ]
+   ]
+  },
+  "3": {
+   "player": "8",
+   "frames": [
+    0,
+    2510
+   ],
+   "seconds": [
+    0.0,
+    41.88
+   ],
+   "n_frames": 2511,
+   "club": "pistons",
+   "note": "HARDAWAY JR 8 at 2008 and 2510",
+   "segments": [
+    [
+     "8",
+     0,
+     2510,
+     "pistons"
+    ]
+   ]
+  },
+  "4": {
+   "player": "7",
+   "frames": [
+    0,
+    2510
+   ],
+   "seconds": [
+    0.0,
+    41.88
+   ],
+   "n_frames": 2511,
+   "club": "pistons",
+   "note": "headband throughout, 7 at 1004; still Reed at 2510",
+   "segments": [
+    [
+     "7",
+     0,
+     2510,
+     "pistons"
+    ]
+   ]
+  },
+  "5": {
+   "player": "2",
+   "frames": [
+    0,
+    2510
+   ],
+   "seconds": [
+    0.0,
+    41.88
+   ],
+   "n_frames": 2511,
+   "club": "knicks",
+   "note": "McBRIDE 2 at 1004",
+   "segments": [
+    [
+     "2",
+     0,
+     2510,
+     "knicks"
+    ]
+   ]
+  },
+  "6": {
+   "player": "3",
+   "frames": [
+    0,
+    2510
+   ],
+   "seconds": [
+    0.0,
+    41.88
+   ],
+   "n_frames": 2511,
+   "club": "knicks",
+   "note": "HART 3 at 1004, 3 at 1506",
+   "segments": [
+    [
+     "3",
+     0,
+     2510,
+     "knicks"
+    ]
+   ]
+  },
+  "7": {
+   "player": "5",
+   "frames": [
+    0,
+    2403
+   ],
+   "seconds": [
+    0.0,
+    40.09
+   ],
+   "n_frames": 2404,
+   "club": "pistons",
+   "note": "white Pistons, by elimination the fifth is Beasley 5; final cell at 2403 is a foreground blur, tail unclaimed",
+   "segments": [
+    [
+     "5",
+     0,
+     1930,
+     "pistons"
+    ]
+   ]
+  },
+  "8": {
+   "player": "2",
+   "frames": [
+    0,
+    2160
+   ],
+   "seconds": [
+    0.0,
+    36.04
+   ],
+   "n_frames": 2161,
+   "club": "pistons",
+   "note": "CUNNINGHAM 2 at 432, PISTONS 2 at 1928; dies into a blur ~36s",
+   "segments": [
+    [
+     "2",
+     0,
+     2100,
+     "pistons"
+    ]
+   ]
+  },
+  "9": {
+   "player": "1",
+   "frames": [
+    0,
+    2510
+   ],
+   "seconds": [
+    0.0,
+    41.88
+   ],
+   "n_frames": 1989,
+   "club": "knicks",
+   "note": "PAYNE 1 at 795",
+   "segments": [
+    [
+     "1",
+     0,
+     2510,
+     "knicks"
+    ]
+   ]
+  },
+  "10": {
+   "player": "17",
+   "frames": [
+    0,
+    2510
+   ],
+   "seconds": [
+    0.0,
+    41.88
+   ],
+   "n_frames": 2511,
+   "club": "pistons",
+   "note": "SCHRODER 17 at 0, 502, 1004; blur tail unclaimed",
+   "segments": [
+    [
+     "17",
+     0,
+     2050,
+     "pistons"
+    ]
+   ]
+  }
+ }
+}
