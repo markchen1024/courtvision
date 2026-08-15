@@ -27,6 +27,13 @@ out/
 output/
 runs/
 
+# Crop strips that label_truth.py renders for reading jersey numbers off a
+# track. 8MB of JPEG, regenerable from the tracks file in a minute, and only
+# useful while someone is filling in a truth file. The truth files themselves
+# are hand-made and stay in the repo.
+eval/tracks/
+eval/sheets/
+
 # OS / editor
 .DS_Store
 Thumbs.db
