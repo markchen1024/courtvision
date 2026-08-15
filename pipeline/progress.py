@@ -492,18 +492,22 @@ PAGE = """<!doctype html>
 const STAGES = [
   ["Scouting", "Shot cuts found, then frames scored on whether a full lineup is visible — a segment worth an hour of GPU.",
    ["detect-cuts", "find-segments", "check-lineup"]],
-  ["Detection & tracking", "Every player found on the prompt frame, then carried through the clip as identity tracks.",
-   ["detect", "dense-detect", "sam2", "sam3"]],
+  ["Detection & tracking", "Every player found on a prompt frame, then carried through the clip as identity tracks &mdash; forwards, and where it is worth the GPU, backwards as well, since SAM2's memory is causal and the second pass meets an occlusion with a different history. Both sidecars keep the video's own frame numbers, so a fusion stage can line them up.",
+   // "fuse-tracks", not "fuse": fuse_calibration.py is already in the repo and
+   // belongs to Court space, and a prefix wide enough to swallow it would file
+   // it silently in the wrong stage. A name this list guesses wrong lands in
+   // Other, which is visible and gets fixed; a name it files wrongly does not.
+   ["detect", "dense-detect", "sam2", "sam3", "fuse-tracks", "oncourt"]],
   ["Identity", "Jersey numbers read and voted per track, teams clustered, roster joined — tracks become names.",
    ["identify", "shirts", "legibility"]],
   ["Court space", "Landmarks solved into a homography, players projected onto the court plan — pixels become metres.",
-   ["keypoints", "project"]],
+   ["keypoints", "project", "fuse-calibration", "calibrate"]],
   ["Events", "Shot attempts from pose and rim signals. Outcomes stay hand-tagged, and the UI says so.",
    ["shot-events"]],
   ["Render & review", "Masks, name chips and the top-down court burned into video you can actually eyeball.",
    ["render", "final-render", "review"]],
-  ["Labelling & training", "Crops harvested for Roboflow, and models fine-tuned on what comes back.",
-   ["harvest", "resnet-ocr", "tutorial-crops", "train"]],
+  ["Labelling & training", "Crops harvested for Roboflow, truth hand-marked on the frames a score is argued from, and models fine-tuned on what comes back.",
+   ["harvest", "resnet-ocr", "tutorial-crops", "train", "label-truth", "score"]],
 ];
 // longest prefix wins, so "detect-cuts" beats "detect" and lands in Scouting
 const stageOf = job => {
