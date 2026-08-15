@@ -245,6 +245,7 @@ def read_jobs():
         d["eta"] = ((d["total"] - d["done"]) / rate) if (d.get("total") and rate) else None
         d["elapsed"] = elapsed
         d["silent"] = now - d["updated"]
+        d["thumb"], d["play"] = _media(d.get("video"))
         jobs.append(d)
     return jobs
 
@@ -260,6 +261,8 @@ def read_history(limit=400):
         d["run"] = f.stem
         d["elapsed"] = max(0.0, d.get("updated", 0) - d.get("started", 0))
         d["rate"] = d["done"] / d["elapsed"] if d["elapsed"] and d.get("done") else 0
+        d["thumb"], d["play"] = _media(d.get("video"))
+        _, d["artifact_play"] = _media(d.get("artifact"))
         runs.append(d)
     runs.sort(key=lambda d: d.get("started", 0), reverse=True)
     return runs
@@ -545,10 +548,13 @@ function jobCard(d) {
   // its completion for a job that walks its source front to back.
   const bucket = d.at != null ? Math.floor(d.at * 20)
                : pct == null ? 0 : Math.floor(pct / 5);
-  const shot = d.video
-    ? `<img class="shot" loading="lazy" alt=""
-         src="/thumb?job=${encodeURIComponent(d.job)}&b=${bucket}"
-         onerror="this.remove()">`
+  // Only when the server has said it can produce one. Rendering it anyway and
+  // letting onerror clean up made the card grow and shrink on every poll.
+  // Not lazy: these are few and on screen, and deferring them across a
+  // re-render that happens every 1.5s means they never load at all.
+  const shot = d.thumb
+    ? `<img class="shot" alt=""
+         src="/thumb?job=${encodeURIComponent(d.job)}&b=${bucket}">`
     : "";
   return `<div class="job${stale ? " dim" : ""}">
     <div class="jobtop"><span class="jobname">${d.job}</span>
@@ -654,9 +660,9 @@ function runRow(r) {
   // the line without the player: naming what a stage left behind is the point,
   // and only some of it happens to be watchable.
   const player = !r.artifact ? ""
-    : /\\.(mp4|webm)$/i.test(r.artifact) ? `
+    : r.artifact_play ? `
         <video class="art" controls preload="none"
-          poster="/thumb?run=${encodeURIComponent(r.run)}"
+          ${r.thumb ? `poster="/thumb?run=${encodeURIComponent(r.run)}"` : ""}
           src="/file?run=${encodeURIComponent(r.run)}&what=artifact"></video>
         <div class="artlab"><b>produced</b> ${clipName(r.artifact)}</div>`
     : `<div class="artlab"><b>produced</b> ${clipName(r.artifact)}</div>`;
@@ -677,7 +683,11 @@ function clipCard(g) {
   const compute = g.runs.reduce((s, r) => s + (r.elapsed || 0), 0);
   const failed = g.runs.filter(r => r.state === "failed").length;
   const named = g.key.startsWith("\\u0000") ? "not clip-scoped" : g.key;
-  const withShot = [...g.runs].reverse().find(r => r.video);
+  // The newest run whose source the server can actually reach. A clip grouped
+  // from the raw broadcast in Downloads has none: it is outside the repo, so
+  // there is no still to show and nothing to play.
+  const withShot = [...g.runs].reverse().find(r => r.thumb);
+  const source = [...g.runs].reverse().find(r => r.video);
   const sum = [`${g.runs.length} stage${g.runs.length > 1 ? "s" : ""}`,
                `${eta(compute)} compute`, when(g.latest)];
   if (failed) sum.push(`${failed} failed`);
@@ -693,12 +703,15 @@ function clipCard(g) {
       <span class="caret">${open ? "&minus;" : "+"}</span>
     </div>
     ${open ? `<div class="clipstages">
-      ${withShot ? `<div class="srow">
+      ${source ? `<div class="srow">
         <div class="srowtop"><span class="srowname">source</span></div>
-        <div class="srowtime">${clipName(withShot.video)}</div>
-        <video class="art" controls preload="none"
-          poster="/thumb?run=${encodeURIComponent(withShot.run)}"
-          src="/file?run=${encodeURIComponent(withShot.run)}&what=video"></video>
+        <div class="srowtime">${clipName(source.video)}</div>
+        ${source.play ? `<video class="art" controls preload="none"
+          ${source.thumb ? `poster="/thumb?run=${encodeURIComponent(source.run)}"` : ""}
+          src="/file?run=${encodeURIComponent(source.run)}&what=video"></video>`
+        : `<div class="artlab">not served here &mdash; ${
+             source.thumb ? "the browser cannot play this container"
+                          : "the file is outside the repo"}</div>`}
       </div>` : ""}
       ${g.runs.map(runRow).join("")}</div>` : ""}
   </div>`;
@@ -783,6 +796,29 @@ def _under_root(raw):
     except ValueError:
         return None
     return p
+
+
+PLAYABLE = {".mp4", ".webm"}
+
+
+def _media(path):
+    """(can a still be made, can a browser play it) for a path in a job file.
+
+    The page used to render an <img> and a <video> for anything with a `video`
+    field and let the browser find out. find_segments.py runs on the raw
+    broadcast -- C:\\Users\\...\\Downloads\\NBA_...mkv -- which is outside the
+    repo and refused by _under_root, and .mkv is not a container Chrome plays
+    anyway. The <video> showed a black rectangle, and in the live view, which
+    re-renders every 1.5s, the still's onerror handler removed the <img> and
+    the next tick put it back: the card grew and shrank once a second.
+
+    ffmpeg reads mkv perfectly well, so `thumb` turns only on the path being
+    servable; `play` additionally needs a container the browser accepts.
+    """
+    p = _under_root(path)
+    if p is None or not p.is_file():
+        return False, False
+    return True, p.suffix.lower() in PLAYABLE
 
 
 _DURATIONS = {}
@@ -927,7 +963,13 @@ def serve(port):
                     return self._empty(404)
                 self.send_response(200)
                 self.send_header("Content-Type", "image/jpeg")
-                self.send_header("Cache-Control", "no-store")
+                # The live view rebuilds its whole DOM every 1.5s, so each
+                # <img> is destroyed and recreated before a 0.2-0.5s ffmpeg
+                # fetch can finish -- the stills never painted at all, which
+                # read as "the video is always black". The `b` bucket in the
+                # URL is already the cache key, changing about twenty times
+                # over a run; no-store was throwing it away.
+                self.send_header("Cache-Control", "max-age=300")
                 self.send_header("Content-Length", str(len(jpeg)))
                 self.end_headers()
                 self.wfile.write(jpeg)
