@@ -81,7 +81,8 @@ def main():
 
     tracks = {}
     n = 0
-    prog = Progress("sam3", total=total, video=args.video)
+    prog = Progress("sam3", total=total, video=args.video, artifact=args.out,
+                    meta={"model": args.model, "text": args.text})
     partial = Path(args.out).with_suffix(".partial.json")
     # stream=True for the same reason as track_sam2.py: without it every
     # result buffers until the end and nothing below runs during inference.

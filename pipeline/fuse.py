@@ -44,6 +44,7 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import overlap
+from progress import Progress
 from score import drawn
 
 CONFLICT_IOS = 0.95
@@ -125,8 +126,21 @@ def main():
                     default="stronger")
     args = ap.parse_args()
 
+    # This stage was invisible on the progress page: it reports in seconds, so
+    # nobody missed a bar, but a route with no run of its own cannot be told
+    # apart from the pass it was built out of, and the archive is the only
+    # place the two-pass route exists as a thing rather than as two things.
+    video = args.video or json.loads(Path(args.a[0]).read_text()).get("video")
+    prog = Progress("fuse-tracks", total=3, video=video,
+                    artifact=str(ROOT / "out" / f"{args.out_stem}_tracks.json"),
+                    meta={"a": Path(args.a[0]).name, "b": Path(args.b[0]).name,
+                          "conflict_ios": args.conflict_ios,
+                          "on_conflict": args.on_conflict})
+
     A, names_a, fps, n_a = per_frame_players(*args.a)
+    prog.set(1, note=f"read {Path(args.a[0]).name}")
     B, names_b, _, n_b = per_frame_players(*args.b)
+    prog.set(2, note=f"read {Path(args.b[0]).name}")
     names = {**names_b, **names_a}
     fused, stats = fuse(A, B, args.conflict_ios, args.on_conflict)
 
@@ -168,6 +182,8 @@ def main():
           f"({len(keys)} distinct players)")
     print(f"  from a only {stats['only_a']}, from b only {stats['only_b']}, "
           f"both {stats['both']}, dropped as conflicts {stats['dropped_conflict']}")
+    prog.done(note=f"{mean_f:.2f} players/frame, {len(keys)} players, "
+                   f"{stats['dropped_conflict']} conflicts dropped")
     print(f"wrote {tp.name} and {ip.name}")
     return 0
 

@@ -268,6 +268,55 @@ def read_history(limit=400):
     return runs
 
 
+_TRACK_VIDEO = {}
+# The frame-by-frame arrays are the bulk of a report and none of them are shown
+# here; a poll that shipped them would move megabytes a second.
+_REPORT_FIELDS = ("stem", "seconds", "frames", "tracks", "players", "by_club",
+                  "mean_labels", "full_lineup_share", "proxy_coverage",
+                  "gates", "checks", "verdict", "truth")
+
+
+def _tracks_video(stem):
+    """The clip a route ran on, from the sidecar it wrote.
+
+    report.py does not record the source, and the routes on one clip are named
+    for the route rather than the footage -- seg19_fused, seg19_rev2,
+    seg19_sam3_oncourt are all seg_01m10.87s_19s. The tracks sidecar does carry
+    it, so the grouping needs no re-runs to work on everything already on disk.
+    Cached on mtime: these files run to hundreds of KB and the page polls.
+    """
+    path = ROOT / "out" / f"{stem}_tracks.json"
+    try:
+        key = path.stat().st_mtime
+    except OSError:
+        return None
+    hit = _TRACK_VIDEO.get(stem)
+    if hit and hit[0] == key:
+        return hit[1]
+    try:
+        video = json.loads(path.read_text()).get("video")
+    except (json.JSONDecodeError, OSError):
+        video = None
+    _TRACK_VIDEO[stem] = (key, video)
+    return video
+
+
+def read_reports():
+    """report.py's verdict per route: what came out, not what ran."""
+    out = []
+    for f in sorted((ROOT / "out").glob("report_*.json")):
+        try:
+            d = json.loads(f.read_text())
+        except (json.JSONDecodeError, OSError):
+            continue
+        stem = d.get("stem") or f.stem[len("report_"):]
+        r = {k: d.get(k) for k in _REPORT_FIELDS}
+        r["stem"] = stem
+        r["video"] = _tracks_video(stem)
+        out.append(r)
+    return out
+
+
 def seed_history():
     """Archive finished live jobs that predate the archive.
 
@@ -462,6 +511,32 @@ PAGE = """<!doctype html>
   .artlab { grid-column:1/-1; font:400 10.5px/1.4 var(--font-mono);
             color:var(--muted); margin-top:.35rem; }
   .artlab b { color:var(--subtle); font-weight:400; }
+  /* Routes: the same footage down several pipelines, which is the comparison
+     the run-ordered fold cannot show. */
+  .routes { border-top:1px solid var(--line-soft); padding:.9rem 1.1rem .2rem; }
+  .routes h4 { margin:0 0 .6rem; font:700 11px/1 var(--font-mono);
+               letter-spacing:.12em; text-transform:uppercase; color:var(--subtle); }
+  .rtab { width:100%; border-collapse:collapse; font:400 11.5px/1.4 var(--font-mono); }
+  .rtab th { text-align:right; font-weight:500; color:var(--subtle);
+             padding:.35rem .55rem; border-bottom:1px solid var(--line-soft);
+             white-space:nowrap; }
+  .rtab th:first-child, .rtab td:first-child { text-align:left; }
+  .rtab td { padding:.45rem .55rem; text-align:right; white-space:nowrap;
+             border-bottom:1px solid var(--line-soft); }
+  .rtab tr:last-child td { border-bottom:none; }
+  .rtab td.name { color:var(--fg); font-weight:700; }
+  .rtab .best { color:var(--teal); }
+  .rtab .bad { color:var(--red); }
+  .rtab .none { color:var(--line-strong); }
+  .vd { font:500 10px/1 var(--font-mono); letter-spacing:.06em;
+        text-transform:uppercase; border-radius:999px; padding:.28rem .5rem; }
+  .vd.ready { background:#123830; color:var(--teal); }
+  .vd.notready { background:#3d3312; color:var(--amber); }
+  .failed-checks { font:400 10.5px/1.5 var(--font-mono); color:var(--amber);
+                   padding:.5rem .55rem 0; }
+  .rnote { font:400 10.5px/1.55 var(--font-sans); color:var(--line-strong);
+           padding:.6rem .55rem .2rem; max-width:60ch; }
+
   .trace { grid-column:1/-1; margin-top:.5rem; padding:.7rem .8rem;
            background:var(--inset); border:1px solid #3d1b1b; border-radius:.45rem;
            font:400 10.5px/1.5 var(--font-mono); color:var(--red);
@@ -789,10 +864,83 @@ function runRow(r) {
   </div>`;
 }
 
-function clipCard(g) {
+// The routes table. A clip's fold lists its runs in the order they happened,
+// which is the wrong axis: seg_01m10.87s_19s has been down four pipelines, and
+// what someone wants from it is those four side by side with what each cost
+// and what each scored. Compute per route comes from the archived runs whose
+// artifact carries that route's stem, so it fills in for runs made after
+// artifact= was wired and reads "-" for the ones that predate it.
+
+const STEM_SUFFIXES = ["_tracks.json", "_identities.json", "_final.mp4",
+                       "_oncourt_tracks.json"];
+
+function stemOf(artifact) {
+  if (!artifact) return null;
+  const base = clipName(artifact);
+  for (const s of STEM_SUFFIXES) if (base.endsWith(s)) return base.slice(0, -s.length);
+  return null;
+}
+
+const pct1 = v => v == null ? null : (v * 100).toFixed(1) + "%";
+
+function routesTable(g, reports) {
+  const rs = reports.filter(r => clipName(r.video) === g.key);
+  if (!rs.length) return "";
+  // minutes of archived compute attributable to each route
+  const mins = {};
+  for (const run of g.runs) {
+    const stem = stemOf(run.artifact);
+    if (stem) mins[stem] = (mins[stem] || 0) + (run.elapsed || 0);
+  }
+  const best = Math.max(...rs.map(r => r.truth ? r.truth.precision : -1));
+  const rows = rs.map(r => {
+    const t = r.truth;
+    const failed = (r.checks || []).filter(c => !c.pass);
+    const ready = r.verdict === "ready";
+    const compute = mins[r.stem] ? eta(mins[r.stem]) : null;
+    return `<tr>
+      <td class="name">${r.stem}</td>
+      <td class="${t && t.precision === best && best > 0 ? "best" : t ? "" : "none"}">
+        ${t ? pct1(t.precision) : "&mdash;"}</td>
+      <td class="${t ? "" : "none"}">${t ? pct1(t.coverage) : "&mdash;"}</td>
+      <td class="${t && t.wrong ? "bad" : t ? "" : "none"}">
+        ${t ? t.wrong : "&mdash;"}</td>
+      <td>${r.mean_labels == null ? "&mdash;" : r.mean_labels.toFixed(2)}</td>
+      <td>${r.players ?? "&mdash;"}</td>
+      <td class="${failed.length ? "bad" : "best"}">
+        ${(r.checks || []).length - failed.length}/${(r.checks || []).length}</td>
+      <td class="${compute ? "" : "none"}">${compute || "&mdash;"}</td>
+      <td><span class="vd ${ready ? "ready" : "notready"}">${r.verdict || "?"}</span></td>
+    </tr>`;
+  }).join("");
+  // name what actually failed, once, rather than leaving a count to be guessed at
+  const notes = rs.flatMap(r => (r.checks || []).filter(c => !c.pass)
+    .map(c => `${r.stem}: ${c.name} &mdash; ${c.detail}`));
+  return `<div class="routes">
+    <h4>routes on this clip</h4>
+    <table class="rtab"><thead><tr>
+      <th>route</th><th>precision</th><th>coverage</th><th>wrong</th>
+      <th>labels/frame</th><th>players</th><th>checks</th><th>own compute</th><th></th>
+    </tr></thead><tbody>${rows}</tbody></table>
+    ${notes.length ? `<div class="failed-checks">${notes.join("<br>")}</div>` : ""}
+    <div class="rnote">Own compute counts only the archived stages that wrote
+      that route's files. A fused route does not include the passes it was
+      built from &mdash; those are rows of their own, and adding them would
+      count the same GPU minutes twice. A dash is a stage that ran before runs
+      recorded what they produced.</div>
+  </div>`;
+}
+
+function clipCard(g, reports) {
   const open = OPEN.has(g.key);
   const compute = g.runs.reduce((s, r) => s + (r.elapsed || 0), 0);
   const failed = g.runs.filter(r => r.state === "failed").length;
+  // The clip's own headline: the best any route has managed on it. Without
+  // this the list says how long the machine was busy and nothing about
+  // whether the answer was right.
+  const scored = reports.filter(r => clipName(r.video) === g.key && r.truth);
+  const top = scored.sort((a, b) => b.truth.precision - a.truth.precision ||
+                                    b.truth.coverage - a.truth.coverage)[0];
   const named = g.key.startsWith("\\u0000") ? "not clip-scoped" : g.key;
   // The newest run whose source the server can actually reach. A clip grouped
   // from the raw broadcast in Downloads has none: it is outside the repo, so
@@ -802,6 +950,11 @@ function clipCard(g) {
   const sum = [`${g.runs.length} stage${g.runs.length > 1 ? "s" : ""}`,
                `${eta(compute)} compute`, when(g.latest)];
   if (failed) sum.push(`${failed} failed`);
+  const headline = top
+    ? `<span class="${top.truth.wrong ? "" : "best"}">${pct1(top.truth.precision)}
+       precision · ${pct1(top.truth.coverage)} coverage</span>
+       <span class="none">&nbsp;best of ${scored.length}</span>`
+    : "";
   return `<div class="clip">
     <div class="cliphead" onclick="toggleClip('${g.key.replace(/'/g, "\\\\'")}')">
       ${withShot ? `<img class="clipshot" loading="lazy" alt=""
@@ -810,9 +963,11 @@ function clipCard(g) {
       <div style="min-width:0">
         <div class="clipname">${named}</div>
         <div class="clipsum">${sum.join(" · ")}</div>
+        ${headline ? `<div class="clipsum">${headline}</div>` : ""}
       </div>
       <span class="caret">${open ? "&minus;" : "+"}</span>
     </div>
+    ${open ? routesTable(g, reports) : ""}
     ${open ? `<div class="clipstages">
       ${source ? `<div class="srow">
         <div class="srowtop"><span class="srowname">source</span></div>
@@ -831,18 +986,20 @@ function clipCard(g) {
 function toggleClip(key) {
   OPEN.has(key) ? OPEN.delete(key) : OPEN.add(key);
   historySig = "";              // force one re-render
-  renderHistory(LAST_HISTORY);
+  renderHistory(LAST_HISTORY, LAST_REPORTS);
 }
 
-let LAST_HISTORY = [];
-function renderHistory(runs) {
+let LAST_HISTORY = [], LAST_REPORTS = [];
+function renderHistory(runs, reports) {
   LAST_HISTORY = runs;
-  const sig = runs.map(r => r.run).join(",") + "|" + [...OPEN].join(",");
+  LAST_REPORTS = reports;
+  const sig = runs.map(r => r.run).join(",") + "|" + [...OPEN].join(",")
+            + "|" + reports.map(r => r.stem + (r.truth ? r.truth.right : "")).join(",");
   if (sig === historySig) return;
   historySig = sig;
   const groups = groupRuns(runs);
   document.getElementById("history").innerHTML = groups.length
-    ? groups.map(clipCard).join("")
+    ? groups.map(g => clipCard(g, reports)).join("")
     : '<div class="empty">(no runs archived yet)</div>';
 }
 
@@ -867,15 +1024,16 @@ function applyView() {
 
 async function tick() {
   try {
-    const [jobs, runs] = await Promise.all([
+    const [jobs, runs, reports] = await Promise.all([
       (await fetch("/jobs", {cache: "no-store"})).json(),
       (await fetch("/history", {cache: "no-store"})).json(),
+      (await fetch("/reports", {cache: "no-store"})).json(),
     ]);
     setText(document.getElementById("clock"), new Date().toLocaleTimeString());
     renderLive(jobs);
     liveCount = jobs.filter(j => j.state === "running" && j.silent <= STALE_S).length;
     histCount = new Set(runs.map(r => clipName(r.video) || "-")).size;
-    renderHistory(runs);
+    renderHistory(runs, reports);
     applyView();
   } catch (e) { /* server restarting; keep polling */ }
 }
@@ -1101,6 +1259,9 @@ def serve(port):
                 # cheaper than an archive with holes in it.
                 seed_history()
                 body = json.dumps(read_history()).encode()
+                ctype = "application/json"
+            elif u.path == "/reports":
+                body = json.dumps(read_reports()).encode()
                 ctype = "application/json"
             else:
                 body = PAGE.encode("utf-8")

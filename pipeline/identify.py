@@ -315,7 +315,10 @@ def main():
     reads, blocked = 0, 0
 
     cap = cv2.VideoCapture(args.video)
-    prog = Progress("identify", total=len(grid), video=args.video)
+    prog = Progress("identify", total=len(grid), video=args.video,
+                    artifact=args.out,
+                    meta={"ocr": args.ocr_model, "confirm": args.confirm,
+                          "match": args.match, "min_votes": args.min_votes})
     for n, frame_idx in enumerate(grid):
         rows = frames[frame_idx]
         if not rows:

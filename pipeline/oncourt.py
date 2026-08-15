@@ -213,7 +213,8 @@ def main():
     before = sum(len(v) for v in frames.values())
     ids_before = len({r["tid"] for v in frames.values() for r in v})
 
-    prog = Progress("oncourt-filter", total=len(frames), video=args.video)
+    prog = Progress("oncourt-filter", total=len(frames), video=args.video,
+                    artifact=args.out, meta={"margin_m": args.margin})
     kept, stats = filter_tracks(path(args.video), frames, every=args.every,
                                 margin_m=args.margin, progress=prog)
     prog.done(note=f"{stats['dropped']} dropped")
