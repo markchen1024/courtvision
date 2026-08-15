@@ -1034,3 +1034,34 @@ frames, and volunteered that the struck box on the 13s frame was "a fan in a
 Cunningham jersey". Verdict-level answers are stable across runs; fine details
 wobble, so the gate acts on the verdict alone. Advisory by default,
 --strict-audit to make it fatal.
+
+## A second long possession, and where to cut it (2026-08-15)
+
+seg_g6149_42s, the next candidate off the collapse screen, scores 100.0%
+precision over 22382 labels with none wrong. Its coverage is 89.1% at full
+length and every missing frame sits in the last six seconds, where the footage
+itself degrades: Anunoby collapses onto Reed at 35.6s, and Cunningham, Beasley
+and Schroeder all die into the same foreground blur around 36-40s -- one
+obstruction taking three masks. Trimmed at 35.5s the coverage is 96.1%.
+
+The VLM audit earned its keep twice more here. It rejected the stale lineup
+image (a struck DUP box that was really a second player), then passed the
+actual margin -0.5 prompt set as ten distinct men -- and identify confirmed
+that with ten names, five a side. The workflow lesson: audit the exact boxes
+that will be prompted, not a rendering of some other candidate set.
+
+Accepted by review 2026-08-15: the full-length version shows the two-player
+tail loss exactly as measured; the trimmed version's one visible flaw is
+Payne unlabelled for 0.4s, below the half-second the gap report itemises.
+`seg_g6149_36s_final.mp4` is the deliverable.
+
+The shipping set now stands at five segments, ~120 seconds, over eighty
+thousand labels, zero wrong by measurement:
+
+| deliverable | length | precision | coverage |
+|---|---|---|---|
+| seg43c_final.mp4 | 42.6s | 100.0% | 98.8% |
+| seg_g6149_36s_final.mp4 | 35.5s | 100.0% | 96.1% |
+| seg19_sam3_final.mp4 | 19.2s | 100.0% | 91.7% |
+| seg_02m28.00s_13s_final.mp4 | 12.5s | 100.0% | 100.0% |
+| seg_02m44.15s_10s_final.mp4 | 10.0s | 100.0% | 99.8% |
