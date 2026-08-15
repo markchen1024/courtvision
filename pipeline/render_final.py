@@ -37,6 +37,19 @@ CLUB_COLOURS = {"warriors": "#FFC72C", "grizzlies": "#5D76A9",
                 # footage and two blues on one floor defeat the point.
                 "pistons": "#C8102E"}
 UNKNOWN_HEX = "#9AA0A6"
+# "Tim Hardaway Jr." ends in "Jr.", not in a surname, and taking the last word
+# rendered him as "#8 Jr." on screen. Same trap waiting in "Ronald Holland II"
+# and "Lindy Waters III".
+SUFFIXES = {"jr", "sr", "ii", "iii", "iv", "v"}
+
+
+def surname_of(full):
+    """The name a chip carries: surname, keeping any generational suffix."""
+    parts = full.split()
+    tail = []
+    while len(parts) > 1 and parts[-1].lower().rstrip(".") in SUFFIXES:
+        tail.insert(0, parts.pop())
+    return " ".join(parts[-1:] + tail)
 
 
 def main():
@@ -80,18 +93,6 @@ def main():
         font_path=FONT, font_size=26, color=palette,
         text_color=sv.Color.WHITE, text_position=sv.Position.BOTTOM_CENTER,
         color_lookup=sv.ColorLookup.INDEX)
-
-    # "Tim Hardaway Jr." ends in "Jr.", not in a surname, and taking the last
-    # word rendered him as "#8 Jr." on screen. Same trap waiting in "Ronald
-    # Holland II" and "Lindy Waters III".
-    SUFFIXES = {"jr", "sr", "ii", "iii", "iv", "v"}
-
-    def surname_of(full):
-        parts = full.split()
-        tail = []
-        while len(parts) > 1 and parts[-1].lower().rstrip(".") in SUFFIXES:
-            tail.insert(0, parts.pop())
-        return " ".join(parts[-1:] + tail)
 
     def chip(tid):
         v = idn.get(tid)

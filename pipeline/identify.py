@@ -89,6 +89,20 @@ def decisive(counter, floor=2, share=0.2):
     return top[0][1] - second >= max(floor, share * sum(counter.values()))
 
 
+def one_number_misread(a, b):
+    """Are these two readings one number, one of them clipped?
+
+    A crop that loses a digit turns '25' into '5'. Two readings where one is
+    the head or tail of the other are one number read twice, not two men --
+    measured on seg_02m44.15s_10s, where Bridges read '5' twenty-nine times
+    and '25' twenty times. Two genuinely different players do not produce
+    substrings of each other: the case the split gate exists for read '0' and
+    '32'.
+    """
+    short, long = sorted((a, b), key=len)
+    return long.startswith(short) or long.endswith(short)
+
+
 def merge_tracklets(life, number_votes, team_votes, min_votes, overlap_frames=15):
     """Tracks that are one player wearing several ids: {tid: canonical}.
 
@@ -203,6 +217,10 @@ def main():
                     help="frames two tracklets may coexist and still be judged "
                          "one player -- a tracker hands over with a few frames "
                          "of double report. 0 demands a clean seam.")
+    ap.add_argument("--no-club-override", action="store_true",
+                    help="never let a decisive jersey number move a track to "
+                         "the club that owns it, even when the shirt-colour "
+                         "vote is a coin toss")
     ap.add_argument("--no-split-check", action="store_true",
                     help="keep a name on a track whose reads are split between "
                          "two clubs' numbers -- it has been on two players")
@@ -523,6 +541,39 @@ def main():
         print(f"cluster->club: {club_of} (evidence {lead} vs {second} "
               f"confirmed numbers)")
 
+    # A shirt-colour vote that cannot make up its mind must not outrank a
+    # number that can. Measured on the backward pass of seg_01m10.87s_19s:
+    # track 9 read '11' fifty-two times -- and 11 is on the Knicks roster and
+    # nobody else's -- while its team crops split 21 to 18. The club was
+    # decided first and independently, the roster then made #11 unavailable,
+    # and a two-vote '7' won the matching: `#7 Paul Reed`, who did not play.
+    #
+    # So where the number is decisive and belongs to exactly one club, and the
+    # colour vote is not decisive, the number says which side he is on. This is
+    # not another veto; it lets the stronger evidence win, which is what the
+    # serial arrangement of these stages otherwise prevents.
+    club_to_cluster = {c: k for k, c in club_of.items()}
+    moved = {}
+    if club_of and not args.no_club_override:
+        for tid in live_tids:
+            counts = number_votes.get(tid) or Counter()
+            if not counts or decisive(votes.get(tid) or Counter()):
+                continue
+            num = counts.most_common(1)[0][0]
+            owners = [c for c in clubs if num in club_numbers[c]]
+            if len(owners) != 1 or not decisive(counts):
+                continue
+            want = club_to_cluster.get(owners[0])
+            if want is not None and cluster.get(tid) != want:
+                moved[tid] = (cluster.get(tid), want, num,
+                              counts.most_common(1)[0][1])
+                cluster[tid] = want
+    for tid, (was, now, num, n) in sorted(moved.items()):
+        print(f"CLUB BY NUMBER: track {tid} read #{num} {n} times, and only "
+              f"{club_of[now]} has it; its colour vote was a coin toss "
+              f"({dict(votes.get(tid) or {})}), so it moves "
+              f"{club_of.get(was)} -> {club_of[now]}")
+
     tentative = {}
     if args.confirm == "roster":
         # A roster is a constraint, not a lookup table: one number belongs to
@@ -655,16 +706,12 @@ def main():
             (a, _), (b, _) = top
             if any(a in club_numbers[c] and b in club_numbers[c] for c in clubs):
                 continue          # one roster holds both -- the matching's job
-            # A clipped crop drops a digit, so '25' comes back as '5'. Two
-            # readings where one is the head or tail of the other are one
-            # number read twice, not two men -- measured on seg_02m44.15s_10s,
-            # where Bridges read '5' 29 times and '25' 20 times and this gate
-            # threw away an assignment the roster matching had already got
-            # right (#5 was taken, so #25 was the only reading left). Two
-            # genuinely different players do not produce substrings of each
-            # other: the case this gate exists for read '0' and '32'.
-            short, long = sorted((a, b), key=len)
-            if long.startswith(short) or long.endswith(short):
+            # A clipped read is one number, not two men. This gate threw away
+            # an assignment the roster matching had already got right on
+            # seg_02m44.15s_10s -- #5 was taken, so #25 was the only reading
+            # left for Bridges -- which is the structural fault: a late veto
+            # sees less than the stage it overrules.
+            if one_number_misread(a, b):
                 continue
             split[tid] = (a, b)
             print(f"SPLIT IDENTITY: track {tid} reads #{a} and #{b} about "
