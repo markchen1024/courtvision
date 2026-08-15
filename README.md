@@ -8,6 +8,35 @@ Currently: five single-shot segments from NYK @ DET, game 4 of the 2025 East
 first round, 10 to 33 seconds each. Four carry hand-read ground truth. On the
 best two, every label drawn is on the right man, on every frame.
 
+```mermaid
+flowchart TD
+    V["broadcast mp4"] --> C["detect_cuts<br/>shot boundaries"]
+    C --> S["find_segments<br/>single-shot stretches"]
+    S --> G{"check_lineup<br/>are all ten visible?"}
+    G -->|short| STOP["refuse — an hour of GPU saved"]
+    G -->|full| T
+
+    subgraph T ["track"]
+        F["track_sam3 or track_sam2_tutorial<br/>forward pass"] --> FU["fuse<br/>not built"]
+        R["track_sam2_tutorial, reverse pass<br/>causal memory, different evidence"] --> FU
+    end
+
+    T --> O["oncourt<br/>drop anyone off the floor"]
+    O --> I["identify<br/>OCR votes, team clusters,<br/>roster matching, tracklet merge"]
+    K["auto_calibrate<br/>court keypoints"] --> P["project<br/>pixels to metres"]
+    I --> P
+    I --> RF["render_final<br/>masks and name chips"]
+    P --> W["webapp<br/>clip beside a top-down court"]
+    RF --> SC["score and report<br/>precision, coverage, rules of basketball"]
+
+    style G fill:#3e4d12,color:#c8f031
+    style STOP fill:#3d1b1b,color:#ff7373
+    style FU stroke-dasharray: 4 4
+```
+
+The gate is the part worth noticing: it is cheap, it is early, and it is the
+only place the pipeline is allowed to refuse.
+
 ## What it actually does, and what that cost
 
 Every number below was measured on this footage by the scripts in `pipeline/`,
@@ -51,6 +80,30 @@ ground truth was read off crop strips by eye by the author — the same person
 whose system it scores. Stretches too blurred to read are marked unknown and
 skipped rather than guessed, which is why coverage has a ceiling below 100%
 on the longer clips.
+
+### What it costs
+
+Taken from the run archive rather than estimated — every stage reports its own
+wall clock to `out/progress/`, and these are the fastest recorded run of each
+on one RTX 4080, for the 19-second segment.
+
+| route | tracking | identity | render | total | ×realtime | a 48-min game |
+|---|---|---|---|---|---|---|
+| SAM3 + filter + merge | 47.9m | 14.9m | 2.4m | **65.7m** | 205× | **164 GPU-hours** |
+| SAM2, prompt once | 11.4m | 14.9m | 2.4m | **28.7m** | 90× | **72 GPU-hours** |
+
+So the route that measures 100% precision costs 2.3× the one that measures
+95.5%, and tracking is 73% of it. That is the real trade, and it is not
+currently winnable by tuning: SAM3 is doing per-frame segmentation on 1153
+frames.
+
+Nothing here is optimised for throughput, and it would not be honest to imply
+otherwise. The obvious moves are unmade: identity runs OCR on a grid of frames
+where a track's number is settled by its first dozen legible reads, tracking
+runs at source resolution, and nothing is batched across segments. A
+production version would also not run this on all 48 minutes — most of a
+broadcast is not live play, and `find_segments.py` already knows which parts
+are.
 
 ## The interesting part
 
@@ -190,6 +243,26 @@ Long runs report to files rather than a terminal buffer —
 `python pipeline/progress.py --serve`, then http://localhost:8799. A two-and-a-
 half hour SAM2 run once produced no visible output at all because ultralytics
 buffered every result; progress belongs in files.
+
+![the pipeline monitor's run archive, grouped by source clip](docs/img/progress-history.jpg)
+
+Finished runs are kept, not cleared, and grouped by the clip they were run on:
+one row per segment, its stages folded underneath in the order they ran, each
+carrying what it produced, the parameters it used and the commit that produced
+it. The compute figures quoted above were read off this, not estimated. A run
+that crashes is archived as failed with its traceback — before this, a crashed
+script simply stopped writing and sat on the page as "stale" forever.
+
+The tests are the identity rules, pinned to the clips that produced them:
+
+```bash
+~/.venvs/courtvision/Scripts/python -m pytest tests -q
+```
+
+Each one is a defect this pipeline shipped — a seven-frame tracker handover
+that lost a player, a clipped crop that read `25` as `5`, `#8` belonging to a
+different man on each roster. They were prose in a docstring, and prose does
+not fail when someone widens a threshold.
 
 The front end:
 
