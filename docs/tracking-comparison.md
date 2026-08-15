@@ -843,3 +843,53 @@ Two clips are demo-ready by measurement rather than by eye. The lesson stands
 on its own: this gate was written against one clip and shipped without being
 run against any other, and the next clip it saw was the one it broke. Nothing
 new ships now without a re-score across every labelled segment.
+
+## Grading a segment without labelling it (2026-08-15)
+
+Every defect this pipeline shipped was found by a human watching the render.
+That is the most expensive way to find a bug and the least reliable: the label
+that sat on Towns for two fifths of a clip survived two days of hand-cropped
+frames, and the eighth gate deleting Bridges was reported by Mark, not by any
+check.
+
+Most of those defects break a rule of basketball, and rules of basketball need
+no ground truth:
+
+    ten players on the floor      labels drawn per frame should be ten
+    five a side                   distinct (club, number) per club
+    one man, one identity         no (club, number) on two live tracks at once
+    one identity, one label       no player drawn twice in a frame
+
+`pipeline/report.py` checks those, draws a chart of labels per frame and a bar
+per player showing exactly when each is labelled, lists what each gate
+removed, and folds in `score.py` when a truth file exists for those boxes. It
+runs as stage 5 of `run_segment.py`, on every run including resumed ones.
+
+The proxy was validated before being trusted, which is the point of the whole
+exercise. Labels-per-frame over ten against measured coverage:
+
+    seg_02m28.00s_13s      10.00 -> 100.0%
+    seg_02m44.15s_10s       9.98 ->  99.8%
+    seg_01m10.87s_19s SAM3  9.33 ->  91.7%
+
+Close enough to rank candidates. The caveat is the one that has bitten twice
+already: it counts labels without checking them, so a run that draws a wrong
+name scores well. It is an upper bound -- shortlist with it, decide with
+`score.py`. The SAM2 route on the 19s segment is the counter-example, scoring
+respectably here while putting Harris's name on Towns for 40% of the clip.
+
+All five segments, ranked:
+
+| segment | length | players | labels/frame | proxy | truth p/c | verdict |
+|---|---|---|---|---|---|---|
+| seg_02m28.00s_13s | 12.5s | 10 | 10.00 | 100% | 100% / 100% | **ready** |
+| seg_02m44.15s_10s | 10.0s | 10 | 9.98 | 100% | 100% / 99.8% | 1 frame short |
+| seg_01m10.87s_19s SAM3 | 19.2s | 10 | 9.33 | 93% | 100% / 91.7% | 572 frames short |
+| seg_01m48.88s_33s | 33.3s | 10 | 9.03 | 90% | — | 907 frames short |
+| seg_00m03.54s_26s | 26.1s | 9 | 7.45 | 74% | — | a Piston never named |
+
+The 26s clip fails the five-a-side check outright -- four Pistons named, not
+five -- which is a verdict reachable in a second with no labelling at all. The
+33s clip names all ten but loses Bridges and Hart to a fifteen-second collapse
+starting at 18.2s, nearly half its length. Longer clips meet more contact;
+that is the trade this table makes visible.

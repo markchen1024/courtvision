@@ -15,6 +15,8 @@ Stages, in order:
   2  track_sam2_tutorial   SAM2, tutorial-aligned
   3  identify           OCR + teams + roster-constrained assignment
   4  render_final       club-tinted masks, name chips
+  5  report             grades the result against the rules of basketball,
+                        writes out/report_<stem>.html and refreshes the index
 
 Everything after stage 1 is expensive, which is why stage 1 is there.
 """
@@ -104,6 +106,14 @@ def main():
                                "--video", str(video), "--boxes", str(tracks),
                                "--identities", str(ids), "--out", str(final)]):
         return 1
+
+    # Always, even on a resumed run: it costs a second and it is the only
+    # stage that says whether the twenty minutes above produced something
+    # worth watching. Every defect this pipeline shipped was found by a human
+    # watching the render instead.
+    run("grade: report", [PY, "pipeline/report.py", "--tracks", str(tracks),
+                          "--identities", str(ids)])
+    run("grade: index", [PY, "pipeline/report.py", "--index"])
 
     print(f"\ndone in {(time.time() - started) / 60:.1f} min -> {final}")
     return 0
