@@ -295,14 +295,31 @@ def main():
             f'<td>{(f"{r["truth"]["precision"]:.0%} / {r["truth"]["coverage"]:.0%}") if r.get("truth") else "—"}</td>'
             f'<td class="{"ok" if r["verdict"]=="ready" else "bad"}">{r["verdict"]}</td></tr>'
             for r in reports)
+        # What the LLM audits have cost so far. vlm_check appends one line per
+        # call to out/llm_calls.jsonl; summing it here is what turns "we call
+        # an LLM sometimes" into a number a budget can be planned around.
+        calls, spent = 0, 0.0
+        ledger = out_dir / "llm_calls.jsonl"
+        if ledger.exists():
+            for line in ledger.read_text(encoding="utf-8").splitlines():
+                try:
+                    row = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                calls += 1
+                spent += row.get("cost_usd") or 0.0
+        llm = (f'<div class="sub">llm audits: {calls} calls, '
+               f'${spent:.2f} total (out/llm_calls.jsonl)</div>') if calls else ""
         page = PAGE.split("<div class=\"shell\">")[0] + f"""<div class="shell">
- <h1>segments</h1><div class="sub">ranked by proxy coverage</div>
+ <h1>segments</h1><div class="sub">ranked by proxy coverage</div>{llm}
  <table><tr><th>segment</th><th>length</th><th>players</th><th>labels/frame</th>
  <th>proxy</th><th>truth p/c</th><th>verdict</th></tr>{rows}</table></div>"""
         (out_dir / "report_index.html").write_text(page, encoding="utf-8")
         print(f"wrote out/report_index.html ({len(reports)} segments)")
         for r in reports:
             print(f"  {r['stem']:<26} {r['proxy_coverage']:>6.0%}  {r['verdict']}")
+        if calls:
+            print(f"  llm audits: {calls} calls, ${spent:.2f} total")
         return 0
 
     if args.video and not (args.tracks and args.identities):
