@@ -893,3 +893,96 @@ five -- which is a verdict reachable in a second with no labelling at all. The
 33s clip names all ten but loses Bridges and Hart to a fifteen-second collapse
 starting at 18.2s, nearly half its length. Longer clips meet more contact;
 that is the trade this table makes visible.
+
+## Backward tracking, fusion, and two gates that earned their place (2026-08-15)
+
+SAM2's memory is causal, so playing the clip backwards is not the same run
+twice. On seg_01m10.87s_19s the forward pass merges Brunson into Beasley at
+11.9s and stays merged for 7.3 seconds; prompted at 19.0s and walked back, that
+merge never happens and the longest collapse is 1.2s. The mechanism is real,
+and it contradicts the reasoning that preceded the experiment -- an occlusion
+was assumed to be direction-blind, and it is not: arriving from the other side,
+SAM2 knows the two men as they were *after* they separated.
+
+Two things had to be fixed before the backward pass was usable. Prompted
+blindly on the last frame it wasted a slot on a courtside spectator, who
+projects 0.04m *inside* the sideline and so passes any outward margin; a
+tighter court test cannot exclude him. What works is a negative margin -- feet
+required to be half a metre inside the lines -- plus choosing the prompt frame
+by scanning rather than taking the last. Frame 1140 returns eleven detections,
+ten comfortably inside.
+
+Fusion of the two passes was then measured, and it is not worth it here:
+
+| route | precision | coverage | wrong |
+|---|---|---|---|
+| forward, before these gates | 95.5% | 84.2% | 462 |
+| SAM3 + on-court + merge | 100.0% | 91.7% | 0 |
+| forward + backward, fused | 96.1% | 92.6% | 429 |
+
+It buys 0.9 points of coverage for 3.9 points of precision. The wrong frames
+come from one track: the backward pass's Brunson is itself a mixed track, and
+the fusion took its boxes because they carried more votes.
+
+That mixed track produced `#7 Paul Reed` for the third time in this project,
+by a third route, and the shape underneath was the same each time: a stage
+with less information overruling one with more. Here the club is decided by
+shirt colour first and then constrains the number, so a 21-18 colour vote
+outranked fifty-two reads of `11` -- a number only the Knicks have.
+
+Two changes came out of it, and only one is a veto.
+
+**Club by number.** Where a track's number is decisive and belongs to exactly
+one club, and its colour vote is not decisive, the number decides the side.
+This lets stronger evidence win rather than adding another block. Checked
+across five runs, it fires on one track and stays silent on the rest.
+
+**Mixed kit.** A track that follows one man wears one shirt, so a team-colour
+vote that cannot decide is the signature of a track that followed two -- and it
+shows before any number is read. Across five runs it fires on exactly the two
+tracks ground truth calls mixed, both split about 21 to 18, while every clean
+track in the same runs sits at 39-0, 37-2 or 34-5.
+
+With both in place, and with the split gate catching the other mixed track,
+every labelled route now reads zero wrong:
+
+| segment | precision | coverage |
+|---|---|---|
+| seg_02m28.00s_13s | 100.0% | 100.0% |
+| seg_02m44.15s_10s | 100.0% | 99.8% |
+| seg_01m10.87s_19s SAM3 | 100.0% | 91.7% |
+| seg_01m10.87s_19s forward | 100.0% | 76.2% |
+
+The forward run went from 84.2% coverage with 462 wrong frames to 76.2% with
+none. That is the right trade by the standard this project keeps, and it is
+worth being clear about what it is not: nothing was repaired. The pipeline
+simply stopped claiming things it could not support.
+
+## A proxy that failed validation, and why it is kept (2026-08-15)
+
+Since contact is what breaks these clips, a scanner was written to find windows
+without any: sample a few frames a second, keep the boxes on the floor, flag
+pairs overlapping at IoS >= 0.75 for a second or more. No SAM2, no OCR -- seven
+minutes a segment instead of twenty-five.
+
+Validated against the three segments with ground truth, it got two right and
+the important one wrong:
+
+    seg_02m28.00s_13s   no contact found    correct, scores 100/100
+    seg_02m44.15s_10s   no contact found    correct, scores 100/99.8
+    seg_01m10.87s_19s   contact at 4.7s     the collapse is at 11.9s
+
+At 11.68s the detector returns no pair above 0.75 while SAM2's masks for tracks
+6 and 8 are already at 0.98 and stay there for seven seconds. The detector sees
+two men; the tracker has merged them. What the scanner did find, at 4.7-5.5s,
+is the Towns/Harris post-up that `count_players` had already classified as
+ordinary occlusion.
+
+So a collapse is not predicted by contact visible to the detector when it
+happens. `pipeline/scan_contact.py` is kept with that written at the top of it,
+because two right answers out of three is exactly what an untrustworthy proxy
+looks like from the inside, and this project has already shipped one of those.
+
+Screening still works, just not for free: `track_sam2_tutorial.py` then
+`overlap.py --video`, about seven minutes against twenty-five, because those
+two measure the fault itself rather than a correlate of it.

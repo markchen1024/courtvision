@@ -1,0 +1,221 @@
+{
+ "video": "out/segments/seg_01m10.87s_19s.mp4",
+ "boxes": "out/seg19_fused_tracks.json",
+ "fps": 59.94,
+ "legend": {
+  "<number>": "this track is that player throughout",
+  "mixed": "followed more than one man",
+  "not-player": "referee, coach, crowd",
+  "?": "unreadable; skipped by the scorer",
+  "segments": "[[number, from, to, club], ...]; '?' with a club still convicts on kit colour"
+ },
+ "tracks": {
+  "1": {
+   "player": "11",
+   "frames": [
+    0,
+    1140
+   ],
+   "seconds": [
+    0.0,
+    19.02
+   ],
+   "n_frames": 1070,
+   "segments": [
+    [
+     "?",
+     0,
+     428,
+     "pistons"
+    ],
+    [
+     "11",
+     641,
+     1140,
+     "knicks"
+    ]
+   ],
+   "note": "white Pistons kit at 0, 214 and 428; blue Knicks 11 from 641 on. The early man's number is never legible, but the kit is not Knicks, so a #11 label there is wrong regardless."
+  },
+  "2": {
+   "player": "25",
+   "frames": [
+    0,
+    1152
+   ],
+   "seconds": [
+    0.0,
+    19.22
+   ],
+   "n_frames": 1153,
+   "segments": [
+    [
+     "25",
+     0,
+     1152,
+     "knicks"
+    ]
+   ]
+  },
+  "3": {
+   "player": "3",
+   "frames": [
+    0,
+    1152
+   ],
+   "seconds": [
+    0.0,
+    19.22
+   ],
+   "n_frames": 1153,
+   "segments": [
+    [
+     "3",
+     0,
+     1152,
+     "knicks"
+    ]
+   ]
+  },
+  "4": {
+   "player": "32",
+   "frames": [
+    0,
+    1152
+   ],
+   "seconds": [
+    0.0,
+    19.22
+   ],
+   "n_frames": 1153,
+   "segments": [
+    [
+     "32",
+     0,
+     1152,
+     "knicks"
+    ]
+   ]
+  },
+  "5": {
+   "player": "8",
+   "frames": [
+    0,
+    1152
+   ],
+   "seconds": [
+    0.0,
+    19.22
+   ],
+   "n_frames": 1153,
+   "segments": [
+    [
+     "8",
+     0,
+     1152,
+     "knicks"
+    ]
+   ]
+  },
+  "6": {
+   "player": "0",
+   "frames": [
+    0,
+    1152
+   ],
+   "seconds": [
+    0.0,
+    19.22
+   ],
+   "n_frames": 1153,
+   "segments": [
+    [
+     "0",
+     0,
+     1152,
+     "pistons"
+    ]
+   ]
+  },
+  "7": {
+   "player": "12",
+   "frames": [
+    0,
+    1140
+   ],
+   "seconds": [
+    0.0,
+    19.02
+   ],
+   "n_frames": 1107,
+   "segments": [
+    [
+     "12",
+     0,
+     1152,
+     "pistons"
+    ]
+   ]
+  },
+  "8": {
+   "player": "2",
+   "frames": [
+    0,
+    1152
+   ],
+   "seconds": [
+    0.0,
+    19.22
+   ],
+   "n_frames": 1153,
+   "segments": [
+    [
+     "2",
+     0,
+     1152,
+     "pistons"
+    ]
+   ]
+  },
+  "9": {
+   "player": "5",
+   "frames": [
+    0,
+    1140
+   ],
+   "seconds": [
+    0.0,
+    19.02
+   ],
+   "n_frames": 1068,
+   "segments": [
+    [
+     "5",
+     0,
+     1152,
+     "pistons"
+    ]
+   ]
+  },
+  "10": {
+   "player": "8",
+   "frames": [
+    0,
+    1152
+   ],
+   "seconds": [
+    0.0,
+    19.22
+   ],
+   "n_frames": 1153,
+   "segments": [
+    [
+     "8",
+     0,
+     1152,
+     "pistons"
+    ]
+   ]
+  }
+ }
+}

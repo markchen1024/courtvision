@@ -92,10 +92,23 @@ def score(truth_path, identities_path, boxes_path=None):
             tid = r["tid"]
             said = (idn.get(tid) or {}).get("number")
             got = truth_at((tt.get(tid) or {}).get("segments"), f)
-            if got is None or got[0] in ("?", "not-player"):
+            if got is None or got[0] == "not-player":
                 unknown += 1
                 continue
             want, club = got
+            # A kit colour convicts on its own. The fused run put `#11 BRUNSON`
+            # on a man in a white Pistons shirt for the first seven seconds;
+            # the number was never legible there, but a Knicks label on a
+            # Pistons player is wrong whatever his number turns out to be.
+            if want == "?":
+                if club and (idn.get(tid) or {}).get("club") != club:
+                    wrong += 1
+                    key = (tid, f"{(idn.get(tid) or {}).get('club')}#{said}",
+                           f"{club}#?")
+                    culprits[key] = culprits.get(key, 0) + 1
+                else:
+                    unknown += 1
+                continue
             said_club = (idn.get(tid) or {}).get("club")
             if str(said) == str(want) and (club is None or said_club == club):
                 right += 1

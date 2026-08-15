@@ -217,6 +217,13 @@ def main():
                     help="frames two tracklets may coexist and still be judged "
                          "one player -- a tracker hands over with a few frames "
                          "of double report. 0 demands a clean seam.")
+    ap.add_argument("--no-kit-check", action="store_true",
+                    help="keep a name on a track whose team-colour vote cannot "
+                         "decide, which is what a track that followed two men "
+                         "looks like before any number is read")
+    ap.add_argument("--min-kit-crops", type=int, default=15,
+                    help="team crops a track needs before its kit vote is worth "
+                         "judging; a short fragment abstains rather than fails")
     ap.add_argument("--no-club-override", action="store_true",
                     help="never let a decisive jersey number move a track to "
                          "the club that owns it, even when the shirt-colour "
@@ -476,6 +483,30 @@ def main():
     live_tids = [t for t in all_tids
                  if t not in retired and t not in unvouched]
 
+    # GATE. A track that follows one man wears one kit all the way through, so
+    # a team-colour vote that cannot decide is the signature of a track that
+    # followed two men -- and it shows before any number is read. Measured
+    # across five runs it fires on exactly the two tracks ground truth calls
+    # mixed and on nothing else: the forward and backward Brunson tracks, both
+    # split about 21 to 18 while every clean track in the same runs sits at
+    # 39-0, 37-2 or 34-5.
+    #
+    # It exists because the alternatives were both wrong. Left alone, the
+    # backward pass named that track `#7 Paul Reed`, who did not play; with the
+    # club-by-number override it became `#11 Brunson` and carried his name over
+    # seven seconds of a Pistons player. The honest answer is that this track
+    # cannot be identified at all.
+    mixed = {}
+    if not args.no_kit_check:
+        for tid in live_tids:
+            tv = votes.get(tid) or Counter()
+            if sum(tv.values()) >= args.min_kit_crops and not decisive(tv):
+                mixed[tid] = dict(tv)
+                print(f"MIXED KIT: track {tid} team crops split {dict(tv)} -- "
+                      f"one man wears one shirt, so this track followed two. "
+                      f"No name.")
+    live_tids = [t for t in live_tids if t not in mixed]
+
     if args.confirm in ("majority", "roster"):
         confirmed = {}
         # not `votes` -- that name holds the team-cluster votes, and shadowing
@@ -640,6 +671,8 @@ def main():
                            **({"ignored": "mostly-collapsed",
                                "collapsed_fraction": round(unvouched[tid], 3)}
                               if tid in unvouched else {}),
+                           **({"ignored": "mixed-kit", "kit_votes": mixed[tid]}
+                              if tid in mixed else {}),
                            "team_votes": dict(votes.get(tid, {})),
                            # Keep what the OCR actually saw. Without it a
                            # wrong number is a bare assertion: on this
@@ -694,6 +727,7 @@ def main():
     # never same-club ones -- resolving those is the matching's whole value
     # (track 7 tied 25 against 8, and 8 was already taken, so 25 was the only
     # reading left).
+
     split = {}
     if not args.no_split_check:
         for tid, v in identities.items():
