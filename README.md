@@ -4,9 +4,9 @@ Give it a broadcast of a basketball game. It returns who is on the floor, where
 they are standing in metres, and which club they play for — from the television
 picture alone, with no fixed camera and no instrumented arena.
 
-Currently: an eight-second possession from NYK @ DET, game 4 of the 2025 East
-first round. Ten players on court, ten identified by jersey number, ten named
-against the roster, no duplicates.
+Currently: five single-shot segments from NYK @ DET, game 4 of the 2025 East
+first round, 10 to 33 seconds each. Four carry hand-read ground truth. On the
+best two, every label drawn is on the right man, on every frame.
 
 ## What it actually does, and what that cost
 
@@ -19,11 +19,38 @@ measured, it says so.
 | Player detection, per frame | 10 of 10 players on **52%** of frames — the rest of the time somebody is genuinely off camera |
 | Jersey-number regions | **precision 95.7%, recall 82.2%** against 30 hand-labelled frames (163 boxes) |
 | Court projection | **88 of 88** sampled frames solved, 10–12 landmarks found where 4 are needed |
-| Identity, 8-second clip | 10 of 10, no duplicates |
-| Identity, 17-second clip | 8–9 of 10, one duplicate |
+| Identity, per drawn label | **precision 100%** on three of four labelled segments — the name on screen is on the right man |
+| Identity, per player on court | **coverage 91.7–100%** on those three; the shortfall is players nobody could name, not players named wrongly |
 
-That last row is the honest shape of this: the result degrades with clip
-length, for a reason given below.
+Precision and coverage are measured by `pipeline/score.py`, which replays the
+renderer's own drawing rule against a per-track ground truth. Every labelled
+segment, worst first:
+
+| segment | route | precision | coverage | wrong frames |
+|---|---|---|---|---|
+| seg_01m10.87s_19s | SAM2, prompt once | 95.5% | 84.2% | 462 |
+| seg_01m10.87s_19s | SAM3 + on-court filter + merge | **100.0%** | 91.7% | 0 |
+| seg_02m44.15s_10s | SAM3 | **100.0%** | 99.8% | 0 |
+| seg_02m28.00s_13s | SAM3 | **100.0%** | **100.0%** | 0 |
+
+Two different comparisons live in that table and are worth keeping apart.
+Across the two 19-second rows only the route changes — same footage, same
+scorer — and that is where precision moves. Across the three SAM3 rows only
+the footage changes: 10s and 13s both come in at essentially 100% while the
+19s clip drops to 91.7%, and the unlabelled 33-second segment loses two
+players for fifteen seconds.
+
+Length is the suspect, not the proven cause. Three clips do not establish a
+curve, and the 13-second one outscores the 10-second one. What the 19s and 33s
+clips have in common is sustained contact between players; the two short ones
+have none. Contact is the mechanism — a track that has to be re-acquired can
+be re-acquired as somebody else — and longer clips simply meet more of it.
+
+Two caveats stated before you ask. Four segments is a small sample, and the
+ground truth was read off crop strips by eye by the author — the same person
+whose system it scores. Stretches too blurred to read are marked unknown and
+skipped rather than guessed, which is why coverage has a ceiling below 100%
+on the longer clips.
 
 ## The interesting part
 
@@ -51,6 +78,25 @@ detection call in minute two and only discovered at the final render. The fix
 was not a model: count the lineup on the prompt frame and refuse to continue
 when it is short. Its first run repaid itself by revealing that the segment had
 never been the problem — the prompts were coming from the wrong detector.
+
+**The first real metric reversed a decision I had already made.** Before
+`score.py` existed, the two tracking routes were ranked by the share of frames
+showing all ten labels: SAM2 62%, SAM3 50%. SAM2 won and the pipeline was
+built on it. That proxy counts labels without checking them, and it was
+wrong — measured against ground truth, SAM2 scores 95.5% precision to SAM3's
+100%, and every one of its 462 wrong frames is a single track that is Harris
+for four seconds and Towns afterwards while the render calls it Harris
+throughout. Two fifths of that clip carried Harris's name on Towns. It had
+survived two days of frames cropped and checked by hand, including the check
+that asked "are Towns and Harris both labelled at 15s?" — they were, and one
+of the labels was on the wrong man. Counting labels cannot see that; only
+checking them can.
+
+The proxy still earns its keep, now that its ceiling is known: `report.py`
+grades a segment with no ground truth at all, using rules that need none — ten
+on the floor, five a side, one man one identity, one identity one label. It
+shortlists; `score.py` decides. On the 26-second clip the rules alone return a
+verdict in a second: four Pistons named, not five.
 
 ## Stack
 
@@ -87,16 +133,28 @@ twice.
 
 ## Known limits
 
-- **Eight seconds, not a game.** Identity does not survive a camera cut, and
-  this broadcast cuts every 8.8 seconds. The route to a full game is in
-  `docs/tracking-comparison.md`: segment at cut boundaries, re-prompt each
-  segment, stitch identities across them by jersey number. Not built.
+- **Seconds, not a game, and it decays inside a segment too.** Identity does
+  not survive a camera cut, and this broadcast cuts every 8.8 seconds on
+  average. Within a single shot it still decays with length: coverage runs
+  100% at 13s, 91.7% at 19s, and the 33-second segment loses two players to a
+  fifteen-second collapse — nearly half the clip. Longer clips contain more
+  contact, and a track that has to be re-acquired can be re-acquired as
+  somebody else. The route to a full game is in `docs/tracking-comparison.md`:
+  segment at cut boundaries, re-prompt each segment, stitch identities across
+  them by jersey number. Not built.
 - **No event detection.** No shots, rebounds, assists or made/missed.
   `ShotEventTracker` ships in `sports@feat/basketball` and has never been run
   here. The event list on the homepage is placeholder and labelled as such.
 - **No ball tracking.** Small, fast, heavily occluded — a different problem.
-- **No tracking accuracy benchmark.** No HOTA, no IDF1. "10 of 10" is counted
-  on one clip, not measured against ground truth.
+- **No HOTA, no IDF1, and that is a choice.** Identity is measured end to end —
+  is the name drawn on screen on the right man — rather than as tracker
+  continuity. A tracker that fragments a player into three tracks scores badly
+  on IDF1 and perfectly here if all three carry his name, which is what the
+  product actually claims. The trade is that these numbers cannot be compared
+  against a tracking leaderboard.
+- **Four labelled segments, self-labelled.** The truth files were read off crop
+  strips by eye by the author. No second annotator, no inter-annotator
+  agreement, and the sample is four clips from one game.
 - **One game, one broadcaster.** Nothing here has been tried on another arena,
   another camera crew, or another league.
 
