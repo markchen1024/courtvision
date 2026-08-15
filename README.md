@@ -84,18 +84,35 @@ on the longer clips.
 ### What it costs
 
 Taken from the run archive rather than estimated — every stage reports its own
-wall clock to `out/progress/`, and these are the fastest recorded run of each
-on one RTX 4080, for the 19-second segment.
+wall clock to `out/progress/`, on one RTX 4080, for the 19-second segment.
+Runs are matched to the artefact they produced, so these are the stages of one
+route and not the fastest of each job.
 
 | route | tracking | identity | render | total | ×realtime | a 48-min game |
 |---|---|---|---|---|---|---|
-| SAM3 + filter + merge | 47.9m | 14.9m | 2.4m | **65.7m** | 205× | **164 GPU-hours** |
-| SAM2, prompt once | 11.4m | 14.9m | 2.4m | **28.7m** | 90× | **72 GPU-hours** |
+| SAM3 + on-court filter | 47.9m | 38.8m | 2.4m | **89.6m** | 279× | **223 GPU-hours** |
+| fused, two SAM2 passes | 24.5m | 32.0m\* | 2.5m | **59.0m** | 184× | **147 GPU-hours** |
+| SAM2, prompt once | 11.4m | 16.0m\* | 2.4m | **29.8m** | 93× | **74 GPU-hours** |
 
-So the route that measures 100% precision costs 2.3× the one that measures
-95.5%, and tracking is 73% of it. That is the real trade, and it is not
-currently winnable by tuning: SAM3 is doing per-frame segmentation on 1153
-frames.
+\* the forward pass's identify predates the archive; the reverse pass's run is
+used as a like-for-like proxy. Everything else is an archived run tied to the
+file it wrote.
+
+Two things in that table were not obvious before it existed.
+
+Identity is not the cheap stage. On the SAM3 route it is 43% of the bill,
+because SAM3 fragments the clip into 189 track ids and every one of them gets
+its crops read. The SAM2 pass produces about a dozen tracks and its identify
+costs 16 minutes against 38.8. Tracking is the headline cost, but the tracker
+sets the identity cost too, and it does so through a number nobody looks at.
+
+Running the clip twice is cheaper than running SAM3 once — 59.0m against
+89.6m, because two SAM2 passes plus two identify runs still come in under one
+SAM3 pass plus its fragmented identify. Whether it is also as accurate is the
+open question: the fused route is deliberately absent from the accuracy table
+above, because a gate aimed at the one track it currently gets wrong is still
+being written. It goes in the table when it stops moving, with the number it
+lands on rather than the number it is passing through.
 
 Nothing here is optimised for throughput, and it would not be honest to imply
 otherwise. The obvious moves are unmade: identity runs OCR on a grid of frames
