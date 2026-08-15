@@ -222,6 +222,27 @@ sys.excepthook = _on_exception
 atexit.register(_on_exit)
 
 
+def read_llm():
+    """The audit ledger, summed. vlm_check.py appends one line per call; the
+    page shows the count so nobody has to remember the LLM is being paid for
+    in quota -- cost stays in the tooltip, calls are the headline."""
+    calls, cost = 0, 0.0
+    last = None
+    ledger = ROOT / "out" / "llm_calls.jsonl"
+    try:
+        for line in ledger.read_text(encoding="utf-8").splitlines():
+            try:
+                row = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            calls += 1
+            cost += row.get("cost_usd") or 0.0
+            last = row.get("ts")
+    except OSError:
+        pass
+    return {"calls": calls, "cost_usd": round(cost, 4), "last": last}
+
+
 def read_jobs():
     """Every job file, parsed, with rate/eta/silence computed the one place."""
     # totals.hint fills in a total the reporting script didn't know (or, as with
@@ -547,6 +568,7 @@ PAGE = """<!doctype html>
   <div class="topbar">
     <span class="brand"><i></i>courtvision</span>
     <span class="toplabel">Pipeline monitor</span>
+    <span class="toplabel" id="llmstat" title="out/llm_calls.jsonl"></span>
     <span class="clock" id="clock"></span>
     <button class="ghost" onclick="openOut()">Open out/</button>
     <button class="ghost" onclick="clearFinished()">Clear finished</button>
@@ -569,7 +591,7 @@ PAGE = """<!doctype html>
 // the next sam2-something lands in the right stage without an edit here.
 const STAGES = [
   ["Scouting", "Shot cuts found, then frames scored on whether a full lineup is visible — a segment worth an hour of GPU.",
-   ["detect-cuts", "find-segments", "check-lineup"]],
+   ["detect-cuts", "find-segments", "check-lineup", "vlm-audit"]],
   ["Detection & tracking", "Every player found on a prompt frame, then carried through the clip as identity tracks &mdash; forwards, and where it is worth the GPU, backwards as well, since SAM2's memory is causal and the second pass meets an occlusion with a different history. Both sidecars keep the video's own frame numbers, so a fusion stage can line them up.",
    // "fuse-tracks", not "fuse": fuse_calibration.py is already in the repo and
    // belongs to Court space, and a prefix wide enough to swallow it would file
@@ -1024,11 +1046,15 @@ function applyView() {
 
 async function tick() {
   try {
-    const [jobs, runs, reports] = await Promise.all([
+    const [jobs, runs, reports, llm] = await Promise.all([
       (await fetch("/jobs", {cache: "no-store"})).json(),
       (await fetch("/history", {cache: "no-store"})).json(),
       (await fetch("/reports", {cache: "no-store"})).json(),
+      (await fetch("/llm", {cache: "no-store"})).json(),
     ]);
+    const ls = document.getElementById("llmstat");
+    setText(ls, llm.calls ? `LLM ${llm.calls} calls` : "");
+    if (llm.calls) ls.title = `$${(llm.cost_usd||0).toFixed(2)} api-equivalent — out/llm_calls.jsonl`;
     setText(document.getElementById("clock"), new Date().toLocaleTimeString());
     renderLive(jobs);
     liveCount = jobs.filter(j => j.state === "running" && j.silent <= STALE_S).length;
@@ -1248,7 +1274,10 @@ def serve(port):
                          ".json": "application/json"}.get(
                              target.suffix.lower(), "application/octet-stream")
                 return self._serve_file(target, ctype)
-            if u.path == "/jobs":
+            if u.path == "/llm":
+                body = json.dumps(read_llm()).encode()
+                ctype = "application/json"
+            elif u.path == "/jobs":
                 body = json.dumps(read_jobs()).encode()
                 ctype = "application/json"
             elif u.path == "/history":

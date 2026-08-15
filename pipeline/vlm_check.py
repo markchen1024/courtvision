@@ -135,10 +135,20 @@ def main():
                     help="exit 1 on a bad verdict instead of just saying so")
     args = ap.parse_args()
 
+    # Visible on the pipeline page while it runs, and archived with the rest:
+    # a thirty-second external call that spends quota should not be the one
+    # stage nobody can see.
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    from progress import Progress
+    stem0 = Path(args.image).stem.replace("_lineup", "")
+    prog = Progress("vlm-audit", total=1, note=Path(args.image).name,
+                    artifact=str(ROOT / "out" / f"{stem0}_audit.json"),
+                    meta={"image": str(args.image)})
     verdict, raw, cost = audit(args.image)
     if verdict is None:
         # The audit failing must not kill a run the gate already passed: this
         # stage exists to add information, not to add a failure mode.
+        prog.fail(note="no verdict")
         print(f"vlm audit unavailable: {raw.strip()[:200]}")
         return 0
 
@@ -147,6 +157,8 @@ def main():
     out.write_text(json.dumps({"image": str(args.image), **verdict, **cost},
                               indent=1))
 
+    prog.set(1)
+    prog.done(note=verdict.get("verdict") or "?")
     ok = verdict.get("verdict") == "ok"
     print(f"vlm audit: {verdict.get('verdict')} -- "
           f"{verdict.get('distinct_players_prompted')} distinct players prompted"
