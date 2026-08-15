@@ -96,6 +96,7 @@ class Progress:
         # made and see which weights made it.
         self.artifact = str(artifact) if artifact else None
         self.meta = dict(meta) if meta else {}
+        self.at = None
         self.commit = _git_commit()
         self.traceback = None
         self.path = DIR / f"{job}.json"
@@ -103,13 +104,28 @@ class Progress:
         _LIVE.append(self)
         self._write("running", note, force=True)
 
-    def step(self, n=1, note=""):
+    def step(self, n=1, note="", at=None):
         self.count += n
+        self._at(at)
         self._write("running", note)
 
-    def set(self, count, note=""):
+    def set(self, count, note="", at=None):
         self.count = count
+        self._at(at)
         self._write("running", note)
+
+    def _at(self, at):
+        """Where in the source video this run currently is, as 0..1.
+
+        Separate from how much of the work is done, because the two came apart
+        the moment track_sam2_tutorial.py grew --reverse: a backward pass
+        counts frames up while walking the clip down, so at 10% done it is
+        looking at 90% of the footage. The still on the page was seeking to the
+        wrong end of the clip for the entire run. Anything that does not walk
+        its source front to back leaves this None and gets the old behaviour.
+        """
+        if at is not None:
+            self.at = min(1.0, max(0.0, float(at)))
 
     def info(self, **fields):
         """Record provenance discovered after construction.
@@ -144,7 +160,7 @@ class Progress:
             "done": self.count, "total": self.total,
             "note": note, "started": self.started, "updated": now,
             "video": self.video, "folder": self.folder,
-            "artifact": self.artifact, "meta": self.meta,
+            "artifact": self.artifact, "meta": self.meta, "at": self.at,
             "commit": self.commit, "traceback": self.traceback,
         }
 
@@ -521,7 +537,10 @@ function jobCard(d) {
   // A still from where the run has got to. Bucketed so it refreshes about
   // twenty times over a job instead of on every 1.5s poll -- enough to see the
   // clip advance, cheap enough that ffmpeg is not called in a loop.
-  const bucket = pct == null ? 0 : Math.floor(pct / 5);
+  // Bucket on where the run is in the clip, which is only the same thing as
+  // its completion for a job that walks its source front to back.
+  const bucket = d.at != null ? Math.floor(d.at * 20)
+               : pct == null ? 0 : Math.floor(pct / 5);
   const shot = d.video
     ? `<img class="shot" loading="lazy" alt=""
          src="/thumb?job=${encodeURIComponent(d.job)}&b=${bucket}"
@@ -540,6 +559,7 @@ function jobCard(d) {
         <div class="track"><div class="fill${pct == null && d.state === "running" && !stale ? " indet" : ""}"
           style="width:${pct == null ? 100 : Math.max(pct, 1.5)}%;background:${fill}"></div></div>
         <div class="note">${d.note || ""}</div>
+        ${metaChips(d)}
         ${d.video ? `<div class="src" title="${d.video}">${d.video.split(/[\\\\/]/).pop()}</div>` : ""}
       </div>
     </div>
@@ -886,8 +906,18 @@ def serve(port):
                 # still: the end of a clip is a cut, a fade, or the garbage
                 # half-frame that made the first history covers unreadable.
                 # Once a run is over, the middle represents it.
-                frac = 0.5 if (not d or d.get("state") != "running") else (
-                    d["done"] / d["total"] if d.get("total") and d["done"] else 0.0)
+                #
+                # "The frame it has reached" is what the job says it is when it
+                # says so -- a reverse pass counts up while walking the clip
+                # down, and deriving position from completion pointed this at
+                # the wrong end of the footage for the whole run.
+                if not d or d.get("state") != "running":
+                    frac = 0.5
+                elif d.get("at") is not None:
+                    frac = d["at"]
+                else:
+                    frac = (d["done"] / d["total"]
+                            if d.get("total") and d["done"] else 0.0)
                 jpeg = _thumbnail(video, frac) if video and video.exists() else None
                 if not jpeg:
                     return self._empty(404)
