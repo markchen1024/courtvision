@@ -4,9 +4,12 @@ Give it a broadcast of a basketball game. It returns who is on the floor, where
 they are standing in metres, and which club they play for — from the television
 picture alone, with no fixed camera and no instrumented arena.
 
-Currently: five single-shot segments from NYK @ DET, game 4 of the 2025 East
-first round, 10 to 33 seconds each. Four carry hand-read ground truth. On the
-best two, every label drawn is on the right man, on every frame.
+Currently: seven single-shot possessions from NYK @ DET, game 4 of the 2025
+East first round, 10 to 42.6 seconds each. Five ship, and every one measures
+**100% precision** — across them, over eighty thousand drawn labels and not one
+on the wrong man. `pipeline/make_reel.py` cuts them into a 127-second reel with
+the measured numbers on the title cards; the home page plays the 42.6-second
+possession beside its live top-down court.
 
 ```mermaid
 flowchart TD
@@ -14,11 +17,12 @@ flowchart TD
     C --> S["find_segments<br/>single-shot stretches"]
     S --> G{"check_lineup<br/>are all ten visible?"}
     G -->|short| STOP["refuse — an hour of GPU saved"]
-    G -->|full| T
+    G -->|full| A["vlm_check<br/>ten distinct men? headless Claude"]
+    A --> T
 
     subgraph T ["track"]
-        F["track_sam3 or track_sam2_tutorial<br/>forward pass"] --> FU["fuse<br/>not built"]
-        R["track_sam2_tutorial, reverse pass<br/>causal memory, different evidence"] --> FU
+        F["track_sam2_tutorial<br/>forward from a clean prompt frame"] --> FU["fuse<br/>label-level union"]
+        R["track_sam2_tutorial --reverse<br/>same prompts, opposite memory"] --> FU
     end
 
     T --> O["oncourt<br/>drop anyone off the floor"]
@@ -31,7 +35,6 @@ flowchart TD
 
     style G fill:#3e4d12,color:#c8f031
     style STOP fill:#3d1b1b,color:#ff7373
-    style FU stroke-dasharray: 4 4
 ```
 
 The gate is the part worth noticing: it is cheap, it is early, and it is the
@@ -48,8 +51,8 @@ measured, it says so.
 | Player detection, per frame | 10 of 10 players on **52%** of frames — the rest of the time somebody is genuinely off camera |
 | Jersey-number regions | **precision 95.7%, recall 82.2%** against 30 hand-labelled frames (163 boxes) |
 | Court projection | **88 of 88** sampled frames solved, 10–12 landmarks found where 4 are needed |
-| Identity, per drawn label | **precision 100%** on three of four labelled segments — the name on screen is on the right man |
-| Identity, per player on court | **coverage 91.7–100%** on those three; the shortfall is players nobody could name, not players named wrongly |
+| Identity, per drawn label | **precision 100%** on six of seven labelled routes — the seventh, a rejected fusion style, measured 96.1% and never shipped |
+| Identity, per player on court | **coverage 76–100%**; every shortfall is a player nobody could name, never a player named wrongly |
 
 Precision and coverage are measured by `pipeline/score.py`, which replays the
 renderer's own drawing rule against a per-track ground truth. Every labelled
@@ -57,29 +60,36 @@ segment, worst first:
 
 | segment | route | precision | coverage | wrong frames |
 |---|---|---|---|---|
-| seg_01m10.87s_19s | SAM2, prompt once | 95.5% | 84.2% | 462 |
+| seg_01m10.87s_19s | fwd + bwd fused, independent prompts — rejected | 96.1% | 92.6% | 429 |
+| seg_01m10.87s_19s | SAM2, prompt once | **100.0%** | 76.2% | 0 |
+| seg_g6149_42s | SAM2, prompt once | **100.0%** | 89.1% | 0 |
 | seg_01m10.87s_19s | SAM3 + on-court filter + merge | **100.0%** | 91.7% | 0 |
+| seg_g6206_43s | fwd + bwd fused, one shared prompt frame | **100.0%** | **98.8%** | 0 |
 | seg_02m44.15s_10s | SAM3 | **100.0%** | 99.8% | 0 |
 | seg_02m28.00s_13s | SAM3 | **100.0%** | **100.0%** | 0 |
 
 Two different comparisons live in that table and are worth keeping apart.
-Across the two 19-second rows only the route changes — same footage, same
-scorer — and that is where precision moves. Across the three SAM3 rows only
-the footage changes: 10s and 13s both come in at essentially 100% while the
-19s clip drops to 91.7%, and the unlabelled 33-second segment loses two
-players for fifteen seconds.
+Across the 19-second rows only the route changes — same footage, same scorer —
+and that is where precision moves: the rejected fusion carries 429 wrong
+frames because it unioned two *independently identified* passes and inherited
+a mixed track from one of them; the shipped fusion on the 43-second clip
+prompts both directions from one clean frame, so the ids agree by construction
+and there is nothing to mismatch. The prompt-once rows show the other axis:
+same route, different footage, coverage from 76.2% to 89.1%.
 
-Length is the suspect, not the proven cause. Three clips do not establish a
-curve, and the 13-second one outscores the 10-second one. What the 19s and 33s
-clips have in common is sustained contact between players; the two short ones
-have none. Contact is the mechanism — a track that has to be re-acquired can
-be re-acquired as somebody else — and longer clips simply meet more of it.
+Contact, not length, is the proven mechanism. The longest clip in the table —
+42.6 seconds, a full possession — is also the second-best, because nobody in
+it stays pressed against anybody else; the 19-second clip drops to 91.7% on a
+single 7.3-second merge, and the unlabelled 33-second segment loses two
+players to a fifteen-second collapse. A track that has to be re-acquired can
+be re-acquired as somebody else, and sustained contact is what forces the
+re-acquisition.
 
-Two caveats stated before you ask. Four segments is a small sample, and the
-ground truth was read off crop strips by eye by the author — the same person
-whose system it scores. Stretches too blurred to read are marked unknown and
-skipped rather than guessed, which is why coverage has a ceiling below 100%
-on the longer clips.
+Two caveats stated before you ask. Eight truth files against one game is a
+small sample, and they were read off crop strips by eye by the author — the
+same person whose system they score. Stretches too blurred to read are marked
+unknown and skipped rather than guessed, which is why coverage has a ceiling
+below 100% on the longer clips.
 
 ### What it costs
 
@@ -108,11 +118,12 @@ sets the identity cost too, and it does so through a number nobody looks at.
 
 Running the clip twice is cheaper than running SAM3 once — 59.0m against
 89.6m, because two SAM2 passes plus two identify runs still come in under one
-SAM3 pass plus its fragmented identify. Whether it is also as accurate is the
-open question: the fused route is deliberately absent from the accuracy table
-above, because a gate aimed at the one track it currently gets wrong is still
-being written. It goes in the table when it stops moving, with the number it
-lands on rather than the number it is passing through.
+SAM3 pass plus its fragmented identify. Whether it is as accurate turned out
+to depend on *what* is fused. Fusing two independently prompted, independently
+identified passes measured 96.1% precision — the union inherited a mixed track
+from one side — and was rejected. Fusing two passes that share a single clean
+prompt frame, so their track ids agree by construction, measured 100%
+precision and 98.8% coverage on the 42.6-second possession and is what ships.
 
 Nothing here is optimised for throughput, and it would not be honest to imply
 otherwise. The obvious moves are unmade: identity runs OCR on a grid of frames
@@ -131,9 +142,12 @@ which of the pipeline's own assumptions were wrong.
 propagates from there, so the set of players it can ever identify is fixed by a
 single detection call. On this broadcast only about half of all frames show all
 ten players, and the camera cuts every 8.8 seconds — so a longer clip is not
-more data, it is more chances to be holding the wrong ten people. Eight-second
-single-shot segments are not a demo shortcut; they are the regime the
-architecture actually supports.
+more data, it is more chances to be holding the wrong ten people. Single-shot
+segments are not a demo shortcut; they are the regime the architecture
+actually supports — and within one shot, the regime measured out to 42.6
+seconds once the prompt frame was chosen by scanning for ten separated players
+and the clip was tracked in both directions from it. The camera cut is still
+the wall.
 
 **The roster is a constraint, not a lookup table.** One number belongs to one
 player. Deciding each track independently throws that away and produces two
@@ -167,6 +181,19 @@ grades a segment with no ground truth at all, using rules that need none — ten
 on the floor, five a side, one man one identity, one identity one label. It
 shortlists; `score.py` decides. On the 26-second clip the rules alone return a
 verdict in a second: four Pistons named, not five.
+
+**Counting cannot see one man boxed twice.** The lineup gate counts to ten and
+passes; whether those ten boxes hold ten *different* players is a question
+geometry cannot answer, and it cost one clip its fifth Piston — Hart detected
+twice, Beasley never prompted, discovered at the finished video. `vlm_check.py`
+now asks a headless Claude (`claude -p`, the login already on the machine, no
+new key) exactly that question about the exact boxes to be prompted. Validated
+on the three known cases before being wired in: it flags the Hart double,
+passes both clean frames, and volunteered that one struck box was "a fan in a
+Cunningham jersey". Advisory, not fatal — a three-case validation set earns a
+warning light — and every call lands in a ledger (`out/llm_calls.jsonl`,
+~$0.71 API-equivalent per audit) that the report index and the pipeline page
+both sum.
 
 ## Stack
 
@@ -203,18 +230,24 @@ twice.
 
 ## Known limits
 
-- **Seconds, not a game, and it decays inside a segment too.** Identity does
+- **Seconds, not a game, and contact is the decay mechanism.** Identity does
   not survive a camera cut, and this broadcast cuts every 8.8 seconds on
-  average. Within a single shot it still decays with length: coverage runs
-  100% at 13s, 91.7% at 19s, and the 33-second segment loses two players to a
-  fifteen-second collapse — nearly half the clip. Longer clips contain more
-  contact, and a track that has to be re-acquired can be re-acquired as
-  somebody else. The route to a full game is in `docs/tracking-comparison.md`:
-  segment at cut boundaries, re-prompt each segment, stitch identities across
-  them by jersey number. Not built.
-- **No event detection.** No shots, rebounds, assists or made/missed.
-  `ShotEventTracker` ships in `sports@feat/basketball` and has never been run
-  here. The event list on the homepage is placeholder and labelled as such.
+  average. Within a single shot, what decays coverage is sustained player
+  contact, not length itself: the contact-free 42.6-second possession measures
+  98.8%, while the 19-second clip drops to 91.7% on one 7.3-second merge and
+  the 33-second segment loses two players to a fifteen-second collapse. A
+  track that has to be re-acquired can be re-acquired as somebody else. The
+  route to a full game is in `docs/tracking-comparison.md`: segment at cut
+  boundaries, re-prompt each segment, stitch identities across them by jersey
+  number. Not built.
+- **No shot outcomes on screen, by measurement.** `pipeline/shot_events.py`
+  runs the tutorial's route — shot-pose classes debounced by
+  `ShotEventTracker` — and was scored against 12 hand-tagged events: attempt
+  detection is real (5 of 8 within ±2s, plus one genuine attempt the hand pass
+  missed), but made/missed lands 3 of 5 and fails *systematically* toward
+  MISSED, because ball-in-basket is rarely visible from a side broadcast
+  angle. So outcomes stay off screen, and the homepage event list remains
+  placeholder, labelled as such. Rebounds and assists were never attempted.
 - **No ball tracking.** Small, fast, heavily occluded — a different problem.
 - **No HOTA, no IDF1, and that is a choice.** Identity is measured end to end —
   is the name drawn on screen on the right man — rather than as tracker
@@ -222,9 +255,10 @@ twice.
   on IDF1 and perfectly here if all three carry his name, which is what the
   product actually claims. The trade is that these numbers cannot be compared
   against a tracking leaderboard.
-- **Four labelled segments, self-labelled.** The truth files were read off crop
-  strips by eye by the author. No second annotator, no inter-annotator
-  agreement, and the sample is four clips from one game.
+- **Eight truth files, self-labelled.** They were read off per-track crop
+  strips by eye by the author — no second annotator, no inter-annotator
+  agreement, and all from one game. Unreadable stretches are marked unknown
+  and skipped, never guessed.
 - **One game, one broadcaster.** Nothing here has been tried on another arena,
   another camera crew, or another league.
 
