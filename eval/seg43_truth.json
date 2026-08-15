@@ -1,0 +1,234 @@
+{
+ "video": "out/segments/seg_g6206_43s.mp4",
+ "boxes": "out/seg_g6206_43s_tracks.json",
+ "fps": 59.94,
+ "legend": {
+  "<number>": "this track is that player throughout",
+  "mixed": "followed more than one man",
+  "not-player": "referee, coach, crowd",
+  "?": "unreadable; skipped by the scorer",
+  "segments": "[[number, from, to, club], ...]"
+ },
+ "tracks": {
+  "1": {
+   "player": "2",
+   "frames": [
+    0,
+    2552
+   ],
+   "seconds": [
+    0.0,
+    42.58
+   ],
+   "n_frames": 2272,
+   "club": "knicks",
+   "note": "blue Knicks 2 at 908, 1502, 1935",
+   "segments": [
+    [
+     "2",
+     0,
+     2552,
+     "knicks"
+    ]
+   ]
+  },
+  "2": {
+   "player": "2",
+   "frames": [
+    0,
+    2484
+   ],
+   "seconds": [
+    0.0,
+    41.44
+   ],
+   "n_frames": 2485,
+   "club": "pistons",
+   "note": "PISTONS 2 at 994",
+   "segments": [
+    [
+     "2",
+     0,
+     2484,
+     "pistons"
+    ]
+   ]
+  },
+  "3": {
+   "player": "1",
+   "frames": [
+    0,
+    2552
+   ],
+   "seconds": [
+    0.0,
+    42.58
+   ],
+   "n_frames": 2553,
+   "club": "knicks",
+   "note": "blue Knicks 1 at 2552",
+   "segments": [
+    [
+     "1",
+     0,
+     2552,
+     "knicks"
+    ]
+   ]
+  },
+  "4": {
+   "player": "8",
+   "frames": [
+    0,
+    2552
+   ],
+   "seconds": [
+    0.0,
+    42.58
+   ],
+   "n_frames": 2553,
+   "club": "knicks",
+   "note": "blue Knicks, red arm band, 8 -- the Anunoby marker",
+   "segments": [
+    [
+     "8",
+     0,
+     2552,
+     "knicks"
+    ]
+   ]
+  },
+  "5": {
+   "player": "3",
+   "frames": [
+    0,
+    2552
+   ],
+   "seconds": [
+    0.0,
+    42.58
+   ],
+   "n_frames": 2553,
+   "club": "knicks",
+   "note": "HART 3 throughout; the same man as track 9, retired as a duplicate, which is why only nine players were named",
+   "segments": [
+    [
+     "3",
+     0,
+     2552,
+     "knicks"
+    ]
+   ]
+  },
+  "6": {
+   "player": "8",
+   "frames": [
+    0,
+    2552
+   ],
+   "seconds": [
+    0.0,
+    42.58
+   ],
+   "n_frames": 2553,
+   "club": "pistons",
+   "note": "white Pistons 8 at 510, 2042, 2552",
+   "segments": [
+    [
+     "8",
+     0,
+     2552,
+     "pistons"
+    ]
+   ]
+  },
+  "7": {
+   "player": "7",
+   "frames": [
+    0,
+    2552
+   ],
+   "seconds": [
+    0.0,
+    42.58
+   ],
+   "n_frames": 2553,
+   "club": "pistons",
+   "note": "REED 7 at 1021, 1531, 2552 -- Paul Reed really is on the floor in this stretch, unlike the three earlier runs where his name was invented",
+   "segments": [
+    [
+     "7",
+     0,
+     2552,
+     "pistons"
+    ]
+   ]
+  },
+  "8": {
+   "player": "17",
+   "frames": [
+    0,
+    2552
+   ],
+   "seconds": [
+    0.0,
+    42.58
+   ],
+   "n_frames": 2553,
+   "club": "pistons",
+   "note": "SCHRODER 17 at 1021, 17 at 1531",
+   "segments": [
+    [
+     "17",
+     0,
+     2552,
+     "pistons"
+    ]
+   ]
+  },
+  "9": {
+   "player": "3",
+   "frames": [
+    0,
+    2552
+   ],
+   "seconds": [
+    0.0,
+    42.58
+   ],
+   "n_frames": 2553,
+   "club": "knicks",
+   "note": "HART 3 at 1021, 1531, 2042",
+   "segments": [
+    [
+     "3",
+     0,
+     2552,
+     "knicks"
+    ]
+   ]
+  },
+  "10": {
+   "player": "25",
+   "frames": [
+    0,
+    2552
+   ],
+   "seconds": [
+    0.0,
+    42.58
+   ],
+   "n_frames": 2553,
+   "club": "knicks",
+   "note": "BRIDGES 25 at 2042",
+   "segments": [
+    [
+     "25",
+     0,
+     2552,
+     "knicks"
+    ]
+   ]
+  }
+ }
+}
