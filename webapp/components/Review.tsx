@@ -228,6 +228,7 @@ export default function Review() {
                   <div className="rev-side" key={t.id}>
                     <div className="rev-side-crops">
                       {t.crops.slice(0, 3).map(f => (
+                        // eslint-disable-next-line @next/next/no-img-element -- pipeline crops served off local disk; the optimizer would only re-encode one-shot images
                         <img key={f} src={`/data/review/crops/${f}?v=${manifest?.builtAt ?? 0}`} alt="" />
                       ))}
                     </div>
@@ -255,6 +256,7 @@ export default function Review() {
               className={`rev-item ${current?.id === t.id ? 'on' : ''}`}
               onClick={() => setSelected(t.id)}>
               {t.crops[0]
+                // eslint-disable-next-line @next/next/no-img-element -- same local one-shot crops as above
                 ? <img src={`/data/review/crops/${t.crops[0]}?v=${manifest?.builtAt ?? 0}`} alt="" />
                 : <span className="rev-noimg" />}
               <span className="rev-item-main">
@@ -274,6 +276,7 @@ export default function Review() {
           {!current ? <div className="rev-empty">select a track</div> : <>
             <div className="rev-crops">
               {current.crops.map(c => (
+                // eslint-disable-next-line @next/next/no-img-element -- same local one-shot crops as above
                 <img key={c} src={`/data/review/crops/${c}?v=${manifest.builtAt ?? 0}`} alt="" />
               ))}
             </div>

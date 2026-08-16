@@ -56,11 +56,22 @@ export default function Viewer() {
   const dataRef = useRef<TrackingData | null>(null);
   const clockStart = useRef<number | null>(null);
 
+  // Reset synchronously with the source switch, during render rather than in
+  // the effect body: setState inside an effect triggers a second render pass,
+  // and the React compiler is right to complain about it.
+  const [prevSource, setPrevSource] = useState<Source>(source);
+  if (prevSource !== source) {
+    setPrevSource(source);
+    setData(null);
+    setVideoMissing(false);
+  }
+
   useEffect(() => {
     let dead = false;
-    setData(null);
+    // refs are reset here, not in the render-time branch above: writing a ref
+    // during render is its own compiler error, and an effect is where side
+    // channels belong anyway
     dataRef.current = null;
-    setVideoMissing(false);
     clockStart.current = null;
     fetch(source.data)
       .then(r => { if (!r.ok) throw new Error(String(r.status)); return r.json(); })
@@ -93,23 +104,7 @@ export default function Viewer() {
     return 0;
   }, [videoMissing]);
 
-  useEffect(() => {
-    let raf = 0;
-    let lastUi = 0;
-    const tick = () => {
-      raf = requestAnimationFrame(tick);
-      const d = dataRef.current;
-      if (!d) return;
-      const t = currentTime();
-      drawCourt(d, t);
-      const now = performance.now();
-      if (now - lastUi > 250) { lastUi = now; setUiTime(t); }
-    };
-    raf = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(raf);
-  }, [currentTime]);
-
-  function drawCourt(d: TrackingData, t: number) {
+  const drawCourt = useCallback((d: TrackingData, t: number) => {
     const cv = canvasRef.current;
     if (!cv) return;
     const surface = Court.fit(cv);
@@ -152,10 +147,27 @@ export default function Viewer() {
       ctx.font = "500 11px var(--font-geist-mono), ui-monospace, monospace";
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      // A track id, not a jersey number — reading shirts is OCR, not attempted.
+      // Jersey numbers where the OCR settled them; a track the pipeline could
+      // not name keeps its "T<id>" placeholder, shown without the prefix.
       ctx.fillText(String(p.number).replace(/^T/, ''), g.X(pos.x), g.Y(pos.y) + 0.5);
     }
-  }
+  }, []);
+
+  useEffect(() => {
+    let raf = 0;
+    let lastUi = 0;
+    const tick = () => {
+      raf = requestAnimationFrame(tick);
+      const d = dataRef.current;
+      if (!d) return;
+      const t = currentTime();
+      drawCourt(d, t);
+      const now = performance.now();
+      if (now - lastUi > 250) { lastUi = now; setUiTime(t); }
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [currentTime, drawCourt]);
 
   const stats = data ? statsAt(data, uiTime) : null;
   const rows = stats
@@ -232,7 +244,7 @@ export default function Viewer() {
         <section className="rounded-xl border border-neutral-800 overflow-hidden flex flex-col">
           <PanelHead label="Court" right={`${stats?.shots.length ?? 0} shots`} />
           <p className="px-4 pt-2 text-[11px] font-mono text-neutral-500">
-            positions accurate to about 20cm · labels are track ids, not jersey numbers
+            positions accurate to about 20cm · labels are jersey numbers read off the shirts (tracks the OCR could not settle stay as ids)
           </p>
           <canvas ref={canvasRef} className="min-h-[300px] w-full flex-1" />
         </section>

@@ -7,6 +7,7 @@
    section by section; fidelity came first. */
 
 import { useEffect } from 'react';
+import Link from 'next/link';
 import '@/app/theme.css';
 import '@/app/plyr.css';
 import '@/app/home.css';
@@ -17,10 +18,10 @@ export default function Home() {
   return (
     <>
 <nav className="nav"><div className="shell bar">
-  <a className="wordmark" href="/">
+  <Link className="wordmark" href="/">
     <span className="name">court<b>vision</b></span>
     <span className="tag">AI</span>
-  </a>
+  </Link>
   <div className="links">
     <a href="#product">Product</a>
     <a href="#method">Method</a>
@@ -237,7 +238,7 @@ export default function Home() {
     <div className="step">
       <span className="n">04</span>
       <h3>Read the floor</h3>
-      <p>Each box's ground contact point goes through the transform and lands on the plan.
+      <p>Each box&rsquo;s ground contact point goes through the transform and lands on the plan.
       From there it is ordinary basketball.<code>(u, v) → (x, y) in metres</code></p>
     </div>
   </div>
@@ -328,7 +329,7 @@ export default function Home() {
 
 <section className="closer"><div className="shell">
   <h2>Point it at your film.</h2>
-  <p>The demo runs on a broadcast clip because that is where today's court models work.
+  <p>The demo runs on a broadcast clip because that is where today&rsquo;s court models work.
   Community footage — phone camera, strange floor, no graphics team — is the harder half,
   and the repo measures exactly where it breaks.</p>
   <a className="btn primary lg" href="#product">Open the demo <span className="arrow">→</span></a>
