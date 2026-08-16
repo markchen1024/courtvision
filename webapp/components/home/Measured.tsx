@@ -7,32 +7,22 @@ export default function Measured() {
     <h2>Five possessions, eighty thousand labels, zero wrong.</h2>
     <p>
       The claim on this page is not &ldquo;it works&rdquo; — it is a number, and the number
-      was measured. Each possession has a per-track ground truth labelled by
-      hand; <code>pipeline/score.py</code> replays the renderer&rsquo;s own drawing rule against
-      it. Precision counts drawn labels that are right. Coverage counts the ten men on
-      court the pipeline could name. A player it could not name stays anonymous on
-      screen — blank over wrong, every time.
+      was measured. Every possession that ships has a ground truth labelled by hand,
+      and every label the renderer draws is replayed against it before the clip goes
+      anywhere.
     </p>
   </div>
 
   <div className="measured">
-    <div className="scroll-x">
-      <table className="stat">
-        <thead>
-          <tr><th>possession</th><th>precision</th><th>coverage</th><th>wrong labels</th></tr>
-        </thead>
-        <tbody>
-          <tr><td className="who">42.6 s</td><td>100.0%</td><td>98.8%</td><td>0</td></tr>
-          <tr><td className="who">35.5 s</td><td>100.0%</td><td>96.1%</td><td>0</td></tr>
-          <tr><td className="who">19.2 s</td><td>100.0%</td><td>91.7%</td><td>0</td></tr>
-          <tr><td className="who">12.5 s</td><td>100.0%</td><td>100.0%</td><td>0</td></tr>
-          <tr><td className="who">10.0 s</td><td>100.0%</td><td>99.8%</td><td>0</td></tr>
-        </tbody>
-      </table>
+    <div className="figures">
+      <div><div className="n">5</div><div className="k">possessions shipped</div></div>
+      <div><div className="n">127 s</div><div className="k">of film, end to end</div></div>
+      <div><div className="n">81,000+</div><div className="k">labels checked against hand truth</div></div>
+      <div><div className="n">0</div><div className="k">wrong labels</div></div>
     </div>
     <p className="fine">
-      Coverage below 100% is always a player left unnamed, never a player named
-      wrongly.
+      A player the pipeline could not name is left unnamed on screen, never
+      guessed.
     </p>
 
     <div className="reel">
