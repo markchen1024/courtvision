@@ -252,7 +252,7 @@ export function initHome() {
         { n: '00', name: 'Ronald Holland II', min: 6, m2: 0, a2:  0, m3: 0, a3:  0, mf: 1, af: 2, oreb: 1, dreb:  0, ast:  0, stl: 0, blk: 0, tov: 2, pf: 1, pm:  -2 },
       ]},
     ];
-    const ROSTER = TEAMS[0].roster;   // the minutes tab reads the tracked side
+    const ROSTER = TEAMS[0].roster;   // the Knicks line, summed into US below
 
     // Detroit's line, for the comparison column.
     const OPP = { pts: 93, m2: 29, a2: 55, m3: 7, a3: 29, mf: 14, af: 17,
@@ -329,6 +329,7 @@ export function initHome() {
           x.setAttribute('aria-selected', on);
         }
         if (b.dataset.club !== undefined) renderBox(+b.dataset.club);
+        if (b.dataset.minsclub !== undefined) renderMins(+b.dataset.minsclub);
         if (b.dataset.shotclub !== undefined) {
           drawShots.club = b.dataset.shotclub;
           renderZones();
@@ -591,11 +592,14 @@ export function initHome() {
     }
 
     /* ── minutes and impact ──────────────────────────────────────────────────── */
-    function renderMins(){
-      const top = Math.max(...ROSTER.map(p => p.min));
-      const rows = [...ROSTER].sort((a, b) => b.min - a.min).map(p => `
+    function renderMins(club){
+      // Same hoisting-state pattern as renderBox: called before this line runs.
+      club = renderMins.club = club ?? renderMins.club ?? 0;
+      const team = TEAMS[club];
+      const top = Math.max(...team.roster.map(p => p.min));
+      const rows = [...team.roster].sort((a, b) => b.min - a.min).map(p => `
         <tr>
-          <td class="who"><span class="num">${p.n}</span>${p.name}</td>
+          <td class="who"><span class="num ${team.tone}">${p.n}</span>${p.name}</td>
           <td>${p.min}</td>
           <td><span class="mbar"><i style="width:${100 * p.min / top}%"></i></span></td>
           <td class="${p.pm >= 0 ? 'pm-pos' : 'pm-neg'}">${p.pm > 0 ? '+' : ''}${p.pm}</td>

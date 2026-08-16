@@ -77,6 +77,10 @@ export default function ProductDemo() {
     </div>
 
     <div className="tabpanel" role="tabpanel" id="p-mins" aria-labelledby="tab-mins" hidden>
+      <div className="clubs" role="tablist" aria-label="Club">
+        <button role="tab" aria-selected="true" className="on nyk" data-minsclub="0">Knicks</button>
+        <button role="tab" aria-selected="false" className="det" data-minsclub="1">Pistons</button>
+      </div>
       <div className="scroll-x"><table className="stat" id="minsTable"></table></div>
     </div>
   </div>
