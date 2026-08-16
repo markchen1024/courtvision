@@ -94,7 +94,7 @@ export default function ProductDemo() {
     <div><div className="n" id="figCourt">28 × 15</div><div className="k">metre court model</div></div>
     <div><div className="n" id="figHz">5 Hz</div><div className="k">positions sampled per second</div></div>
     <div><div className="n">0</div><div className="k">human clicks in the calibration</div></div>
-    <div><div className="n">213/213</div><div className="k">frames court-solved on this clip</div></div>
+    <div><div className="n" id="figSolved">1277/1277</div><div className="k">frames court-solved on this clip</div></div>
   </div>
     </>
   );

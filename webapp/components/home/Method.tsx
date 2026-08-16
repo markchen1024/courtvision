@@ -14,7 +14,7 @@ export default function Method() {
       <span className="n">01</span>
       <h3>Upload the film</h3>
       <p>Any fixed camera that pans and zooms. Phone on a tripod at half court is the
-      common case and it is fine.<code>ffmpeg → frames @ 5 Hz</code></p>
+      common case and it is fine.<code>ffmpeg → frames</code></p>
     </div>
     <div className="step">
       <span className="n">02</span>

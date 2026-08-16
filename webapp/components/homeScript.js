@@ -64,6 +64,8 @@ export function initHome() {
         for (const p of DATA.players) SIDE.set(p.id, p.team);
         document.getElementById('figCourt').textContent = `${c.length_m} × ${c.width_m}`;
         document.getElementById('figHz').textContent = `${v.hz} Hz`;
+        document.getElementById('figSolved').textContent =
+          `${DATA.frames.length}/${Math.round(v.duration * v.hz)}`;
         document.getElementById('colophonData').textContent =
           `${DATA.frames.length} frames · ${v.hz} Hz · ${v.duration.toFixed(0)} s · ${DATA.source}`;
       }
