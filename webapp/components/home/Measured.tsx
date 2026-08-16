@@ -19,21 +19,20 @@ export default function Measured() {
     <div className="scroll-x">
       <table className="stat">
         <thead>
-          <tr><th>possession</th><th>route</th><th>precision</th><th>coverage</th><th>wrong labels</th></tr>
+          <tr><th>possession</th><th>precision</th><th>coverage</th><th>wrong labels</th></tr>
         </thead>
         <tbody>
-          <tr><td className="who">42.6 s</td><td>SAM2 fwd + bwd, one shared prompt frame</td><td>100.0%</td><td>98.8%</td><td>0</td></tr>
-          <tr><td className="who">35.5 s</td><td>SAM2, prompt once</td><td>100.0%</td><td>96.1%</td><td>0</td></tr>
-          <tr><td className="who">19.2 s</td><td>SAM3 + on-court filter</td><td>100.0%</td><td>91.7%</td><td>0</td></tr>
-          <tr><td className="who">12.5 s</td><td>SAM3</td><td>100.0%</td><td>100.0%</td><td>0</td></tr>
-          <tr><td className="who">10.0 s</td><td>SAM3</td><td>100.0%</td><td>99.8%</td><td>0</td></tr>
+          <tr><td className="who">42.6 s</td><td>100.0%</td><td>98.8%</td><td>0</td></tr>
+          <tr><td className="who">35.5 s</td><td>100.0%</td><td>96.1%</td><td>0</td></tr>
+          <tr><td className="who">19.2 s</td><td>100.0%</td><td>91.7%</td><td>0</td></tr>
+          <tr><td className="who">12.5 s</td><td>100.0%</td><td>100.0%</td><td>0</td></tr>
+          <tr><td className="who">10.0 s</td><td>100.0%</td><td>99.8%</td><td>0</td></tr>
         </tbody>
       </table>
     </div>
     <p className="fine">
       Coverage below 100% is always a player left unnamed, never a player named
-      wrongly. One further route — fusing two independently-prompted passes —
-      measured 96.1% precision and was rejected for it; it never shipped.
+      wrongly.
     </p>
 
     <div className="reel">
