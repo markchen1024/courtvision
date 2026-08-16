@@ -19,6 +19,7 @@ import Nav from './home/Nav';
 import Hero from './home/Hero';
 import WhatItDoes from './home/WhatItDoes';
 import Method from './home/Method';
+import Measured from './home/Measured';
 import Limits from './home/Limits';
 import Pricing from './home/Pricing';
 import Closer from './home/Closer';
@@ -33,6 +34,7 @@ export default function Home() {
       <main>
         <WhatItDoes />
         <Method />
+        <Measured />
         <Limits />
         <Pricing />
         <Closer />

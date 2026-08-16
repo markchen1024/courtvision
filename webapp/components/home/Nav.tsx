@@ -11,6 +11,7 @@ export default function Nav() {
   <div className="links">
     <a href="#product">Product</a>
     <a href="#method">Method</a>
+    <a href="#results">Results</a>
     <a href="#limits">Limits</a>
     <a href="#pricing">Pricing</a>
     <a href="#">Docs</a>
