@@ -30,8 +30,8 @@ export default function Measured() {
         <source src="/media/reel.mp4" type="video/mp4" />
       </video>
       <p className="fine">
-        All five possessions, cut together. The card before each clip carries its
-        measured numbers — they come from the evaluation set, not from enthusiasm.
+        All five possessions, cut together — 2 minutes of continuous player
+        tracking and naming, with the broadcast sound.
       </p>
     </div>
   </div>

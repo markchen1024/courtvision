@@ -28,22 +28,19 @@ FONT = ROOT / "out" / "fonts" / "Staatliches-Regular.ttf"
 CARD_S = 1.4
 FPS = "2997/50"
 
-# order: the two full possessions carry the reel, the short perfect ones close
+# order: the two full possessions carry the reel, the short perfect ones close.
+# The cards name the clip and nothing else -- per-possession metrics belong to
+# the evaluation set, and the page around the reel already states the aggregate.
 SEGMENTS = [
-    ("out/seg43c_final.mp4", "42.6s possession",
-     "precision 100.0% · coverage 98.8%"),
-    ("out/seg_g6149_36s_final.mp4", "35.5s possession",
-     "precision 100.0% · coverage 96.1%"),
-    ("out/seg19_sam3_final.mp4", "19.2s possession",
-     "precision 100.0% · coverage 91.7%"),
-    ("out/seg_02m28.00s_13s_final.mp4", "12.5s possession",
-     "precision 100.0% · coverage 100.0%"),
-    ("out/seg_02m44.15s_10s_final_sound.mp4", "10.0s possession",
-     "precision 100.0% · coverage 99.8%"),
+    ("out/seg43c_final.mp4", "42.6s possession"),
+    ("out/seg_g6149_36s_final.mp4", "35.5s possession"),
+    ("out/seg19_sam3_final.mp4", "19.2s possession"),
+    ("out/seg_02m28.00s_13s_final.mp4", "12.5s possession"),
+    ("out/seg_02m44.15s_10s_final_sound.mp4", "10.0s possession"),
 ]
 
 
-def card(n, total, title, stats, path):
+def card(n, total, title, path):
     from PIL import Image, ImageDraw, ImageFont
 
     img = Image.new("RGB", (1920, 1080), "#08090c")
@@ -59,7 +56,7 @@ def card(n, total, title, stats, path):
 
     centre("COURTVISION", f_head, 300, "#c8f031")
     centre(f"POSSESSION {n} / {total}", f_big, 420, "#eef1f5")
-    centre(f"{title} · {stats}", f_sub, 610, "#99a2af")
+    centre(title, f_sub, 610, "#99a2af")
     centre("NBA Playoffs · NYK @ DET · East 1st Round Game 4 · "
            "labels measured against hand ground truth", f_foot, 740, "#6a7383")
     img.save(path)
@@ -71,15 +68,15 @@ def main():
     out_dir.mkdir(parents=True, exist_ok=True)
 
     cards = []
-    for i, (seg, title, stats) in enumerate(SEGMENTS, 1):
+    for i, (seg, title) in enumerate(SEGMENTS, 1):
         p = out_dir / f"card{i}.png"
-        card(i, len(SEGMENTS), title, stats, p)
+        card(i, len(SEGMENTS), title, p)
         cards.append(p)
 
     cmd = ["ffmpeg", "-y", "-v", "error"]
     for p in cards:
         cmd += ["-loop", "1", "-t", str(CARD_S), "-framerate", FPS, "-i", str(p)]
-    for seg, _, _ in SEGMENTS:
+    for seg, _ in SEGMENTS:
         cmd += ["-i", str(ROOT / seg)]
 
     n = len(SEGMENTS)
