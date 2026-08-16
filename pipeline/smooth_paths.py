@@ -7,10 +7,13 @@ calls it once over a dense (T, P, 2) array; our tracks are fragments with
 gaps, so each track's contiguous runs are cleaned independently and only
 frames the track actually has get written back -- no invented positions.
 
-One honest parameter note: the notebook runs at ~30Hz where its
-smooth_window=9 spans 0.3s; our grid is 5Hz, where the same window spans
-1.8s. Both the faithful window (9) and the time-equivalent one (5) get
-measured; --window picks which to apply.
+Two things keep the notebook's parameters meaning what they meant there.
+Its court is in feet and min_jump_dist=0.6 is the one absolute length in
+the set, so trajectories are scaled to feet for cleaning and back after.
+And every frame-count parameter (window 9 = 0.3s, max_jump_run 18 = 0.6s)
+assumes its ~30Hz grid, so the viewer data is projected at 29.97Hz -- our
+60fps footage sampled every other frame -- rather than the 5Hz it first
+shipped at. Both windows still get measured; --window picks.
 
     python pipeline/smooth_paths.py                # measure only, render preview
     python pipeline/smooth_paths.py --apply        # write web/data/nba.json
@@ -27,9 +30,13 @@ from pathlib import Path
 
 import numpy as np
 
-# the notebook's exact call
+# the notebook's exact call -- but its court is in FEET (cell 83) and ours is
+# in metres, and min_jump_dist=0.6 is the one absolute length in the set.
+# Trajectories are scaled to feet before cleaning and back after, so every
+# parameter keeps the meaning it was tuned with.
 NB = dict(jump_sigma=3.5, min_jump_dist=0.6, max_jump_run=18,
           pad_around_runs=2, smooth_window=9, smooth_poly=2)
+M_TO_FT = 100.0 / 30.48
 
 
 def runs_of(idx):
@@ -62,7 +69,7 @@ def clean(doc, window):
             if n < 5:
                 continue
             xy = np.array([[pts[i]["x"], pts[i]["y"]] for i in range(a, b + 1)],
-                          float).reshape(-1, 1, 2)
+                          float).reshape(-1, 1, 2) * M_TO_FT
             try:
                 cleaned, edit = clean_paths(xy, **{**NB, "smooth_window": window})
             except ValueError:
@@ -73,8 +80,8 @@ def clean(doc, window):
                 cleaned, edit = clean_paths(
                     xy, **{**NB, "smooth_window": window, "max_jump_run": 0})
                 stats_fallback[0] += 1
-            cleaned, edit = cleaned[:, 0, :], edit[:, 0]
-            orig = xy[:, 0, :]
+            cleaned, edit = cleaned[:, 0, :] / M_TO_FT, edit[:, 0]
+            orig = xy[:, 0, :] / M_TO_FT
             wob_before.append(np.abs(np.diff(orig, 2, axis=0)).mean())
             wob_after.append(np.abs(np.diff(cleaned, 2, axis=0)).mean())
             moved.extend(np.linalg.norm((cleaned - orig)[~edit], axis=1))
