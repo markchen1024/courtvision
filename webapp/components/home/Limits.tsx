@@ -17,10 +17,10 @@ export default function Limits() {
       loses the ball is worse than no shot chart.</p>
     </div>
     <div className="row">
-      <h3>Events are tagged by hand</h3>
-      <p>Shots, rebounds and turnovers are entered by a person against the clip. Automatic
-      event recognition is a research programme; the geometry on this page is not, which is
-      why one is automated here and the other is not.</p>
+      <h3>Events come from the record, not the footage</h3>
+      <p>The timeline is the league&rsquo;s official play-by-play, aligned to the clip by the
+      broadcast scoreboard clock. Automatic event recognition is a research programme; the
+      geometry on this page is not, which is why one is automated here and the other is not.</p>
     </div>
     <div className="row">
       <h3>The court model knows professional floors</h3>

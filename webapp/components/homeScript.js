@@ -284,26 +284,12 @@ export function initHome() {
     };
     const zonesFor = () => ZONESBY[drawShots.club ?? 'nyk'];
 
-    const CLIPS = [
-      // PLACEHOLDER. Event detection is not implemented: nothing in pipeline/
-      // reads a shot, a rebound or a turnover out of the footage, and the
-      // eight seconds this demo covers contain none of them anyway -- it is a
-      // half-court possession at 6:32 of the third.
-      //
-      // What is real here is only the roster: these are players who were on
-      // the floor, identified by the pipeline, on the correct clubs. The
-      // events themselves are invented to show the shape of the output, and
-      // the panel says so above the table. ShotEventTracker ships in
-      // sports@feat/basketball and would replace this.
-      { q: 'Q3', clock: '—', kind: 'score', cls: 'score', what: '3PT made',   who: 'Tim Hardaway Jr. · DET', at: '00:01' },
-      { q: 'Q3', clock: '—', kind: 'board', cls: 'board', what: 'Rebound',    who: 'Jalen Duren · DET',      at: '00:02' },
-      { q: 'Q3', clock: '—', kind: 'score', cls: 'score', what: '2PT made',   who: 'Cade Cunningham · DET',  at: '00:03' },
-      { q: 'Q3', clock: '—', kind: 'score', cls: 'score', what: '3PT made',   who: 'Karl-Anthony Towns · NYK', at: '00:04' },
-      { q: 'Q3', clock: '—', kind: 'board', cls: 'board', what: 'Rebound',    who: 'Josh Hart · NYK',        at: '00:05' },
-      { q: 'Q3', clock: '—', kind: 'score', cls: 'score', what: '2PT missed', who: 'Mikal Bridges · NYK',    at: '00:06' },
-      { q: 'Q3', clock: '—', kind: 'loss',  cls: 'loss',  what: 'Turnover',   who: 'Ausar Thompson · DET',   at: '00:07' },
-      { q: 'Q3', clock: '—', kind: 'score', cls: 'score', what: '2PT made',   who: 'Jalen Brunson · NYK',    at: '00:08' },
-    ];
+    // The real thing: ESPN's full play-by-play for this game, fetched by
+    // pipeline/fetch_pbp.py. Nothing here is read from the footage -- the
+    // panel says so -- but the plays inside the 42.6s clip carry a film_t
+    // and get highlighted, verified frame-by-frame against the broadcast
+    // scoreboard (Payne's floater at 1:47, Beasley's three dropping at 1:25).
+    let PBP = null;
 
     const sum = k => ROSTER.reduce((t, p) => t + p[k], 0);
     const pts = p => p.m2 * 2 + p.m3 * 3 + p.mf;
@@ -353,6 +339,13 @@ export function initHome() {
         }
         // The chart has no size to draw into until its panel is on screen.
         if (tab.id === 'tab-shots') drawShots();
+        // 461 plays is a long list; open it on the stretch that is on film.
+        // .clips is position:relative, so offsetTop is already list-relative.
+        if (tab.id === 'tab-clips') {
+          const first = document.querySelector('#clips .onfilm');
+          const list = document.getElementById('clips');
+          if (first && list) list.scrollTop = first.offsetTop - 60;
+        }
       };
       tabs.forEach((tab, i) => {
         tab.addEventListener('click', () => show(tab));
@@ -580,14 +573,25 @@ export function initHome() {
     }
 
     /* ── timeline ────────────────────────────────────────────────────────────── */
-    function renderClips(){
-      document.getElementById('clips').innerHTML = CLIPS.map(c => `
-        <div class="clip">
-          <span class="q">${c.q} ${c.clock}</span>
-          <span class="kind ${c.cls}">${c.kind === 'score' ? 'Scoring' : c.kind === 'board' ? 'Rebound' : 'Turnover'}</span>
-          <span class="what">${c.what}</span>
-          <span class="who">${c.who}</span>
-          <span class="at">${c.at}</span>
+    async function renderClips(){
+      const host = document.getElementById('clips');
+      try {
+        const res = await fetch('/data/pbp.json');
+        if (!res.ok) throw new Error(res.status);
+        PBP = await res.json();
+      } catch {
+        host.innerHTML = '<div class="clip"><span class="what">no play-by-play — run pipeline/fetch_pbp.py</span></div>';
+        return;
+      }
+      const KINDS = { score: 'Scoring', board: 'Rebound', loss: 'Turnover', other: 'Game' };
+      const mmss = t => `${String(Math.floor(t / 60)).padStart(2, '0')}:${String(Math.round(t % 60)).padStart(2, '0')}`;
+      host.innerHTML = PBP.plays.map(p => `
+        <div class="clip${p.film_t !== undefined ? ' onfilm' : ''}">
+          <span class="q">Q${p.q} ${p.clock}</span>
+          <span class="kind ${p.kind}">${KINDS[p.kind]}</span>
+          <span class="what">${p.text}</span>
+          <span class="who">${p.away}–${p.home}</span>
+          <span class="at">${p.film_t !== undefined ? `on film ${mmss(p.film_t)}` : ''}</span>
         </div>`).join('');
     }
 

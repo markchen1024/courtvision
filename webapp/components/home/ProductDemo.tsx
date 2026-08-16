@@ -70,9 +70,10 @@ export default function ProductDemo() {
     </div>
 
     <div className="tabpanel" role="tabpanel" id="p-clips" aria-labelledby="tab-clips" hidden>
-      <p className="fine">Placeholder. Event detection is not implemented — no
-        shots, rebounds or turnovers are read from the footage. The rows below
-        show the shape of the output, on this game&rsquo;s real roster.</p>
+      <p className="fine">The official ESPN play-by-play for this game, all four
+        quarters. Rows marked <em>on film</em> fall inside the possession above,
+        aligned by the broadcast scoreboard clock — nothing here is read from
+        the footage; see <a href="#limits">Limits</a>.</p>
       <div className="clips" id="clips"></div>
     </div>
 
@@ -89,9 +90,9 @@ export default function ProductDemo() {
     Positions are measured by the pipeline, and the names in the AI view are read
     off the jerseys — number OCR plus team clustering, with unresolved tracks left
     anonymous rather than guessed; on this possession that measures 100% precision
-    and 98.8% coverage against hand ground truth. The box score is the official
-    ESPN box for this game; the shot chart is illustrative and the event labels
-    are hand-tagged — see <a href="#limits">Limits</a>.
+    and 98.8% coverage against hand ground truth. The box score and timeline are
+    the official ESPN record for this game; the shot chart is illustrative — see{' '}
+    <a href="#limits">Limits</a>.
   </p>
 
   <div className="figures">
