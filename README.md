@@ -42,11 +42,16 @@ flowchart TD
 
     T --> O["oncourt<br/>drop anyone off the floor"]
     O --> I["identify<br/>OCR votes, team clusters,<br/>roster matching, tracklet merge"]
-    K["auto_calibrate<br/>court keypoints"] --> P["project<br/>pixels to metres"]
+    K["auto_calibrate<br/>court keypoints"] --> P["project<br/>pixels to metres, 30 Hz"]
     I --> P
     I --> RF["render_final<br/>masks and name chips"]
-    P --> W["webapp<br/>clip beside a top-down court"]
+    P --> SM["smooth_paths<br/>the notebook's clean_paths, in its units"]
+    SM --> W["webapp<br/>clip beside a top-down court"]
+    B["fetch_pbp<br/>official play-by-play — no event detection"] --> W
     RF --> SC["score and report<br/>precision, coverage, rules of basketball"]
+    SC --> FN["finals/<br/>measured · watched · shipped"]
+    FN --> RL["make_reel<br/>five possessions, title cards"]
+    RL --> W
 
     style G fill:#3e4d12,color:#c8f031
     style STOP fill:#3d1b1b,color:#ff7373
