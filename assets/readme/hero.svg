@@ -1,0 +1,85 @@
+<svg xmlns="http://www.w3.org/2000/svg"
+     width="1200" height="400" viewBox="0 0 1200 400"
+     role="img" aria-labelledby="title desc">
+  <title id="title">courtvision</title>
+  <desc id="desc">Who is on the floor, where they stand in metres, and which club they
+  play for — read from the broadcast picture alone. The diagram shows the core move:
+  a court quadrilateral found in the television frame is projected, per frame, onto a
+  top-down court plane where every player becomes a dot in metres.</desc>
+
+  <rect width="1200" height="400" rx="26" fill="#08090c"/>
+
+  <!-- ============ title block ============ -->
+  <g id="title-block" transform="translate(64 0)" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif">
+    <text y="96" font-family="ui-monospace,SFMono-Regular,Menlo,monospace"
+          font-size="19" letter-spacing="4" fill="#99a2af">BROADCAST &#8594; COURT COORDINATES</text>
+    <text y="188" font-size="82" font-weight="800" letter-spacing="1" fill="#c8f031">COURTVISION</text>
+    <text y="240" font-size="25" fill="#eef1f5">Who is on the floor, where they stand in metres,</text>
+    <text y="274" font-size="25" fill="#eef1f5">and which club — from the television picture alone.</text>
+    <text y="330" font-family="ui-monospace,SFMono-Regular,Menlo,monospace"
+          font-size="18" fill="#6a7383">RF-DETR &#183; SAM2 &#183; SigLIP clubs &#183; SmolVLM2 number OCR</text>
+    <text y="358" font-family="ui-monospace,SFMono-Regular,Menlo,monospace"
+          font-size="18" fill="#6a7383">every number measured on this footage, none quoted</text>
+  </g>
+
+  <!-- ============ homography diagram ============ -->
+  <g id="project-proof" transform="translate(700 0)">
+
+    <!-- broadcast frame -->
+    <g id="broadcast-frame">
+      <rect x="60" y="26" width="400" height="150" rx="12" fill="#0d0f14" stroke="#23272f" stroke-width="2"/>
+      <!-- court plane seen in perspective -->
+      <path d="M 92 156 L 200 62 L 348 62 L 436 156 Z" fill="#161a20" stroke="#4a5563" stroke-width="2"/>
+      <path d="M 168 100 A 62 20 0 0 0 292 100" fill="none" stroke="#4a5563" stroke-width="2"/>
+      <line x1="268" y1="62" x2="288" y2="156" stroke="#4a5563" stroke-width="2"/>
+      <path d="M 148 122 L 178 96 L 252 96 L 262 122 Z" fill="none" stroke="#4a5563" stroke-width="1.5"/>
+      <!-- two tracked players in screen space -->
+      <circle cx="196" cy="120" r="7" fill="#c8f031"/>
+      <circle cx="330" cy="98" r="7" fill="#3bc9a8"/>
+      <rect x="152" y="128" width="88" height="24" rx="4" fill="#c8f031"/>
+      <text x="196" y="145" text-anchor="middle" font-family="ui-monospace,SFMono-Regular,Menlo,monospace"
+            font-size="15" font-weight="700" fill="#08090c">#25 BRIDGES</text>
+      <text x="76" y="50" font-family="ui-monospace,SFMono-Regular,Menlo,monospace"
+            font-size="15" fill="#6a7383">broadcast frame</text>
+    </g>
+
+    <!-- projection rays: the screen quad drops onto the court plane -->
+    <g id="projection">
+      <g stroke="#c8f031" stroke-width="1.5" stroke-dasharray="5 6" opacity="0.6">
+        <line x1="92"  y1="156" x2="70"  y2="238"/>
+        <line x1="436" y1="156" x2="426" y2="238"/>
+      </g>
+      <text x="248" y="212" text-anchor="middle"
+            font-family="ui-monospace,SFMono-Regular,Menlo,monospace"
+            font-size="16" fill="#99a2af">per-frame homography &#183; pixels &#8594; metres</text>
+    </g>
+
+    <!-- top-down court, 28 x 15 m -->
+    <g id="court">
+      <rect x="70" y="238" width="356" height="128" rx="6" fill="#0d0f14" stroke="#c8f031" stroke-width="2"/>
+      <line x1="248" y1="238" x2="248" y2="366" stroke="#333a45" stroke-width="2"/>
+      <circle cx="248" cy="302" r="24" fill="none" stroke="#333a45" stroke-width="2"/>
+      <rect x="70" y="278" width="52" height="48" fill="none" stroke="#333a45" stroke-width="2"/>
+      <rect x="374" y="278" width="52" height="48" fill="none" stroke="#333a45" stroke-width="2"/>
+      <path d="M 70 250 A 62 62 0 0 1 70 354" fill="none" stroke="#333a45" stroke-width="2"/>
+      <path d="M 426 250 A 62 62 0 0 0 426 354" fill="none" stroke="#333a45" stroke-width="2"/>
+      <!-- ten players, one possession, all in one half -->
+      <g fill="#c8f031">
+        <circle cx="130" cy="300" r="6"/>
+        <circle cx="168" cy="262" r="6"/>
+        <circle cx="176" cy="336" r="6"/>
+        <circle cx="216" cy="286" r="6"/>
+        <circle cx="230" cy="330" r="6"/>
+      </g>
+      <g fill="#3bc9a8">
+        <circle cx="112" cy="278" r="6"/>
+        <circle cx="150" cy="288" r="6"/>
+        <circle cx="160" cy="318" r="6"/>
+        <circle cx="200" cy="308" r="6"/>
+        <circle cx="222" cy="264" r="6"/>
+      </g>
+      <text x="316" y="262" font-family="ui-monospace,SFMono-Regular,Menlo,monospace"
+            font-size="15" fill="#6a7383">28 &#215; 15 m</text>
+    </g>
+  </g>
+</svg>

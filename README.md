@@ -1,4 +1,7 @@
-# courtvision
+<p align="center">
+  <img src="assets/readme/hero.svg" width="100%"
+       alt="courtvision — who is on the floor, where they stand in metres, and which club they play for, read from the broadcast picture alone. A court quadrilateral found in the television frame is projected, per frame, onto a top-down court plane.">
+</p>
 
 Give it a broadcast of a basketball game. It returns who is on the floor, where
 they are standing in metres, and which club they play for — from the television
@@ -41,6 +44,10 @@ flowchart TD
 
 The gate is the part worth noticing: it is cheap, it is early, and it is the
 only place the pipeline is allowed to refuse.
+
+<p align="center">
+  <img src="assets/readme/section-measured.svg" width="100%" alt="01 — Measured">
+</p>
 
 ## What it actually does, and what that cost
 
@@ -135,6 +142,10 @@ production version would also not run this on all 48 minutes — most of a
 broadcast is not live play, and `find_segments.py` already knows which parts
 are.
 
+<p align="center">
+  <img src="assets/readme/section-interesting.svg" width="100%" alt="02 — The interesting part">
+</p>
+
 ## The interesting part
 
 Not the models. All five are off the shelf. What took the time was finding out
@@ -197,6 +208,10 @@ warning light — and every call lands in a ledger (`out/llm_calls.jsonl`,
 ~$0.71 API-equivalent per audit) that the report index and the pipeline page
 both sum.
 
+<p align="center">
+  <img src="assets/readme/section-stack.svg" width="100%" alt="03 — Stack">
+</p>
+
 ## Stack
 
 | | |
@@ -211,6 +226,10 @@ both sum.
 This follows [Roboflow's basketball notebook](https://blog.roboflow.com/identify-basketball-players/)
 component for component. Where this repo deviates, the deviation was measured
 against the original on the same footage — see `docs/tracking-comparison.md`.
+
+<p align="center">
+  <img src="assets/readme/section-rejected.svg" width="100%" alt="04 — Tried and rejected">
+</p>
 
 ## What was tried and rejected
 
@@ -229,6 +248,10 @@ twice.
   numbers. Never implemented. The tutorial designates SAM2 and this repo
   follows the designated baseline, so the comparison was never run and the
   claim has been removed rather than left standing unearned.
+
+<p align="center">
+  <img src="assets/readme/section-limits.svg" width="100%" alt="05 — Known limits">
+</p>
 
 ## Known limits
 
@@ -265,10 +288,17 @@ twice.
   strips by eye by the author — no second annotator, no inter-annotator
   agreement, and all from one game. Unreadable stretches are marked unknown
   and skipped, never guessed.
-- **One game, one broadcaster.** Nothing here has been tried on another arena,
-  another camera crew, or another league.
+- **Every number in the tables above is from one game, one broadcaster.** The
+  tracker comparison has since been repeated on a Summer League broadcast —
+  different arena, different kit fonts — and written up in
+  `docs/tracking-comparison.md`; the precision and coverage tables here are
+  NYK @ DET alone.
 
 `docs/gap-analysis.md` holds the full version of this, stage by stage.
+
+<p align="center">
+  <img src="assets/readme/section-run.svg" width="100%" alt="06 — Run it">
+</p>
 
 ## Run it
 
