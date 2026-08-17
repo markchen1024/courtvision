@@ -45,5 +45,16 @@ Thumbs.db
 .idea/
 .vscode/
 
-# demo footage lives here, never committed
-web/media/
+# Demo footage lives here. Only the five shipped homepage files travel with
+# the repo — two machine handoffs in a row failed on the manual copy, so the
+# shipped set rides git now (each file is under GitHub's 100MB hard limit;
+# the repo is private and short-lived, so the history cost is accepted).
+# Raw footage, reference downloads and everything else stay out. The
+# directory rule must be `/*`, not `/`: an ignored *directory* cannot have
+# files negated back in, an ignored *glob* can.
+web/media/*
+!web/media/nba_ai.mp4
+!web/media/nba.mp4
+!web/media/reel.mp4
+!web/media/poster.jpg
+!web/media/reel_poster.jpg

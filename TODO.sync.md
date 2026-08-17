@@ -1,40 +1,39 @@
-# Cross-machine sync — the last physical step, then delete this file
+# Media sync, third attempt — this time through git. Delete when done.
 
-State as of 2026-08-17 evening: everything code-side is done and pushed
-through `51750e7` — README hero, the shipped-possession frame, the updated
-flowchart, the `finals/` convention. The laptop pass is done. The one job
-left is moving the NYK @ DET binaries laptop → desktop; none of them travel
-through git (all footage is deliberately untracked — see `finals/README.md`).
+Two handoffs in a row failed at the same step: the manual binary copy never
+happened, and nothing noticed. The JSONs were fixed by tracking them
+(`d03801f`); this pass does the same for the five shipped homepage files.
+`.gitignore` now lets exactly those five into the repo — everything else
+(raw footage, reference downloads, workbench renders) stays out.
 
-## On the laptop
+## On the laptop — where the correct files are
 
-- [ ] `git pull` — brings the README's visual layer, the possession frame
-      embed, and the corrected flowchart. Worth one scroll before the
-      interview, since this machine is where the repo gets shown.
-- [ ] Gather onto a USB stick or share (paths relative to repo root):
-  - `web/media/`: `nba_ai.mp4` (62MB) · `nba.mp4` (86MB) · `reel.mp4` (48MB)
-    · `poster.jpg` · `reel_poster.jpg`
-  - `finals/`: all six renders (~360MB) — the five possession finals plus
-    `reel_final.mp4`
-  - (`web/data/*.json` no longer needs the stick: an overbroad `data/`
-    ignore rule was swallowing it; the JSONs are in git now and arrive
-    with the pull)
+- [ ] `git pull` — brings the new `.gitignore`.
+- [ ] Sanity-check sizes: every file below must be **under 100MB** (GitHub
+      hard-blocks at 100MB; the ~50MB warning is noise). Expected:
+      `nba_ai.mp4` 62MB · `nba.mp4` 86MB · `reel.mp4` 48MB · two small jpgs.
+- [ ] ```
+      git add web/media/nba_ai.mp4 web/media/nba.mp4 web/media/reel.mp4 \
+              web/media/poster.jpg web/media/reel_poster.jpg
+      git commit -m "Ship the homepage media through git"
+      git push        # ~200MB, give it a few minutes
+      ```
+- [ ] `git status` afterwards — the five must show as committed, nothing
+      else from `web/media/` staged.
 
-## On the desktop
+## On the desktop — say the word, the session runs it
 
-- [ ] Optional: keep the Summer League pair first —
-      `copy web\media\nba_ai.mp4 out\sl_backup\` (copy, don't move).
-- [ ] Drop the files into the same paths. For `web/media`, **overwrite the
-      existing files in place — never delete-then-copy**: the webapp serves
-      hardlinks that share inodes with these paths, and a delete breaks the
-      link while the old content keeps being served.
-- [ ] Quick check both sides of the hardlink:
-      `ffprobe -v error -show_entries format=duration -of default=nw=1 web/media/nba_ai.mp4`
-      and the same for `webapp/public/media/nba_ai.mp4` → both **~42.6**,
-      not 178. If the second still says 178, the link broke — re-make it:
-      `New-Item -ItemType HardLink -Path webapp\public\media\nba_ai.mp4 -Target web\media\nba_ai.mp4 -Force`
-- [ ] `reel.mp4` and the two posters are new files with no hardlinks yet —
-      tell the session to run the homepage verification; it will link them
-      into `webapp/public/media/`, start the dev server, check film / court
-      sync / box score / reel / timeline with screenshots, then delete this
-      file and push.
+The pull alone is **not** enough there: git refuses to overwrite the
+untracked Summer League files, and the webapp's hardlinks would keep
+serving the old bytes even after they were replaced. The session will:
+back up the SL pair to `out/sl_backup/`, move them aside, pull, re-make
+all five hardlinks in `webapp/public/media/`, `ffprobe` both sides of
+every link (expect 42.6s), then run the homepage verification with
+screenshots and delete this file.
+
+## Explicitly out of scope
+
+`finals/` (six renders, ~360MB) is archival and **not needed by the demo**
+— the homepage plays the `web/media` encodes. Sync it by USB whenever
+convenient, or not at all before the interview. The CRF18 reel master may
+exceed 100MB, so it must never be added to git.
