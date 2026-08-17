@@ -53,6 +53,9 @@ session starts aligned.
   (webapp references them via hardlinks; write in place to keep inodes).
 - Pipeline scripts live in `pipeline/`; long runs report to
   `pipeline/progress.py --serve` → http://localhost:8799.
+- `out/` is the workbench; a render that is measured, watched and shipped
+  gets **moved to `finals/`** (see `finals/README.md` for the three bars).
+  The reel builds from `finals/`, never from `out/`.
 - Secrets live in `.env` (gitignored): ROBOFLOW_API_KEY, HF_TOKEN. Never
   print values; verify presence by length only.
 

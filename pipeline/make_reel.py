@@ -13,7 +13,7 @@ PIL in the notebook's Staatliches face; card audio is synthesised silence at
 the same 48kHz stereo as the broadcast sound so the audio concat has ten equal
 parties.
 
-    python pipeline/make_reel.py            # writes out/reel_final.mp4
+    python pipeline/make_reel.py            # writes finals/reel_final.mp4
 """
 
 import subprocess
@@ -31,12 +31,14 @@ FPS = "2997/50"
 # order: the two full possessions carry the reel, the short perfect ones close.
 # The cards name the clip and nothing else -- per-possession metrics belong to
 # the evaluation set, and the page around the reel already states the aggregate.
+# Inputs come from finals/, the shipped-renders directory: a segment has to
+# earn its way there (measured, watched, shipped) before it can be in the reel.
 SEGMENTS = [
-    ("out/seg43c_final.mp4", "42.6s possession"),
-    ("out/seg_g6149_36s_final.mp4", "35.5s possession"),
-    ("out/seg19_sam3_final.mp4", "19.2s possession"),
-    ("out/seg_02m28.00s_13s_final.mp4", "12.5s possession"),
-    ("out/seg_02m44.15s_10s_final_sound.mp4", "10.0s possession"),
+    ("finals/seg43c_final.mp4", "42.6s possession"),
+    ("finals/seg_g6149_36s_final.mp4", "35.5s possession"),
+    ("finals/seg19_sam3_final.mp4", "19.2s possession"),
+    ("finals/seg_02m28.00s_13s_final.mp4", "12.5s possession"),
+    ("finals/seg_02m44.15s_10s_final_sound.mp4", "10.0s possession"),
 ]
 
 
@@ -89,7 +91,7 @@ def main():
         chain += f"[c{i}v][c{i}a][s{i}v][s{i}a]"
     fc = "".join(parts) + chain + f"concat=n={2*n}:v=1:a=1[v][a]"
 
-    out = ROOT / "out" / "reel_final.mp4"
+    out = ROOT / "finals" / "reel_final.mp4"
     cmd += ["-filter_complex", fc, "-map", "[v]", "-map", "[a]",
             "-c:v", "libx264", "-crf", "18", "-preset", "veryfast",
             "-c:a", "aac", "-b:a", "192k",
