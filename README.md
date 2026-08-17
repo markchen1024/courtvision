@@ -7,9 +7,11 @@ picture alone, with no fixed camera and no instrumented arena.
 Currently: seven single-shot possessions from NYK @ DET, game 4 of the 2025
 East first round, 10 to 42.6 seconds each. Five ship, and every one measures
 **100% precision** — across them, over eighty thousand drawn labels and not one
-on the wrong man. `pipeline/make_reel.py` cuts them into a 127-second reel with
-the measured numbers on the title cards; the home page plays the 42.6-second
-possession beside its live top-down court.
+on the wrong man. `pipeline/make_reel.py` cuts them into a 127-second reel,
+one title card per possession — the measured numbers stay on the page beside
+the reel, not on the cards, because per-clip metrics belong to the evaluation
+rather than the product. The home page plays the 42.6-second possession beside
+its live top-down court.
 
 ```mermaid
 flowchart TD
@@ -246,8 +248,12 @@ twice.
   detection is real (5 of 8 within ±2s, plus one genuine attempt the hand pass
   missed), but made/missed lands 3 of 5 and fails *systematically* toward
   MISSED, because ball-in-basket is rarely visible from a side broadcast
-  angle. So outcomes stay off screen, and the homepage event list remains
-  placeholder, labelled as such. Rebounds and assists were never attempted.
+  angle. So outcomes stay off screen, and the homepage timeline is the
+  official ESPN play-by-play instead (`pipeline/fetch_pbp.py`, all 461 plays,
+  the same provenance as the box score) — plays falling inside the filmed
+  possession are stamped with their clip time, aligned by the broadcast
+  scoreboard clock, and the panel says none of it is read from the footage.
+  Rebounds and assists were never attempted.
 - **No ball tracking.** Small, fast, heavily occluded — a different problem.
 - **No HOTA, no IDF1, and that is a choice.** Identity is measured end to end —
   is the name drawn on screen on the right man — rather than as tracker
@@ -368,7 +374,8 @@ ffmpeg -i raw.mp4 -c copy -movflags +faststart web/media/nba.mp4
 
 ## Status
 
-Experimental, and scoped on purpose. The box score on the homepage is the real
-ESPN line for this game; the shot-zone split is illustrative and adds back to
-the real field-goal totals; the event list is placeholder. Anything not
-measured says so.
+Experimental, and scoped on purpose. The box score and the timeline on the
+homepage are the official ESPN record for this game, with the plays inside the
+filmed possession stamped with their clip time; no event on the page is read
+from the footage. The shot-zone split is illustrative and adds back to the
+real field-goal totals. Anything not measured says so.
