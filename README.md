@@ -16,6 +16,16 @@ the reel, not on the cards, because per-clip metrics belong to the evaluation
 rather than the product. The home page plays the 42.6-second possession beside
 its live top-down court.
 
+<p align="center">
+  <img src="assets/readme/possession.png" width="100%"
+       alt="One frame of the shipped 42.6-second possession: all ten players masked in club colours, each carrying the jersey number and surname read from the picture — NYK at DET, third quarter, 1:55 on the game clock.">
+</p>
+
+<p align="center"><em>One frame of that possession, as <code>render_final.py</code> shipped it:
+ten of ten masked and named — five Knicks, five Pistons, the referee left alone.
+Across the clip this render measures 100.0% precision and 98.8% coverage
+against hand ground truth (the seg43c rows below).</em></p>
+
 ```mermaid
 flowchart TD
     V["broadcast mp4"] --> C["detect_cuts<br/>shot boundaries"]
