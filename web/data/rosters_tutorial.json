@@ -1,0 +1,123 @@
+{
+  "_source": "tutorial notebook cell 20, Celtics vs Knicks Game 1 2025 playoffs",
+  "knicks": [
+    {
+      "num": 55,
+      "name": "Hukporti"
+    },
+    {
+      "num": 1,
+      "name": "Payne"
+    },
+    {
+      "num": 0,
+      "name": "Wright"
+    },
+    {
+      "num": 11,
+      "name": "Brunson"
+    },
+    {
+      "num": 3,
+      "name": "Hart"
+    },
+    {
+      "num": 32,
+      "name": "Towns"
+    },
+    {
+      "num": 44,
+      "name": "Shamet"
+    },
+    {
+      "num": 25,
+      "name": "Bridges"
+    },
+    {
+      "num": 2,
+      "name": "McBride"
+    },
+    {
+      "num": 23,
+      "name": "Robinson"
+    },
+    {
+      "num": 8,
+      "name": "Anunoby"
+    },
+    {
+      "num": 4,
+      "name": "Dadiet"
+    },
+    {
+      "num": 5,
+      "name": "Achiuwa"
+    },
+    {
+      "num": 13,
+      "name": "Kolek"
+    }
+  ],
+  "celtics": [
+    {
+      "num": 42,
+      "name": "Horford"
+    },
+    {
+      "num": 55,
+      "name": "Scheierman"
+    },
+    {
+      "num": 9,
+      "name": "White"
+    },
+    {
+      "num": 20,
+      "name": "Davison"
+    },
+    {
+      "num": 7,
+      "name": "Brown"
+    },
+    {
+      "num": 0,
+      "name": "Tatum"
+    },
+    {
+      "num": 27,
+      "name": "Walsh"
+    },
+    {
+      "num": 4,
+      "name": "Holiday"
+    },
+    {
+      "num": 8,
+      "name": "Porzingis"
+    },
+    {
+      "num": 40,
+      "name": "Kornet"
+    },
+    {
+      "num": 88,
+      "name": "Queta"
+    },
+    {
+      "num": 11,
+      "name": "Pritchard"
+    },
+    {
+      "num": 30,
+      "name": "Hauser"
+    },
+    {
+      "num": 12,
+      "name": "Craig"
+    },
+    {
+      "num": 26,
+      "name": "Tillman"
+    }
+  ]
+}

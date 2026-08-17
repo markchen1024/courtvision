@@ -21,11 +21,16 @@ dist/
 *.mp4
 *.mov
 *.mkv
-data/
+/data/
 footage/
 out/
 output/
 runs/
+
+# Junctions into web/ — the sources of truth are web/media and web/data;
+# tracking the junction side would commit everything twice.
+webapp/public/media/
+webapp/public/data/
 
 # Crop strips that label_truth.py renders for reading jersey numbers off a
 # track. 8MB of JPEG, regenerable from the tracks file in a minute, and only

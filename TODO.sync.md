@@ -14,9 +14,11 @@ through git (all footage is deliberately untracked — see `finals/README.md`).
 - [ ] Gather onto a USB stick or share (paths relative to repo root):
   - `web/media/`: `nba_ai.mp4` (62MB) · `nba.mp4` (86MB) · `reel.mp4` (48MB)
     · `poster.jpg` · `reel_poster.jpg`
-  - `web/data/`: `nba.json` · `pbp.json`
   - `finals/`: all six renders (~360MB) — the five possession finals plus
     `reel_final.mp4`
+  - (`web/data/*.json` no longer needs the stick: an overbroad `data/`
+    ignore rule was swallowing it; the JSONs are in git now and arrive
+    with the pull)
 
 ## On the desktop
 

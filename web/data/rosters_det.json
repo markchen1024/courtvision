@@ -1,0 +1,79 @@
+{
+  "_source": "ESPN box score, gameId 401768043 -- NYK @ DET, 2025-04-27, East 1st round game 4. Only players who appeared: DNPs are removed because a player on the bench cannot be on the floor, and leaving him in lets a misassigned club find a plausible name -- Duren #0 became Knicks #0 Delon Wright, a DNP.",
+  "knicks": [
+    {
+      "num": 11,
+      "name": "Jalen Brunson"
+    },
+    {
+      "num": 32,
+      "name": "Karl-Anthony Towns"
+    },
+    {
+      "num": 3,
+      "name": "Josh Hart"
+    },
+    {
+      "num": 25,
+      "name": "Mikal Bridges"
+    },
+    {
+      "num": 8,
+      "name": "OG Anunoby"
+    },
+    {
+      "num": 23,
+      "name": "Mitchell Robinson"
+    },
+    {
+      "num": 1,
+      "name": "Cameron Payne"
+    },
+    {
+      "num": 44,
+      "name": "Landry Shamet"
+    },
+    {
+      "num": 2,
+      "name": "Miles McBride"
+    }
+  ],
+  "pistons": [
+    {
+      "num": 2,
+      "name": "Cade Cunningham"
+    },
+    {
+      "num": 12,
+      "name": "Tobias Harris"
+    },
+    {
+      "num": 0,
+      "name": "Jalen Duren"
+    },
+    {
+      "num": 8,
+      "name": "Tim Hardaway Jr."
+    },
+    {
+      "num": 9,
+      "name": "Ausar Thompson"
+    },
+    {
+      "num": 7,
+      "name": "Paul Reed"
+    },
+    {
+      "num": "00",
+      "name": "Ronald Holland II"
+    },
+    {
+      "num": 5,
+      "name": "Malik Beasley"
+    },
+    {
+      "num": 17,
+      "name": "Dennis Schroeder"
+    }
+  ]
+}
